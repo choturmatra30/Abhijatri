@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -44,7 +44,6 @@ from app.services import (
     submit_guest_review,
     withdraw_review,
 )
-
 
 router = APIRouter(prefix="/api/v1")
 
@@ -91,6 +90,15 @@ def require_staff(
 
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
+@router.get("/health/ready", response_model=HealthResponse)
+def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
+    try:
+        session.execute(text("SELECT 1"))
+    except Exception as error:
+        raise HTTPException(status_code=503, detail="database unavailable") from error
     return HealthResponse(status="ok")
 
 

@@ -462,6 +462,6 @@ def full_guest_recompute(session: Session, destination_id: uuid.UUID) -> tuple[i
 
 
 def encode_cursor(published_at: datetime, review_id: uuid.UUID) -> str:
-    raw = f"{published_at.isoformat()}|{review_id}".encode("utf-8")
+    raw = f"{published_at.isoformat()}|{review_id}".encode()
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 

@@ -1,0 +1,933 @@
+{
+  "components": {
+    "schemas": {
+      "ComfortTier": {
+        "enum": [
+          "ECONOMY",
+          "STANDARD",
+          "PREMIUM"
+        ],
+        "title": "ComfortTier",
+        "type": "string"
+      },
+      "ConflictFlagRequest": {
+        "properties": {
+          "conflict_declared": {
+            "title": "Conflict Declared",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason_code": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "conflict_declared",
+          "reason_code"
+        ],
+        "title": "ConflictFlagRequest",
+        "type": "object"
+      },
+      "GuestReviewCreate": {
+        "properties": {
+          "body": {
+            "maxLength": 6000,
+            "minLength": 20,
+            "title": "Body",
+            "type": "string"
+          },
+          "client_draft_id": {
+            "format": "uuid",
+            "title": "Client Draft Id",
+            "type": "string"
+          },
+          "comfort_tier": {
+            "$ref": "#/components/schemas/ComfortTier"
+          },
+          "consent_version": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Consent Version",
+            "type": "string"
+          },
+          "destination_id": {
+            "format": "uuid",
+            "title": "Destination Id",
+            "type": "string"
+          },
+          "guest_display_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Guest Display Name",
+            "type": "string"
+          },
+          "guest_scope_secret": {
+            "maxLength": 200,
+            "minLength": 43,
+            "title": "Guest Scope Secret",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/ReviewLanguage"
+          },
+          "overall_rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Overall Rating",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          },
+          "traveller_type": {
+            "$ref": "#/components/schemas/TravellerType"
+          },
+          "visit_month": {
+            "format": "date",
+            "title": "Visit Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination_id",
+          "client_draft_id",
+          "guest_scope_secret",
+          "guest_display_name",
+          "language",
+          "traveller_type",
+          "comfort_tier",
+          "visit_month",
+          "title",
+          "body",
+          "overall_rating",
+          "consent_version"
+        ],
+        "title": "GuestReviewCreate",
+        "type": "object"
+      },
+      "GuestReviewCreated": {
+        "properties": {
+          "duplicate_recovered": {
+            "title": "Duplicate Recovered",
+            "type": "boolean"
+          },
+          "receipt_token": {
+            "title": "Receipt Token",
+            "type": "string"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "review_id",
+          "status",
+          "version",
+          "receipt_token",
+          "duplicate_recovered"
+        ],
+        "title": "GuestReviewCreated",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "ModerationRequest": {
+        "properties": {
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason_code": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "decision",
+          "reason_code"
+        ],
+        "title": "ModerationRequest",
+        "type": "object"
+      },
+      "ModerationResult": {
+        "properties": {
+          "counted_rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counted Rating"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "review_id",
+          "status",
+          "version",
+          "counted_rating"
+        ],
+        "title": "ModerationResult",
+        "type": "object"
+      },
+      "PublicReview": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "guest_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Display Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "overall_rating": {
+            "title": "Overall Rating",
+            "type": "integer"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "guest_display_name",
+          "status",
+          "overall_rating",
+          "published_at",
+          "title",
+          "body"
+        ],
+        "title": "PublicReview",
+        "type": "object"
+      },
+      "ReceiptExchange": {
+        "properties": {
+          "receipt_token": {
+            "maxLength": 200,
+            "minLength": 40,
+            "title": "Receipt Token",
+            "type": "string"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "receipt_token"
+        ],
+        "title": "ReceiptExchange",
+        "type": "object"
+      },
+      "ReceiptStatus": {
+        "properties": {
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "review_id",
+          "status",
+          "version",
+          "published_at"
+        ],
+        "title": "ReceiptStatus",
+        "type": "object"
+      },
+      "ReviewFeed": {
+        "properties": {
+          "guest_rating_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Rating Average"
+          },
+          "guest_rating_count": {
+            "title": "Guest Rating Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "guest_rating_average",
+          "guest_rating_count"
+        ],
+        "title": "ReviewFeed",
+        "type": "object"
+      },
+      "ReviewLanguage": {
+        "enum": [
+          "BN",
+          "EN",
+          "MIXED"
+        ],
+        "title": "ReviewLanguage",
+        "type": "string"
+      },
+      "ReviewStatus": {
+        "enum": [
+          "PENDING",
+          "UNDER_REVIEW",
+          "CHANGES_REQUESTED",
+          "PUBLISHED",
+          "HIDDEN",
+          "REJECTED",
+          "WITHDRAWN",
+          "DELETED"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
+      },
+      "TravellerType": {
+        "enum": [
+          "SOLO",
+          "STUDENT",
+          "COUPLE",
+          "FAMILY",
+          "GROUP"
+        ],
+        "title": "TravellerType",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WithdrawRequest": {
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "receipt_token": {
+            "maxLength": 200,
+            "minLength": 40,
+            "title": "Receipt Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "receipt_token"
+        ],
+        "title": "WithdrawRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Bangla-first, offline-ready travel platform API",
+    "title": "Abhijatri API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/destinations/{destination_id}/reviews": {
+      "get": {
+        "operationId": "public_reviews_api_v1_destinations__destination_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "destination_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Destination Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewFeed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Reviews"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "health_ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready"
+      }
+    },
+    "/api/v1/review-receipts/exchange": {
+      "post": {
+        "operationId": "exchange_receipt_api_v1_review_receipts_exchange_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptExchange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exchange Receipt"
+      }
+    },
+    "/api/v1/reviews/guest": {
+      "post": {
+        "operationId": "create_guest_review_api_v1_reviews_guest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestReviewCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestReviewCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Guest Review"
+      }
+    },
+    "/api/v1/reviews/{review_id}/withdraw": {
+      "post": {
+        "operationId": "withdraw_guest_review_api_v1_reviews__review_id__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Withdraw Guest Review"
+      }
+    },
+    "/api/v1/staff/moderation/reviews": {
+      "get": {
+        "operationId": "moderation_queue_api_v1_staff_moderation_reviews_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-test-staff-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Test-Staff-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModerationResult"
+                  },
+                  "title": "Response Moderation Queue Api V1 Staff Moderation Reviews Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Moderation Queue"
+      }
+    },
+    "/api/v1/staff/moderation/reviews/{review_id}/conflict": {
+      "put": {
+        "operationId": "change_review_conflict_api_v1_staff_moderation_reviews__review_id__conflict_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-test-staff-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Test-Staff-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictFlagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Review Conflict"
+      }
+    },
+    "/api/v1/staff/moderation/reviews/{review_id}/decisions": {
+      "post": {
+        "operationId": "decide_review_api_v1_staff_moderation_reviews__review_id__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-test-staff-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Test-Staff-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Review"
+      }
+    }
+  }
+}

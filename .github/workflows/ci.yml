@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: abhijatri
+          POSTGRES_PASSWORD: abhijatri_ci
+          POSTGRES_DB: abhijatri_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U abhijatri -d abhijatri_test"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://abhijatri:abhijatri_ci@localhost:5432/abhijatri_test
+      TEST_DATABASE_URL: postgresql+psycopg://abhijatri:abhijatri_ci@localhost:5432/abhijatri_test
+      RECEIPT_PEPPER: ci-only-pepper-not-a-secret-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.11"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked --dev
+      - name: Lint
+        run: uv run ruff check .
+      - name: Unit tests
+        run: uv run pytest -m "not integration" -q
+      - name: Migrations apply to an empty database and match the models
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run alembic downgrade base
+      - name: PostgreSQL integration tests
+        run: uv run pytest -m integration --cov --cov-report=term-missing -q
+      - name: Docker image builds
+        run: docker build -t abhijatri-api:ci .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.11"
+      - name: Dependency audit
+        working-directory: backend
+        run: |
+          uv export --frozen --no-hashes --no-emit-project -o requirements.txt
+          uvx pip-audit -r requirements.txt --disable-pip
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect frontend
+        id: detect
+        run: |
+          if [ -f frontend/package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "No frontend/package.json yet - skipped"; fi
+      - if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: steps.detect.outputs.present == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm run build
+          npm test --if-present

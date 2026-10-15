@@ -18,10 +18,13 @@ dev = [
   "hypothesis>=6.120,<7",
   "pytest>=8,<10",
   "pytest-cov>=6,<8",
+  "ruff>=0.8,<1",
+  "pip-audit>=2.7,<3",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
   "integration: requires a real PostgreSQL database",
 ]
@@ -30,3 +33,13 @@ markers = [
 source = ["app"]
 branch = true
 
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# B008: FastAPI Depends()/Query() defaults; UP042/B904: existing str-enum and helper-raise style
+ignore = ["E501", "B008", "UP042", "B904"]

@@ -4,16 +4,17 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 import pytest
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.api import public_reviews
 from app.models import (
+    ComfortTier,
     Destination,
     DestinationRatingStats,
     DestinationStatus,
-    ComfortTier,
     ModerationDecision,
     RatingEligibility,
     Review,
@@ -34,7 +35,6 @@ from app.services import (
     submit_guest_review,
     withdraw_review,
 )
-
 
 pytestmark = pytest.mark.integration
 
@@ -106,7 +106,7 @@ def test_concurrent_publish_counts_once(postgres_session) -> None:
     destination, moderator = _seed(postgres_session)
     created = submit_guest_review(postgres_session, _payload(destination.id))
     postgres_session.commit()
-    database_url = str(postgres_session.get_bind().url)
+    database_url = postgres_session.get_bind().url.render_as_string(hide_password=False)
     engine = create_engine(database_url, pool_pre_ping=True)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
 

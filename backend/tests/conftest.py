@@ -6,8 +6,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db import Base
 from app import models  # noqa: F401
+from app.db import Base
 
 
 def _test_database_url() -> str:

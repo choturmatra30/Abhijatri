@@ -34,6 +34,8 @@ The current backend implements the first review slice: Guest submission, hashed 
 
 The development header used to identify staff is allowed only when `APP_ENV` is `development` or `test`. Production must fail closed until the real authentication adapter is configured. Test headers must never be accepted by a public deployment.
 
+**Implemented (15 October 2026):** the backend refuses to start when `APP_ENV` is not `development`/`test` and the receipt pepper is the default or shorter than 32 characters, CORS origins are `*` or empty, or the database URL lacks `sslmode=require` on a non-local host. Interactive API docs are off by default in production. CI runs lint, unit tests, real-PostgreSQL integration tests, migration/model drift checks, a dependency audit, and a secret scan; evidence is the `.github/workflows/ci.yml` run history. The database host is Supabase-managed PostgreSQL reached only by the backend (no browser-facing Supabase key or Data API); record it in the processor register below before real personal data is accepted.
+
 ### 2.3 Trust boundaries
 
 ```text

@@ -1,0 +1,33 @@
+# Render blueprint. Database is Supabase-managed PostgreSQL (not provisioned here).
+# Secrets use `sync: false`: enter values in the Render dashboard, never in git.
+services:
+  - type: web
+    name: abhijatri-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: singapore
+    plan: starter
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL        # Supabase SESSION pooler URI (port 5432) + ?sslmode=require
+        sync: false
+      - key: MIGRATION_DATABASE_URL
+        sync: false
+      - key: RECEIPT_PEPPER
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DOCS_ENABLED
+        value: "false"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "2"
+      - key: RECEIPT_SESSION_MINUTES
+        value: "15"

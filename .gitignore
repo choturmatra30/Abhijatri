@@ -8,3 +8,8 @@ htmlcov/
 .coverage
 .DS_Store
 
+.env.*
+!.env.example
+*.pem
+node_modules/
+requirements.txt

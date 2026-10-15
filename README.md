@@ -12,3 +12,15 @@ The first development slice is the review lifecycle: Guest submission, permanent
 
 See [`backend/README.md`](backend/README.md) for local setup and test commands.
 
+
+## Architecture and delivery
+
+```text
+React PWA -> HTTPS -> FastAPI (Render) -> SQLAlchemy/Psycopg -> Supabase-managed PostgreSQL
+```
+
+- [`Docs/Architecture.md`](Docs/Architecture.md): system flow, modules, environments, environment variables.
+- [`Docs/Schema.md`](Docs/Schema.md): ERD and table catalogue.
+- [`Docs/API.md`](Docs/API.md): versioned API contract and snapshot.
+- [`Docs/Implemented.md`](Docs/Implemented.md): evidenced implementation status.
+- [`render.yaml`](render.yaml) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml): deployment blueprint and CI.

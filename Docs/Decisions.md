@@ -19,6 +19,31 @@ This log records build-time decisions without reopening the frozen Review specif
 | Restore transition | Restore applies only to a `HIDDEN` review and returns it to `PUBLISHED` after recalculating its current eligibility through the locked delta path. | Gives the aggregate property test and moderation workflow a precise restore meaning. |
 | Active duplicate states | For one Member review per destination and visit month, active means `PENDING`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `PUBLISHED`, or `HIDDEN`. `REJECTED`, `WITHDRAWN`, and `DELETED` do not block a replacement. A recorded moderator override permits a legitimate repeat visit. | Prevents duplicate active submissions without permanently blocking corrected or later submissions. |
 
+## 2026-10-15 (F06: repositories, CI, shared environments)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| System flow | React PWA -> HTTPS -> FastAPI (Render, Docker) -> SQLAlchemy/Psycopg -> Supabase-managed PostgreSQL. The browser never holds a Supabase key or calls Supabase directly. | Keeps authorisation, moderation and rating integrity in one server-side boundary. |
+| Supabase connection | Backend uses the Supavisor **session** pooler URI (port 5432, `sslmode=require`). Transaction mode (6543) is not used. | Render is IPv4 and the direct host is IPv6-only; row locks and `SELECT ... FOR UPDATE` need session-stable connections. |
+| Schema changes | Alembic only. Migrations run at container start (`alembic upgrade head`). Optional `MIGRATION_DATABASE_URL` allows a separate migrator role later. | Render `preDeployCommand` is paid-only; the migrator role is a Security 4.4 deploy gate. |
+| Production config guard | Startup fails closed on default or short pepper, wildcard CORS, or non-TLS remote database. | Prevents silent insecure deployment. |
+| Environments | `abhijatri-dev` (shared team) and `abhijatri-prod` (demo) Supabase projects; CI uses a throw-away PostgreSQL service container and never touches Supabase. | Security 9.1 environment separation. |
+| Staff API on Render | Moderation endpoints return 501 in production until the real authentication adapter (R04) replaces the test header. | Security 2.2; the header must never be accepted publicly. |
+| Deploy trigger | Render auto-deploys only after CI checks pass on `main` (`autoDeployTrigger: checksPass`). | Broken builds cannot reach the demo environment. |
+| Free-tier risk | Supabase free projects pause when idle; use a paid plan or keep-alive before test and demo windows. | Avoids a dead demo. |
+| Test fix | `test_concurrent_publish_counts_once` rebuilt its engine from `str(url)`, which masks the password; it now uses `render_as_string(hide_password=False)`. | The concurrency gate could not run against a password-protected database. |
+
+**Evidence:** first real PostgreSQL execution on 15 October 2026 passed all 20 tests, including the aggregate property test, concurrent moderation test, and Guest vertical slice; `alembic upgrade head`, `alembic check`, and `alembic downgrade base` are clean. Gates 2-4 below are therefore met locally and are re-verified on every CI run.
+
+## 2026-10-15 (F02: schema and API contract)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| ERD and contract location | `Docs/Schema.md` (Mermaid ERD, implemented vs planned) and `Docs/API.md` plus `Docs/api/openapi-v1.json`. | One reviewed source for Abdullah and Irfan. |
+| Contract drift | `tests/test_openapi_contract.py` fails when `app.openapi()` differs from the committed snapshot or a route is missing from `Docs/API.md`; `tests/test_docs_schema.py` does the same for tables. | Keeps documents honest without manual review. |
+| Pending-review edit | `PATCH /reviews/{id}/pending` stays **planned (R07)**; it is not implemented in this slice. | Avoids shipping unreviewed revision logic during a documentation task. |
+| Versioning | Additive changes stay in `/api/v1`; breaking changes need `/api/v2`. | Frontend can rely on stability. |
+
 ## Decisions scheduled during implementation
 
 These choices are intentionally made at the named implementation step and then recorded in this log. They are not permission to weaken the frozen security or correctness rules.
@@ -38,9 +63,9 @@ Work may proceed beyond the first review slice only after these gates have evide
 | Order | Gate | Required evidence | Current status |
 |---:|---|---|---|
 | 1 | Database invariants | PostgreSQL migrations contain permanent draft uniqueness, the active Member duplicate index, enum-backed state values, rating checks from 1 to 5, aggregate non-negative checks, and foreign keys. | Implemented; migration SQL generation passes. |
-| 2 | Aggregate property test | Random sequences of publish, hide, withdraw, and restore produce the same sums and counts as a full recomputation on real PostgreSQL. | PostgreSQL property test written; real PostgreSQL execution required before gate closure. |
-| 3 | Moderation concurrency test | Two moderators acting on the same review concurrently produce one successful transition, one version conflict, and exactly one aggregate delta. | PostgreSQL test written; real PostgreSQL execution required before gate closure. |
-| 4 | Guest vertical slice | One Guest review completes submit, moderation, publication, public retrieval, and Guest Feedback aggregate update end to end. | PostgreSQL end-to-end test written; real PostgreSQL execution required before gate closure. |
+| 2 | Aggregate property test | Random sequences of publish, hide, withdraw, and restore produce the same sums and counts as a full recomputation on real PostgreSQL. | Passed on real PostgreSQL 17 (15 Oct 2026); re-run in CI. |
+| 3 | Moderation concurrency test | Two moderators acting on the same review concurrently produce one successful transition, one version conflict, and exactly one aggregate delta. | Passed on real PostgreSQL 17 (15 Oct 2026); re-run in CI. |
+| 4 | Guest vertical slice | One Guest review completes submit, moderation, publication, public retrieval, and Guest Feedback aggregate update end to end. | Passed on real PostgreSQL 17 (15 Oct 2026); re-run in CI. |
 
 ## Scope control
 
