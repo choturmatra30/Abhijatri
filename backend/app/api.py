@@ -88,12 +88,12 @@ def require_staff(
     return user
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@router.get("/health/ready", response_model=HealthResponse)
+@router.api_route("/health/ready", methods=["GET", "HEAD"], response_model=HealthResponse)
 def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
     try:
         session.execute(text("SELECT 1"))

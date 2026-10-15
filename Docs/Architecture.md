@@ -85,6 +85,12 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration check, audit, sec
 | `DOCS_ENABLED` | no | Defaults on outside production. |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE` | no | Pool tuning for Supabase connection limits. |
 
+### Deployed environments (fill in; never record secrets here)
+
+| Environment | API URL | Database project | Updated |
+|---|---|---|---|
+| Shared dev / demo | `https://<service>.onrender.com` | Supabase `abhijatri-dev` (Singapore) | |
+
 ## 6. Trust boundaries
 
 Public internet -> Render edge (TLS) -> API container -> Supabase over TLS. Secrets are injected through Render's dashboard, never committed. CI has no production credentials. Supabase's Data API and anon key are not part of the architecture.

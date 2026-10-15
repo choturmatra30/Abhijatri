@@ -54,3 +54,113 @@ Staff credential today is the development-only `X-Test-Staff-Id` header (`APP_EN
 1. Change `schemas.py` / `api.py`, then run the export script and commit the new snapshot.
 2. Note the change in `Docs/Decisions.md` if it is breaking or alters a rule.
 3. Frontend (Abdullah) is notified through the PR; the contract test blocks undeclared drift.
+
+## 5. Enumerations
+
+| Name | Values |
+|---|---|
+| `ReviewStatus` | `PENDING`, `UNDER_REVIEW`, `CHANGES_REQUESTED`, `PUBLISHED`, `HIDDEN`, `REJECTED`, `WITHDRAWN`, `DELETED` |
+| `ReviewLanguage` | `BN`, `EN`, `MIXED` |
+| `TravellerType` | `SOLO`, `STUDENT`, `COUPLE`, `FAMILY`, `GROUP` |
+| `ComfortTier` | `ECONOMY`, `STANDARD`, `PREMIUM` |
+| Moderation `decision` on `/decisions` | `PUBLISH`, `REJECT`, `HIDE`, `RESTORE` (case-insensitive; anything else returns 422) |
+| Conflict changes | Use `PUT .../conflict` with `conflict_declared`; `SET_CONFLICT` and `CLEAR_CONFLICT` are recorded in the audit trail, not accepted by `/decisions`. |
+
+Allowed transitions on `/decisions`: `PUBLISH` and `REJECT` from `PENDING` or `UNDER_REVIEW`; `HIDE` from `PUBLISHED`; `RESTORE` from `HIDDEN`. Any other combination returns 409. `reason_code` is 2-60 characters (free text code; a fixed catalogue is planned with R10). A moderator cannot act on their own review (403).
+
+Note: `decision` is typed as a string in the OpenAPI snapshot even though only four values are accepted; tightening it to an enum is a compatible change planned with R10.
+
+## 6. Worked examples (implemented endpoints)
+
+Guest submission:
+
+```http
+POST /api/v1/reviews/guest
+Content-Type: application/json
+
+{
+  "destination_id": "6f1c2c9e-0c0e-4a3b-9a55-2f4f7e1d2b10",
+  "client_draft_id": "0b9b2b1e-7a43-4c2e-8b57-0e0d8f6d6a11",
+  "guest_scope_secret": "<43+ character random secret kept by the client>",
+  "guest_display_name": "Sadia Rahman",
+  "language": "BN",
+  "traveller_type": "FAMILY",
+  "comfort_tier": "STANDARD",
+  "visit_month": "2026-09-01",
+  "title": "Good family trip",
+  "body": "At least twenty characters of plain text, up to 6000.",
+  "overall_rating": 4,
+  "consent_version": "2026-10-01"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "review_id": "d3a8f0a4-5d0e-4c43-9a0b-1f7e55c0a001",
+  "status": "PENDING",
+  "version": 1,
+  "receipt_token": "<shown once; store it, only its HMAC is kept server-side>",
+  "duplicate_recovered": false
+}
+```
+
+Retrying the same `client_draft_id` with the same `guest_scope_secret` returns the existing review with `duplicate_recovered: true` and no second review. Reserved display names (for example `Admin`, `Moderator`) return 409.
+
+Moderation decision (staff):
+
+```http
+POST /api/v1/staff/moderation/reviews/{review_id}/decisions
+X-Test-Staff-Id: <staff user uuid>      # development and test only
+
+{ "expected_version": 1, "decision": "PUBLISH", "reason_code": "OK", "note": null }
+```
+
+Response `200`: `{ "review_id": "...", "status": "PUBLISHED", "version": 2, "counted_rating": null }`. `counted_rating` is `null` for Guest reviews (they feed Guest Feedback, not Community Rating) and the 1-5 value for eligible Verified Member reviews. A stale `expected_version` returns 409.
+
+Public feed:
+
+```json
+{
+  "items": [
+    { "id": "...", "guest_display_name": "Sadia Rahman", "status": "PUBLISHED",
+      "overall_rating": 4, "published_at": "2026-10-15T08:30:00Z",
+      "title": "Good family trip", "body": "..." }
+  ],
+  "next_cursor": "MjAyNi0xMC0xNVQwODozMDowMCswMDowMHwuLi4",
+  "guest_rating_average": 4.0,
+  "guest_rating_count": 1
+}
+```
+
+`next_cursor` is `null` on the last page. Pass it back as `?after=<cursor>`; an invalid cursor returns 422.
+
+## 7. Proposed shapes (planned endpoints, subject to review)
+
+These are proposals for R02, R04 and R14 so the frontend can build against stable names. They are not implemented and may change before the owning task starts.
+
+```json
+// GET /api/v1/destinations
+{ "items": [ { "id": "uuid", "name_bn": "...", "name_en": "...",
+               "community_rating": { "average": null, "count": 0, "display": "SEEDED" },
+               "guest_feedback": { "average": 4.0, "count": 1 },
+               "last_updated": "2026-10-15" } ],
+  "next_cursor": null }
+
+// GET /api/v1/destinations/{id}
+{ "id": "uuid", "name_bn": "...", "name_en": "...", "summary_bn": "...", "summary_en": "...",
+  "advisories": [ { "id": "uuid", "text_bn": "...", "text_en": "...", "source": "...",
+                    "source_date": "2026-10-01", "expires_at": "2026-12-01" } ],
+  "contacts": [ { "kind": "POLICE", "name": "...", "phone": "999", "source_date": "2026-10-01" } ],
+  "content_licence": "..." }
+
+// POST /api/v1/auth/register       { "email": "...", "password": "...", "display_name": "..." } -> 202
+// POST /api/v1/auth/login          { "email": "...", "password": "..." } -> 204 + Set-Cookie (HttpOnly, Secure, SameSite=Lax)
+// GET  /api/v1/destinations/{id}/pack/manifest
+{ "destination_id": "uuid", "pack_version": 3, "generated_at": "2026-10-15T08:30:00Z",
+  "content_hash": "sha256:...", "max_age_hours": 168, "resources": [ { "path": "...", "bytes": 1024 } ] }
+
+// Structured error (planned H04)
+{ "code": "REVIEW_VERSION_CONFLICT", "message": "review version changed", "details": { "current_version": 3 } }
+```

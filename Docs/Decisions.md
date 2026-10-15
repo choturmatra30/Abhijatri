@@ -44,6 +44,14 @@ This log records build-time decisions without reopening the frozen Review specif
 | Pending-review edit | `PATCH /reviews/{id}/pending` stays **planned (R07)**; it is not implemented in this slice. | Avoids shipping unreviewed revision logic during a documentation task. |
 | Versioning | Additive changes stay in `/api/v1`; breaking changes need `/api/v2`. | Frontend can rely on stability. |
 
+## 2026-10-15 (F06 follow-up)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Supabase exposure | Migration `0002_enable_rls` enables RLS with no policies on all public tables and revokes `anon`/`authenticated` grants; Data API is also disabled in the dashboard. | Tables created through Alembic are otherwise reachable with the public anon key. |
+| CI dependency audit | `pip-audit` runs on a hashed `uv export` (without `--no-hashes`). | `--disable-pip` requires hashed requirements; first run failed on this. |
+| Moderation decisions | `/decisions` accepts `PUBLISH`, `REJECT`, `HIDE`, `RESTORE`; conflict changes use `PUT .../conflict`. | Matches implemented transitions; documented in `Docs/API.md`. |
+
 ## Decisions scheduled during implementation
 
 These choices are intentionally made at the named implementation step and then recorded in this log. They are not permission to weaken the frozen security or correctness rules.

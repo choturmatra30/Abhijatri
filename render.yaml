@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     region: singapore
-    plan: starter
+    plan: free
     healthCheckPath: /api/v1/health
     autoDeployTrigger: checksPass
     envVars:

@@ -16,4 +16,5 @@ Claims here are limited to what is in the repository and evidenced by a test, mi
 | Member reviews, accounts, verification, reports, appeals | Not implemented | Gantt R04, R07, R11. |
 | Production authentication, staff MFA, CSRF, rate limiting | Not implemented | Security.md deploy gates; staff API returns 501 in production. |
 | ERD (`Docs/Schema.md`) and API contract (`Docs/API.md`, `Docs/api/openapi-v1.json`) | Implemented, review pending | Contract and schema drift tests; sign-off in `Docs/Reviews/F02-review.md`. |
+| Row-level security on all public tables | Implemented | `migrations/versions/0002_enable_rls.py`; `tests/test_rls.py`. |
 | Redis, CDN, media pipeline, offline pack API | Deferred | Decisions.md scope control; Gantt R14. |

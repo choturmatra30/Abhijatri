@@ -150,3 +150,4 @@ Enums: `destination_status`, `review_status`, `rating_eligibility`, `revision_st
 - Foreign keys use `RESTRICT` for audit data and `CASCADE` only for owned child rows.
 - No raw NID, no exact location, no advertising identifiers (Security.md).
 - Rating changes go only through the locked delta path in `app/services.py`.
+- Row-level security is enabled on every table in `public` by migration `0002_enable_rls` (no policies), and `anon`/`authenticated` grants are revoked when those Supabase roles exist. The backend connects as the table owner, which bypasses RLS. `tests/test_rls.py` enforces this.

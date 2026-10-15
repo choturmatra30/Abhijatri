@@ -587,7 +587,23 @@
     },
     "/api/v1/health": {
       "get": {
-        "operationId": "health_api_v1_health_get",
+        "operationId": "health_api_v1_health_head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      },
+      "head": {
+        "operationId": "health_api_v1_health_head",
         "responses": {
           "200": {
             "content": {
@@ -605,7 +621,23 @@
     },
     "/api/v1/health/ready": {
       "get": {
-        "operationId": "health_ready_api_v1_health_ready_get",
+        "operationId": "health_ready_api_v1_health_ready_head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready"
+      },
+      "head": {
+        "operationId": "health_ready_api_v1_health_ready_head",
         "responses": {
           "200": {
             "content": {
