@@ -2,6 +2,21 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-16 (Platform Foundation revision 3)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Foundation adopted | `Docs/Platform-Foundation.md` revision 3 is the approved shared-platform specification, together with the same-commit amendments to Security, Review, Architecture and API documentation. `Features/Execution.md` controls dependency sequence only and cannot amend the Foundation or an approved feature specification. | Separates shared platform authority from implementation ordering. |
+| Schema changes | Supersedes the 15 October rule. Production and staging migrations run only from the protected GitHub workflow; containers never run `alembic upgrade head`; the runtime has no migrator credential. | Migrations must precede deployment and use a separate identity. |
+| Deploy trigger | Supersedes the 15 October rule. Render auto-deploy is Off. CI migrates, deploys and verifies the API, then builds the public static site, then builds the staff site, all from the tested commit. | Prevents migration races and stale prerendered content. |
+| Environments | `abhijatri-dev` becomes `abhijatri-staging`; production remains separate. | Matches the four-environment foundation contract. |
+| Guest receipts | The client generates one 256-bit receipt before submission. Receipts are never reissued and never create a cookie session. | Makes lost-response recovery idempotent without allowing a Guest scope to mint replacement receipts. |
+| HMAC domain separation | Receipt and Guest-scope digests share a versioned keyring but use distinct fixed context labels and store `key_id`. | Prevents cross-credential substitution and supports rotation. |
+| Abuse controls | Guest writes require Turnstile and enforce both per-credential and higher network-digest hard ceilings plus queue caps. The application does not claim it can force Turnstile interactivity. | A Guest scope is free to regenerate, while managed Turnstile interaction is controlled by Cloudflare. |
+| Trusted client address | Gate A must prove the provider-derived client address cannot be spoofed. If it cannot, Gate B requires a provider or edge with a documented non-bypassable address contract. | A guessed forwarding-header rule is not a security boundary. |
+| Completion date | Planned development freezes on 3 January 2027. Work after that date is testing, defect correction and approved low-risk enhancement only. | Removes the earlier 2 or 3 January ambiguity. |
+| Argon2id parameters | Record the selected `time_cost`, `memory_cost` and `parallelism` when the authentication schema lands, and review them again before Gate B. | Makes the password-cost decision measurable and testable rather than leaving it implicit. |
+
 ## 2026-10-14
 
 | Decision | Rule | Reason |

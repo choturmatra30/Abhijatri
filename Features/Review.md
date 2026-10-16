@@ -128,12 +128,12 @@ A later agency trip code or partner QR receipt may create a separate **Verified 
 ### 3.2 Guest submission
 
 1. The Guest enters a display name and receives a local welcome message.
-2. The application creates a cryptographically random Guest scope secret and a client draft UUID.
+2. The application creates a cryptographically random Guest scope secret, client draft UUID, and receipt secret.
 3. The Guest completes the structured review online or offline.
 4. The interface presents the publication, moderation, and retention notice.
 5. Server validation, rate limits, a honeypot or challenge, and duplicate checks run on submission.
 6. The server stores the review in `PENDING` state and returns the same review for every retry of that draft identity.
-7. The server issues a review-management receipt.
+7. The client keeps the receipt it generated in step 2; the server stores only its keyed digest.
 8. The review enters the human moderation queue.
 
 A Guest review never contributes to the Community Rating. If published, its overall rating contributes to the separately labelled Guest Feedback value.
@@ -165,17 +165,16 @@ An `idempotency_keys` table may retain recent request responses for 72 hours. It
 
 ### 4.2 Guest receipt
 
-The raw receipt secret contains at least 256 bits of cryptographically secure randomness. The server stores only its SHA-256 hash and compares hashes in constant time.
+The client generates the receipt before first submission using 32 random bytes from the browser cryptographic API. Its format is `abr1_` followed by 43 unpadded base64url characters. The server validates the format and stores only `(key_id, HMAC-SHA-256 digest)` under a versioned keyring. Receipt and Guest-scope inputs use different fixed HMAC context labels.
 
-- The raw token is shown once.
-- It is placed in a URL fragment, not a query string.
-- The frontend exchanges it through a rate-limited POST request.
-- Successful exchange creates a short-lived, review-scoped, HttpOnly session.
-- The token remains valid while the review content or appeal record exists.
-- It expires immediately when the review is finally erased.
+- Receipts are never reissued.
+- The receipt is sent in the JSON body of a rate-limited POST for each operation.
+- It is never placed in a URL, URL fragment, cookie, log, or analytics event.
+- It remains valid while the review content or appeal record exists.
+- It is revoked when the review is finally erased.
 - A rejected review remains visible through the receipt during the 30-day appeal period, including the public-safe decision reason and appeal deadline.
 
-The receipt permits status checks, withdrawal, appeal, and submission of a revision only while the review is `PENDING` or `CHANGES_REQUESTED`. In this context, submitting a revision means editing the unpublished review through `PATCH /api/v1/reviews/{review_id}/pending`; it never means editing published content. The receipt cannot access another review or identify other users.
+The receipt permits status checks, withdrawal, appeal, and a revision only while the review is `PENDING` or `CHANGES_REQUESTED`. Submitting a revision means editing the unpublished review through `PATCH /api/v1/reviews/{review_id}/pending`; it never means editing published content. The receipt cannot access another review or identify other users. A lost receipt is handled through the moderated removal-request process in 5.4.
 
 ## 5. Lifecycle, revisions, moderation, and reports
 
@@ -286,7 +285,7 @@ Offline support is a platform capability, but the review module owns the followi
 
 ### 7.1 Public review snapshots
 
-Downloaded destination packs may contain a bounded snapshot of recent published reviews, rating counts, and advisory status. The UI displays the snapshot timestamp. Authenticated account responses, staff data, receipt sessions, and private community data are excluded from public service-worker caches.
+Downloaded destination packs may contain a bounded snapshot of recent published reviews, rating counts, and advisory status. The UI displays the snapshot timestamp. Authenticated account responses, staff data, receipt operations, and private community data are excluded from public service-worker caches.
 
 ### 7.2 Local text drafts
 
@@ -373,8 +372,7 @@ POST   /api/v1/reviews/member
 GET    /api/v1/reviews/{review_id}
 PATCH  /api/v1/reviews/{review_id}/pending
 POST   /api/v1/reviews/{review_id}/withdraw
-POST   /api/v1/review-receipts/exchange
-GET    /api/v1/review-receipts/status
+POST   /api/v1/review-receipts/status
 POST   /api/v1/review-receipts/appeals
 POST   /api/v1/reviews/{review_id}/reports
 POST   /api/v1/public/review-reports
@@ -455,7 +453,7 @@ The portfolio may state that the design supports horizontal growth. It must not 
 1. Create identity, role, verification, review, revision, aggregate, audit, and outbox migrations.
 2. Implement `can(actor, action, resource)` and bootstrap the first Super Administrator.
 3. Build the structured form and IndexedDB text draft.
-4. Complete Guest submission, permanent deduplication, and secure receipt exchange.
+4. Complete Guest submission, permanent deduplication, receipt-scoped POST operations, and the no-reissue rule.
 5. Build moderation, revisions, reports, and transactional aggregate deltas.
 6. Publish Community Rating, Guest Feedback, counts, and Seeded Destination fallback.
 7. Add Member ownership, Verified Member approval, badges, and conflict checks.
