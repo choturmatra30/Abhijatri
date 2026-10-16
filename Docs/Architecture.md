@@ -122,3 +122,28 @@ Rules: Guest and Member credentials are different cookie names and scopes; a Ver
 2. Maximum age of an offline review snapshot and the refresh trigger.
 3. Where the frontend stores the receipt secret (user-held code versus browser storage), given the "no receipt secret in IndexedDB" rule.
 4. Structured error codes (`{code, message, details}`) needed by the UI before H04.
+
+## 10. Frontend Architecture (React PWA)
+
+```text
+Browser (Vite + React 18 + TypeScript)
+  ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon)
+  ├── Route Layer: React Router v6 (/overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health)
+  ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
+  ├── Cache Layer: IndexedDB (Dexie.js) for downloaded travel packs and offline drafts
+  └── API Client: /api/v1 proxying to FastAPI backend with real-time health diagnostic
+```
+
+### 10.1 Page URL & Component Topology
+
+| Route | Component | Role | Traces to Requirement |
+|---|---|---|---|
+| `/` or `/overview` | `OverviewPage` | Dashboard, spotlight destination, live sync metrics | Proposal Section 1 |
+| `/destinations` | `DestinationsPage` | 5 seeded destination profiles with category filters | O2, FR01 |
+| `/destinations/:id` | `DestinationDetailPage` | Destination guide, seasonality, advisories, pack download | FR01, FR10, FR15 |
+| `/planner` | `PlannerPage` | Deterministic cost estimator with shared/individual split | O3, FR08, FR09 |
+| `/offline-packs` | `OfflinePacksPage` | Offline travel packs manager with IndexedDB cache | O4, FR10, FR17 |
+| `/trips` | `SavedTripsPage` | Local UUID-based trip briefs and saved estimates | FR11 |
+| `/reviews` | `ReviewsPage` | Guest review submission with receipt token & draft deduplication | O5, FR04, FR12, FR13 |
+| `/health` | `HealthCheckPage` | Real-time diagnostic console testing `GET /api/v1/health` & readiness | Acceptance testing |
+

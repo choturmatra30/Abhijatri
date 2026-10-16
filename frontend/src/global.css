@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ColorHunt Palette 1: Light Mode (e1f0da, d4e7c5, bfd8af, 99bc85) */
+  --color-canvas: #F8FAF7;
+  --color-surface-sage: #E1F0DA;
+  --color-surface-container: #D4E7C5;
+  --color-surface-muted: #BFD8AF;
+  --color-accent-green: #99BC85;
+  --color-forest-primary: #154212;
+  --color-forest-container: #2D5A27;
+  --color-on-surface: #0E1F12;
+  --color-on-surface-variant: #42493E;
+  --color-card-bg: #FFFFFF;
+  --color-border-subtle: rgba(21, 66, 18, 0.12);
+
+  /* Typography definition */
+  --font-title: 'Hind Siliguri', sans-serif;
+  --font-body: 'Noto Serif Bengali', serif;
+  --font-en: 'Inter', sans-serif;
+  --letter-spacing-en: -0.06em;
+}
+
+.dark {
+  /* ColorHunt Night/Neon Dark Mode */
+  --color-canvas: #0B110D;
+  --color-surface-sage: #121A14;
+  --color-surface-container: #18241C;
+  --color-surface-muted: #243529;
+  --color-accent-green: #A3E635; /* Neon Lime */
+  --color-forest-primary: #BEF264; /* Pistachio Glow */
+  --color-forest-container: #162B1A;
+  --color-on-surface: #E1F0DA;
+  --color-on-surface-variant: #9CB294;
+  --color-card-bg: #121A14;
+  --color-border-subtle: rgba(163, 230, 53, 0.15);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border-subtle);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-on-surface);
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-title);
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Specific Typography classes */
+.font-title {
+  font-family: var(--font-title) !important;
+}
+
+.font-body {
+  font-family: var(--font-body) !important;
+}
+
+.font-en, [lang="en"] {
+  font-family: var(--font-en) !important;
+  letter-spacing: var(--letter-spacing-en) !important;
+}
+
+/* Accessibility: Focus rings */
+:focus-visible {
+  outline: 2px solid #2D5A27;
+  outline-offset: 2px;
+}
+
+.dark :focus-visible {
+  outline: 2px solid #A3E635;
+  outline-offset: 2px;
+}
+
+/* Minimalist Card & Tonal Stepping */
+.tonal-card {
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tonal-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+
+.dark .tonal-card:hover {
+  box-shadow: 0 6px 24px rgba(163, 230, 53, 0.08);
+}
+
+/* Custom Scrollbar for sleek UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-muted);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-muted);
+}

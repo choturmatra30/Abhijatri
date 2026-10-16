@@ -13,3 +13,9 @@ htmlcov/
 *.pem
 node_modules/
 requirements.txt
+.agents
+dist/
+dist-ssr/
+.vite/
+*.local
+frontend/codes/extracted/
