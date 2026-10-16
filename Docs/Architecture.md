@@ -1,17 +1,17 @@
 # Abhijatri Architecture
 
-**Status:** Current as of 15 October 2026 (Gantt F02/F06). Behavioural rules live in `Features/Review.md`; security controls in `Docs/Security.md`; build-time choices in `Docs/Decisions.md`.
+**Status:** Current implementation snapshot updated 16 October 2026. The target architecture and Gate A requirements are authoritative in `Docs/Platform-Foundation.md`; behavioural rules live in `Features/Review.md`, security controls in `Docs/Security.md`, and build-time choices in `Docs/Decisions.md`.
 
 ## 1. System flow
 
 ```text
-React PWA (offline-ready, IndexedDB drafts)
+Public PWA at app.<owned-domain> and staff UI at admin.<owned-domain>
     |  HTTPS, JSON, explicit CORS origin
     v
-FastAPI backend (Render web service, Docker, non-root)
+FastAPI API at api.<owned-domain> (Render web service, Docker, non-root)
     |  SQLAlchemy 2 / Psycopg 3, TLS, session pooler
     v
-Supabase-managed PostgreSQL (plain Postgres; source of truth)
+Supabase-managed PostgreSQL (schema app; source of truth)
 ```
 
 - The PWA talks **only** to the FastAPI API. It holds no Supabase key and never calls Supabase directly (no Supabase Auth, Data API, or client SDK).
@@ -35,10 +35,10 @@ Dependency direction: `api -> services -> models -> db`. Endpoints never perform
 
 ## 3. Core flow: submit -> moderate -> publish -> aggregate
 
-1. `POST /reviews/guest` stores a `PENDING` review and first revision, deduplicated by a permanent `client_draft_id` + hashed Guest scope; returns a one-time receipt token (only its HMAC is stored).
+1. The current `POST /reviews/guest` stores a `PENDING` review and first revision, deduplicated by permanent `client_draft_id` and hashed Guest scope. It currently returns a server-issued receipt. Platform Foundation 13 replaces this with a client-generated, never-reissued receipt and domain-separated keyed digest before frontend integration.
 2. A moderator (`/staff/moderation/reviews/{id}/decisions`) sends `expected_version` and a decision. The service locks the review and its destination aggregate row, checks `version`, applies the `counted_rating` delta exactly once, writes an audit decision, and commits.
 3. Public feed `GET /destinations/{id}/reviews` returns only `PUBLISHED` reviews ordered by `(published_at, id)` with an opaque cursor, plus the Guest Feedback aggregate.
-4. Receipt holders can check status and withdraw (`/review-receipts/exchange`, `/reviews/{id}/withdraw`); withdrawal subtracts the counted rating in the same transaction.
+4. The current exchange endpoint is deprecated. The target contract uses receipt-scoped POST bodies for status, withdrawal, appeal, and pending edits without creating a receipt session.
 
 ## 4. API surface today
 
@@ -59,9 +59,12 @@ Planned endpoints (member reviews, reports, appeals, verification, roles) are li
 ## 5. Delivery and environments
 
 ```text
-GitHub PR -> CI (lint, unit, PostgreSQL integration, migration check, audit, secret scan, image build)
-          -> merge to main -> Render deploy (only after checks pass)
-          -> container start: alembic upgrade head -> uvicorn -> Supabase (session pooler)
+GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contract and build checks)
+          -> protected environment approval
+          -> migration job against the selected commit
+          -> API deploy and readiness verification
+          -> public static build and verification
+          -> staff static build and verification
 ```
 
 | Environment | Database | `APP_ENV` | Staff identity |
@@ -76,10 +79,9 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration check, audit, sec
 |---|---|---|
 | `APP_ENV` | yes | `development`, `test`, or `production`; production enables the fail-closed guard. |
 | `DATABASE_URL` | yes | Runtime connection; `postgres://` is normalised to `postgresql+psycopg://`; needs `sslmode=require` for remote hosts. |
-| `MIGRATION_DATABASE_URL` | no | Alembic override (future migrator role). |
+| `MIGRATION_DATABASE_URL` | migration workflow only | Never present in the Render runtime environment. |
 | `TEST_DATABASE_URL` | tests | Must name a database ending `_test`. |
-| `RECEIPT_PEPPER` | yes | At least 32 random characters; rotating it invalidates existing receipts. |
-| `RECEIPT_SESSION_MINUTES` | no | Receipt session lifetime (default 15). |
+| Receipt and scope HMAC keyring | yes | Versioned keys with separate context labels; raw keys are never committed. |
 | `CORS_ALLOWED_ORIGINS` | yes (prod) | Comma-separated explicit origins. |
 | `LOG_LEVEL` | no | Default `INFO`; never logs secrets. |
 | `DOCS_ENABLED` | no | Defaults on outside production. |
@@ -89,7 +91,8 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration check, audit, sec
 
 | Environment | API URL | Database project | Updated |
 |---|---|---|---|
-| Shared dev / demo | `https://<service>.onrender.com` | Supabase `abhijatri-dev` (Singapore) | |
+| Staging | `https://api.<owned-domain>` | Supabase `abhijatri-staging` | |
+| Production or pilot | `https://api.<owned-domain>` | Supabase `abhijatri-prod` | |
 
 ## 6. Trust boundaries
 
@@ -99,7 +102,7 @@ Public internet -> Render edge (TLS) -> API container -> Supabase over TLS. Secr
 
 | Actor | Credential | Transport | Reaches | Status |
 |---|---|---|---|---|
-| Guest | Guest scope secret (submission) and receipt token (status, withdraw); only HMAC digests stored | Request body, never cookie or URL | `/reviews/guest`, `/review-receipts/exchange`, `/reviews/{id}/withdraw` | Implemented |
+| Guest | Guest scope secret and client-generated receipt; domain-separated keyed digests stored | Request body, never cookie or URL | Guest submission and receipt-scoped POST operations | Target; current server-issued exchange flow is scheduled for replacement |
 | Member | Server-side session, `__Host-` HttpOnly Secure SameSite cookie, CSRF token | Cookie | Member review and account routes | Planned (R04) |
 | Staff | Separate cookie name and scope, MFA, short lifetime, `can(actor, action, resource)` per request | Cookie | `/staff/*` | Test header in dev/test only; 501 in production |
 
@@ -111,14 +114,15 @@ Rules: Guest and Member credentials are different cookie names and scopes; a Ver
 |---|---|
 | Public destination pages, advisories, contacts, pack manifest | Cacheable by the service worker and stored in IndexedDB with version and generated date. |
 | Published review snapshot | Stored with its age; refreshed on reconnect; an over-age snapshot is not presented as current (maximum age is an open decision, Decisions.md Step 8). |
-| Review text drafts | IndexedDB only; user can delete per draft or clear all; no receipt secret, verification evidence or contacts. |
-| Receipts, account, staff and moderation responses | Never cached or stored by the PWA. |
+| Review text drafts | IndexedDB only; user can delete per draft or clear all. An unsent Guest draft includes its receipt until acknowledgement. |
+| Submitted-review receipts, account, staff and moderation responses | Never cached by the service worker; submitted-review receipts are removed from IndexedDB under Platform Foundation 13.5. |
 | Reconnect submission | Re-sent with the same `client_draft_id`; the server returns the existing review instead of a duplicate. |
 | Published-review edits | Online only (MVP uses withdraw and resubmit). |
 
-## 9. Open boundary questions (to settle with Abdullah before R04 and R13)
+## 9. Resolved boundary decisions
 
-1. Cookie domain layout: same-site API origin versus cross-site API with `SameSite=None`. Same-site is preferred to keep CSRF simple.
-2. Maximum age of an offline review snapshot and the refresh trigger.
-3. Where the frontend stores the receipt secret (user-held code versus browser storage), given the "no receipt secret in IndexedDB" rule.
-4. Structured error codes (`{code, message, details}`) needed by the UI before H04.
+1. Cookie and domain topology is fixed by Platform Foundation 5.
+2. Offline snapshot age defaults to seven days until the Step 8 measurement records a replacement.
+3. Receipt custody is fixed by Platform Foundation 13.5.
+4. The structured error contract is fixed by Platform Foundation 12.3.
+5. Trusted client-address derivation remains a Gate A deployment test. Gate B is blocked if the provider chain cannot be verified.

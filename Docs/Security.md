@@ -114,7 +114,7 @@ The submission notice must explain:
 - How to withdraw, appeal, report, request removal, or exercise data rights.
 - Which rating, moderation, and retention rules apply.
 
-Only strictly necessary cookies are permitted in the MVP: authenticated session, receipt session, CSRF protection where applicable, and an optional language preference. No advertising or third-party behavioural tracking is permitted. If non-essential tracking is introduced, it requires a separate privacy review and an opt-in consent mechanism before loading.
+Only strictly necessary cookies are permitted in the MVP: authenticated member session, staff session, and an optional language preference. CSRF protection uses a synchronizer token, not a cookie. Guest receipts are sent in request bodies and never create a receipt session. Cloudflare Turnstile is used on Guest write forms and is named in the privacy notice. No advertising or third-party behavioural tracking is permitted. If non-essential tracking is introduced, it requires a separate privacy review and an opt-in consent mechanism before loading.
 
 ### 3.5 Children and student verification
 
@@ -183,16 +183,16 @@ No personal data is transferred outside Bangladesh until the legal transfer cond
 
 **Build requirement:** Member authentication provides registration, email verification, sign-in, sign-out, password reset, session revocation, and secure recovery. Passwords use Argon2id with parameters recorded and periodically reviewed. Passwords and reset tokens are never logged.
 
-Cookie-authenticated state changes require CSRF protection. Session cookies use `Secure`, `HttpOnly`, `SameSite=Lax` or stricter, a narrow path, and the `__Host-` prefix where deployment permits. Authentication and receipt sessions use different cookie names and scopes.
+Cookie-authenticated state changes require CSRF protection. Member and staff session cookies use `Secure`, `HttpOnly`, `SameSite=Lax` or stricter, `Path=/`, no `Domain` attribute, and the `__Host-` prefix. Member and staff sessions use different cookie names and cannot authorize each other's endpoints.
 
 Guest receipt requirements:
 
-- Raw receipt tokens contain at least 256 bits of cryptographically secure entropy.
-- The server stores only a keyed HMAC-SHA-256 digest using a separately managed pepper; the raw token is shown once.
-- Receipt comparison is constant-time.
-- Receipt exchange is a rate-limited POST and creates a short-lived, review-scoped session.
-- If a receipt is carried in a URL fragment, the frontend removes it immediately with `history.replaceState`; fragments are never sent to the server, service worker, logs, or analytics.
-- A receipt can access only its review, appeal, withdrawal, and allowed pending-edit operations.
+- The client generates the receipt as `abr1_` followed by 43 base64url characters, representing 256 random bits, before the first submission. The server validates its exact format and rejects documented weak or test values.
+- The server stores only `(key_id, HMAC-SHA-256 digest)` under a versioned keyring. Receipt and Guest-scope inputs use different fixed HMAC context labels.
+- Receipts are never reissued, and comparison is constant-time.
+- The receipt is sent in the JSON body of a rate-limited POST. It never appears in a cookie, URL, URL fragment, log, or analytics event.
+- It is stored in IndexedDB only while its draft is unsent, shown after acknowledgement for the user to save, and then removed according to Platform Foundation 13.5.
+- A receipt can access only its review, appeal, withdrawal, status, and allowed pending-edit operations. A lost receipt uses the moderated removal-request process.
 
 ### 4.3 Staff authentication
 
@@ -211,19 +211,19 @@ Guest receipt requirements:
 
 | Identity | Minimum privilege |
 |---|---|
-| `app_rw` | Required application DML; no DDL; insert-only access to immutable audit storage. |
-| `migrator` | Schema migration only; unavailable to the runtime service. |
-| `worker` | Only outbox, retention, or conditional media tables required by its job. |
-| `readonly_ops` | Read-only, non-sensitive operational views. |
-| `audit_reader` | Read audit metadata for specifically authorised staff. |
+| `abhijatri_app` | Required application DML through per-table forced-RLS policies, including the in-process outbox worker; no DDL; `INSERT` and narrowly required `SELECT` on audit storage. |
+| `abhijatri_migrator` | Owns schema `app`; migrations and approved backfills only; credential exists only in protected GitHub Environments. |
+| `abhijatri_retention` | `EXECUTE` on declared retention and cleanup functions only. |
+| `abhijatri_backup` | `SELECT` through explicit RLS policies for `pg_dump --enable-row-security`; no modification. |
+| Read-only operations and audit-reader roles | Deferred until a staff reporting feature requires them; audit is read through `can()`-protected staff endpoints. |
 
-**Deploy gate:** Revoke `UPDATE` and `DELETE` on audit records from application-facing identities. The retention identity alone may tombstone revision content under policy. PostgreSQL and conditional Redis/object storage are private-network services with no default credentials or public administrative interface.
+**Deploy gate:** Revoke `UPDATE`, `DELETE` and `TRUNCATE` on audit records from application-facing identities. The retention identity alone may tombstone revision content through fixed-search-path functions. The outbox worker runs in-process under `abhijatri_app`; a separate worker identity is required if it moves out of process.
 
 ## 5. Cryptography, secrets, and transport
 
 ### 5.1 Stored secrets
 
-- Receipt and Guest-scope secrets use keyed HMAC-SHA-256 digests with a high-entropy server pepper, matching the current backend.
+- Receipt and Guest-scope secrets use keyed HMAC-SHA-256 digests with a versioned high-entropy keyring. The two credential classes use different fixed context labels.
 - Passwords use Argon2id; passwords are not encrypted reversibly.
 - Session, CSRF, password-reset, and email-verification secrets are generated with a cryptographically secure generator and have explicit expiries.
 - Secrets are injected by an environment or secret manager, separated by environment, and never committed to source control or container images.
@@ -256,9 +256,9 @@ Guest receipt requirements:
 
 ### 6.2 Abuse controls
 
-Exact values are a Step 4 decision and must be measured rather than invented. The implementation must define independent limits for Guest submissions, receipt exchange, authentication, public reports, and staff endpoints.
+Starting values are recorded in Platform Foundation 14.3 and tuned through measured abuse and usability tests. Guest write limits combine a per-credential hard ceiling, a higher network-digest hard ceiling, a fresh server-validated Cloudflare Turnstile token, and per-destination and global pending-review caps.
 
-Limits combine Guest scope or account identity with cautiously weighted network signals. IP-only blocking is prohibited because Bangladeshi mobile carriers may place many unrelated users behind CGNAT. The design includes a cap on pending reviews per Guest scope and an accessible challenge only after risk signals justify it. Rate-limit keys are pseudonymised and expire.
+Network ceilings are deliberately higher than per-credential limits because Bangladeshi mobile carriers may place unrelated users behind CGNAT. They remain enforceable ceilings because a Guest scope is free to regenerate. The application cannot force a managed Turnstile widget to become interactive; Cloudflare chooses interaction. Rate-limit keys are pseudonymised and expire.
 
 ### 6.3 Concurrency and rating integrity
 
@@ -314,7 +314,7 @@ The existing public route `GET /api/v1/destinations/{destination_id}/reviews` re
 - Destination packs include schema version, content version, source dates, snapshot time, and an explicit maximum age selected at Step 8.
 - Reconnection checks freshness and applies the deletion ledger before presenting a refreshed pack as current.
 - An expired pack is labelled unavailable or stale according to the Step 8 decision; it is never silently presented as current safety guidance.
-- IndexedDB drafts are not encrypted by default. The interface discloses this, offers per-draft and clear-all deletion, and avoids storing verification evidence, receipt secrets, emergency contacts, or private-community conversations.
+- IndexedDB drafts are not encrypted by default. The interface discloses this, offers per-draft and clear-all deletion, and avoids storing verification evidence, receipts of submitted reviews, private emergency contacts, or private-community conversations. The receipt of an unsent Guest draft is stored with that draft only until acknowledgement under Platform Foundation 13.5. Public emergency numbers in a destination pack are public content.
 - The application calls `navigator.storage.persist()` where supported and handles refusal without claiming durability.
 - Service-worker cache names are versioned. Activation removes obsolete caches only after the replacement is ready.
 - Sign-out clears session-derived local state. Public packs may remain only because they contain no private account data.
