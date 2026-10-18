@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -96,6 +96,12 @@ def _new_receipt_token() -> str:
 
 
 def _issue_receipt(session: Session, review_id: uuid.UUID) -> str:
+    # One live receipt per review: rotating on a retry must retire the previous token.
+    session.execute(
+        update(ReviewReceipt)
+        .where(ReviewReceipt.review_id == review_id, ReviewReceipt.revoked_at.is_(None))
+        .values(revoked_at=now_utc())
+    )
     token = _new_receipt_token()
     session.add(ReviewReceipt(review_id=review_id, token_hash=hash_secret(token)))
     return token
@@ -458,7 +464,7 @@ def full_guest_recompute(session: Session, destination_id: uuid.UUID) -> tuple[i
             Review.counted_rating.is_not(None),
         )
     ).one()
-    return int(result[0]), int(result[1])
+    return int(result[0] or 0), int(result[1])
 
 
 def encode_cursor(published_at: datetime, review_id: uuid.UUID) -> str:

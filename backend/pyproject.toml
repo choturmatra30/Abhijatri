@@ -8,6 +8,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.7,<3",
+  "slowapi>=0.1.9,<1",
   "sqlalchemy>=2.0,<3",
   "tzdata>=2024.1",
   "uvicorn[standard]>=0.34,<1",
@@ -21,6 +22,7 @@ dev = [
   "pytest-cov>=6,<8",
   "ruff>=0.8,<1",
   "pip-audit>=2.7,<3",
+  "mypy>=1.13,<2",
 ]
 
 [tool.pytest.ini_options]
@@ -41,6 +43,16 @@ target-version = "py312"
 extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 # B008: FastAPI Depends()/Query() defaults; UP042/B904: existing str-enum and helper-raise style
-ignore = ["E501", "B008", "UP042", "B904"]
+ignore = ["E501", "B008", "UP042", "B904", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S603", "S607", "S608"]
+"scripts/*" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
