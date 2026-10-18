@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Bookmark, Calendar, Users, Trash2, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../services/api';
+import { SEEDED_DESTINATIONS } from '../api/destinations';
 
 interface SavedBrief {
   id: string;

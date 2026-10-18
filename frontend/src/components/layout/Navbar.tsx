@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
-import { checkBackendHealth } from '../../services/api';
+import { checkBackendHealth } from '../../api/health';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;

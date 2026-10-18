@@ -14,7 +14,7 @@ import {
   Layers
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../services/api';
+import { SEEDED_DESTINATIONS } from '../api/destinations';
 
 export const OverviewPage: React.FC = () => {
   const { language, t } = useLanguage();

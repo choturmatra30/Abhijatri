@@ -122,3 +122,15 @@ All fonts are loaded directly from Google Fonts:
 - [x] Clear bilingual toggle (`বাং / EN`) with Bangla as default locale.
 - [x] Real-time diagnostic console to verify backend connectivity.
 
+---
+
+## 7. Frontend API Architecture & Integration Topology
+
+To maintain single-responsibility boundaries and avoid monolithic networking code, client-side API operations are partitioned into focused modules under `frontend/src/api/`:
+
+1. **`client.ts`**: Universal fetch abstraction handling standard headers (`Accept: application/json`, `Content-Type: application/json`), query parameter serialization, base URL resolution (`VITE_API_BASE_URL`), and typed error handling conforming to Platform Foundation 12.3 (`ApiError` with `{code, message, details}`).
+2. **`health.ts`**: Non-blocking diagnostics pinging `/api/v1/health` (liveness) and `/api/v1/health/ready` (validating database liveness with `SELECT 1`).
+3. **`destinations.ts`**: Seeded profiles and offline fallback catalog for the 5 semester scope destinations (Cox's Bazar, Sajek Valley, Sylhet, Sundarbans, Bandarban).
+4. **`index.ts`**: Clean barrel export allowing consolidated imports (`import { checkBackendHealth, SEEDED_DESTINATIONS } from '../api'`).
+
+

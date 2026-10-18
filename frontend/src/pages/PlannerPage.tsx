@@ -7,7 +7,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../services/api';
+import { SEEDED_DESTINATIONS } from '../api/destinations';
 
 export const PlannerPage: React.FC = () => {
   const [searchParams] = useSearchParams();

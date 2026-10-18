@@ -1,67 +1,9 @@
-import { Destination, HealthStatus } from '../types';
+import { Destination } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-export async function checkBackendHealth(customUrl?: string): Promise<HealthStatus> {
-  const targetBase = customUrl ? customUrl.replace(/\/+$/, '') : API_BASE_URL;
-  const start = performance.now();
-
-  // Try /api/v1/health first, then /api/health
-  const candidateUrls = targetBase
-    ? [`${targetBase}/api/v1/health`, `${targetBase}/api/health`, `${targetBase}/health`]
-    : ['/api/v1/health', '/api/health'];
-
-  let lastError = '';
-  for (const url of candidateUrls) {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
-      const latency = Math.round(performance.now() - start);
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Also check /ready to test database if available
-        let dbStatus = 'connected (liveness passed)';
-        try {
-          const readyUrl = url.replace(/\/health$/, '/health/ready');
-          const readyRes = await fetch(readyUrl);
-          if (readyRes.ok) {
-            dbStatus = 'database ready (SELECT 1 OK)';
-          }
-        } catch {
-          // ignore ready secondary check
-        }
-
-        return {
-          status: data.status || 'ok',
-          database: dbStatus,
-          latencyMs: latency,
-          timestamp: new Date().toISOString(),
-          urlChecked: url,
-        };
-      } else {
-        lastError = `HTTP ${response.status} ${response.statusText}`;
-      }
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      lastError = errorMsg;
-    }
-  }
-
-  const latency = Math.round(performance.now() - start);
-  return {
-    status: 'unreachable',
-    latencyMs: latency,
-    timestamp: new Date().toISOString(),
-    urlChecked: candidateUrls[0],
-    error: lastError || 'Failed to connect to backend server',
-  };
-}
-
-// 5 Seeded Destinations as per Semester Scope O2 / Proposal Section 1
+/**
+ * 5 Seeded Destinations as per Semester Scope O2 / Proposal Section 1.
+ * Provides rich bilingual data for Cox's Bazar, Sajek Valley, Sylhet, Sundarbans, and Bandarban.
+ */
 export const SEEDED_DESTINATIONS: Destination[] = [
   {
     id: 'coxs-bazar',
@@ -154,3 +96,12 @@ export const SEEDED_DESTINATIONS: Destination[] = [
     highlightsEn: ["Nilgiri Clouds Resort", "Nafakhum Waterfalls", "Keokradong Trekking Peak", "Boga Lake Enclave"]
   }
 ];
+
+export function getSeededDestinations(): Destination[] {
+  return SEEDED_DESTINATIONS;
+}
+
+export function getDestinationById(id: string): Destination | undefined {
+  return SEEDED_DESTINATIONS.find((dest) => dest.id === id);
+}
+

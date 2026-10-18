@@ -150,3 +150,15 @@ Browser (Vite + React 18 + TypeScript)
 | `/trips` | `SavedTripsPage` | Local UUID-based trip briefs and saved estimates | FR11 |
 | `/reviews` | `ReviewsPage` | Guest review submission with receipt token & draft deduplication | O5, FR04, FR12, FR13 |
 | `/health` | `HealthCheckPage` | Real-time diagnostic console testing `GET /api/v1/health` & readiness | Acceptance testing |
+
+### 10.2 Modular API Architecture (`src/api/`)
+
+The frontend network and data layer is organized into isolated, domain-focused API modules under `src/api/`:
+
+| Module File | Scope & Exported Members | Architectural Contract |
+|---|---|---|
+| `src/api/client.ts` | `API_BASE_URL`, `apiRequest<T>()`, `ApiError`, `ApiErrorResponse` | Base HTTP client managing base URL resolution (`VITE_API_BASE_URL`), JSON headers, query serialization, and structured error mapping (`{code, message, details}`) per Platform Foundation 12.3. |
+| `src/api/health.ts` | `checkBackendHealth(customUrl?: string)` | Diagnostic health runner checking backend liveness (`GET /api/v1/health`) and database readiness probe (`GET /api/v1/health/ready` testing `SELECT 1`). |
+| `src/api/destinations.ts` | `SEEDED_DESTINATIONS`, `getSeededDestinations()`, `getDestinationById(id)` | Seeded destination profiles (Cox's Bazar, Sajek, Sylhet, Sundarbans, Bandarban) satisfying Semester Scope O2 and Proposal Section 1. |
+| `src/api/index.ts` | Barrel export (`* from './client'`, `'./health'`, `'./destinations'`) | Unified entrypoint for cleaner imports across UI pages and widgets (`import { ... } from '../api'`). |
+

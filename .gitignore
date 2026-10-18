@@ -20,3 +20,4 @@ dist-ssr/
 .vite/
 *.local
 frontend/codes/extracted/
+*.tsbuildinfo

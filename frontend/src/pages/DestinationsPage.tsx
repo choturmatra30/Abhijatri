@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, DownloadCloud, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../services/api';
+import { SEEDED_DESTINATIONS } from '../api/destinations';
 
 export const DestinationsPage: React.FC = () => {
   const { language, t } = useLanguage();

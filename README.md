@@ -8,9 +8,11 @@ The first development slice is the review lifecycle: Guest submission, permanent
 - [`Features/Review.md`](Features/Review.md): frozen review-system specification and acceptance rules.
 - [`Docs/Decisions.md`](Docs/Decisions.md): implementation decisions made after specification freeze.
 - [`backend/`](backend/): FastAPI modular monolith, PostgreSQL models, Alembic migration, and tests.
+- [`frontend/`](frontend/): Vite + React 18 + TypeScript PWA with Tailwind CSS and modular API layer (`client.ts`, `health.ts`, `destinations.ts`).
 - [`compose.yaml`](compose.yaml): local PostgreSQL service.
 
-See [`backend/README.md`](backend/README.md) for local setup and test commands.
+See [`backend/README.md`](backend/README.md) for local backend setup and [`frontend/`](frontend/) for client dev server commands.
+- [`Docs/Design.md`](Docs/Design.md): UI/UX design tokens, ColorHunt botanical sage & neon slate palettes, and typography specifications.
 
 
 ## Architecture and delivery
