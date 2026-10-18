@@ -1,0 +1,124 @@
+# Abhijatri Design System & UI/UX Specification
+
+**Status:** Current as of October 2026.  
+**Philosophy:** Contemporary Minimalist, Bangla-First, Offline-Ready Travel Companion for Bangladesh.  
+**Traceability:** Traces to [`Docs/Abhijatri_Project_Proposal.tex`](Abhijatri_Project_Proposal.tex) (O1, O2, O3, O4, O5) and [`Docs/Architecture.md`](Architecture.md).
+
+---
+
+## 1. Aesthetic Direction & Brand Identity
+
+The Abhijatri design system embodies a serene, editorial, and contemporary approach to travel exploration in Bangladesh. It pairs clean Swiss/Scandinavian minimalism with botanical, earthy undertones reflecting Bangladesh's natural landscape (lush hills, mangroves, tea gardens, and sea coasts). 
+
+For nighttime expedition planning, it features an electric **Neon Slate Night Mode** designed for low-light legibility and high visual contrast.
+
+### Core Visual Principles
+1. **Utility & Calm:** Spacious layouts, restrained ornamentation, sharp typographic hierarchy, and purposeful chromatic pacing.
+2. **No Emojis as UI Icons:** Consistent, crisp SVG iconography (via Lucide React).
+3. **Bangla Typographic Elegance:** Dedicated Google Fonts tailored for Bengali conjunct legibility and graceful editorial rhythm.
+4. **Tonal Stepping over Drop Shadows:** Minimalist elevation achieved through layered background tones and micro-borders (`1px solid rgba(...)`) rather than aggressive heavy drop shadows.
+
+---
+
+## 2. Color Palettes
+
+### 2.1 Light Theme (ColorHunt Botanical Sage)
+Selected palette based on [ColorHunt #e1f0da](https://colorhunt.co/palette/e1f0dad4e7c5bfd8af99bc85):
+
+| Token Name | Hex Code | Semantic Role |
+| :--- | :--- | :--- |
+| `canvas-light` | `#F8FAF7` | Base canvas background, prevents optical glare |
+| `surface-sage` | `#E1F0DA` | Primary surface tone, hero banners, active tab pills |
+| `surface-container` | `#D4E7C5` | Card containers, interactive secondary surfaces |
+| `surface-muted` | `#BFD8AF` | Borders, subtle dividers, inactive pills, scrollbar thumb |
+| `accent-green` | `#99BC85` | Muted accent, status indicators, secondary interactive |
+| `forest-primary` | `#154212` | High-contrast actionable text, primary buttons, logo |
+| `forest-container` | `#2D5A27` | Button hover states, prominent headers |
+| `on-surface` | `#0E1F12` | High-contrast readable body text (contrast ratio > 10:1) |
+| `on-surface-variant` | `#42493E` | Secondary captions, metadata, timestamps |
+
+### 2.2 Dark Theme (Night & Neon Slate)
+Night expedition palette with electric signal accents:
+
+| Token Name | Hex Code | Semantic Role |
+| :--- | :--- | :--- |
+| `dark-bg-base` | `#0B110D` | Obsidian night canvas, zero pure-black glare |
+| `dark-surface-1` | `#121A14` | Navigation sidebar, elevated cards, inputs |
+| `dark-surface-2` | `#18241C` | Nested cards, hover states, secondary containers |
+| `neon-lime` | `#A3E635` | Primary action CTA, active nav indicator, focus rings |
+| `pistachio-glow` | `#BEF264` | Secondary neon highlight, key metric numbers |
+| `emerald-accent` | `#4ADE80` | Live cache sync dot, verified badges, status pills |
+| `on-dark` | `#E1F0DA` | High-contrast light sage typography on dark canvas |
+| `on-dark-muted` | `#9CB294` | Dimmed secondary labels, captions, metadata |
+
+---
+
+## 3. Typographic System
+
+All fonts are loaded directly from Google Fonts:
+
+```html
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet" />
+```
+
+| Type Role | Font Family | Tracking / Letter Spacing | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Titles & Headings** | `'Hind Siliguri'` | `-0.01em` | Clean, modern sans-serif for Bangla headlines, section titles, and badges |
+| **Body & Regular Text** | `'Noto Serif Bengali'` | `normal` | High-legibility serif for Bangla narratives, descriptions, and guide copy |
+| **English & Numerical Data** | `'Inter'` | `-0.06em` (`-60` character spacing) | Ultra-crisp data displays, monetary amounts (`BDT`), timestamps, and English interface |
+
+### CSS Implementation (`src/global.css`)
+```css
+:root {
+  --font-title: 'Hind Siliguri', sans-serif;
+  --font-body: 'Noto Serif Bengali', serif;
+  --font-en: 'Inter', sans-serif;
+  --letter-spacing-en: -0.06em;
+}
+
+.font-title { font-family: var(--font-title); }
+.font-body { font-family: var(--font-body); }
+.font-en, [lang="en"] { 
+  font-family: var(--font-en); 
+  letter-spacing: var(--letter-spacing-en); 
+}
+```
+
+---
+
+## 4. Layout & Responsive Architecture
+
+- **Desktop (1024px+)**: Fixed 280px (`w-72`) sidebar with fluid main canvas (`max-w-7xl mx-auto`).
+- **Tablet (768px - 1023px)**: Adaptive 2-column card layouts, collapsed sidebar into slide-out drawer.
+- **Mobile (< 768px)**: Edge-to-edge touch targets, single-column cards, hamburger navigation, sticky top action bar.
+
+---
+
+## 5. Component Specifications
+
+### 5.1 Buttons
+- **Primary Action**: Fully pill-shaped (`rounded-full`), `#154212` background with white text (Light) / `#A3E635` background with dark text (Dark). Minimum touch height 44px.
+- **Secondary Action**: Pill-shaped with subtle surface background (`bg-surface-sage` or `dark:bg-dark-surface-2`), 1px border.
+
+### 5.2 Tonal Cards (`.tonal-card`)
+- `16px` (`rounded-2xl`) corner radius.
+- `1px solid var(--color-border-subtle)` micro-border.
+- `transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1)`.
+- Subtle hover elevation (`translateY(-2px)` with diffuse shadow).
+
+### 5.3 Badges & Status Indicators
+- **Bayesian Verified**: Shield icon with emerald green accent.
+- **Advisory Warning**: Amber pill with exclamation icon and verification source date.
+- **Offline Cache Status**: Animated ping dot with percentage or sync confirmation.
+
+---
+
+## 6. Pre-Delivery Accessibility & Quality Checklist
+
+- [x] Minimum 4.5:1 text-to-background contrast across all Light and Dark modes.
+- [x] Visible, high-contrast `:focus-visible` rings for keyboard navigation.
+- [x] No emoji as icons (all icons are vector SVGs via Lucide).
+- [x] Tap targets $\ge 44 \times 44\text{ px}$ for mobile friendliness.
+- [x] Clear bilingual toggle (`বাং / EN`) with Bangla as default locale.
+- [x] Real-time diagnostic console to verify backend connectivity.
+
