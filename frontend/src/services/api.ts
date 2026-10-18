@@ -2,8 +2,39 @@ import { Destination, HealthStatus } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+const ALLOWED_BACKEND_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  'api.abhijatri.example',
+]);
+
+export function isAllowedBackendUrl(value: string): boolean {
+  try {
+    if (value.startsWith('/') && !value.startsWith('//')) return true;
+    const url = new URL(value, window.location.origin);
+    const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    const validProtocol = url.protocol === 'https:' || (isLocalhost && url.protocol === 'http:');
+    let configuredHost = '';
+    if (API_BASE_URL) {
+      try { configuredHost = new URL(API_BASE_URL).hostname; } catch { configuredHost = ''; }
+    }
+    return validProtocol && (ALLOWED_BACKEND_HOSTS.has(url.hostname) || url.hostname === configuredHost);
+  } catch {
+    return false;
+  }
+}
+
 export async function checkBackendHealth(customUrl?: string): Promise<HealthStatus> {
   const targetBase = customUrl ? customUrl.replace(/\/+$/, '') : API_BASE_URL;
+  if (customUrl && !isAllowedBackendUrl(targetBase)) {
+    return {
+      status: 'error',
+      error: 'Backend URL is not allowed',
+      timestamp: new Date().toISOString(),
+      urlChecked: targetBase,
+    };
+  }
   const start = performance.now();
 
   // Try /api/v1/health first, then /api/health
