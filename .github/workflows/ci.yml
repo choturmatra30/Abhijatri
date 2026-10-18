@@ -47,6 +47,8 @@ jobs:
       - run: uv sync --locked --dev
       - name: Lint
         run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy
       - name: Unit tests
         run: uv run pytest -m "not integration" -q
       - name: Migrations apply to an empty database and match the models

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -43,7 +44,7 @@ class GuestReviewCreated(BaseModel):
 
 class ModerationRequest(BaseModel):
     expected_version: int = Field(ge=1)
-    decision: str
+    decision: Literal["PUBLISH", "REJECT", "HIDE", "RESTORE"]
     reason_code: str = Field(min_length=2, max_length=60)
     note: str | None = Field(default=None, max_length=500)
 

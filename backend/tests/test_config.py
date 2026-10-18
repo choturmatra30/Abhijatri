@@ -58,7 +58,7 @@ def test_development_keeps_defaults() -> None:
 
 
 def test_timezone_defaults() -> None:
-    s = Settings(_env_file=None)
+    s = Settings(_env_file=None, app_env="test")
     assert s.app_timezone == "UTC"
     assert s.default_display_timezone == "Asia/Dhaka"
     assert s.display_tz.key == "Asia/Dhaka"
@@ -70,4 +70,12 @@ def test_timezone_defaults() -> None:
 )
 def test_invalid_timezones_are_rejected(overrides: dict) -> None:
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, **overrides)
+        Settings(_env_file=None, app_env="test", **overrides)
+
+
+def test_unset_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("APP_ENV", raising=False)
+    settings = Settings(_env_file=None, receipt_pepper=GOOD_PEPPER)
+    assert settings.is_production
+    assert not settings.docs_are_enabled
+    assert not settings.allow_test_staff_header
