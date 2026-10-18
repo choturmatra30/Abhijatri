@@ -25,7 +25,7 @@ This log records build-time decisions without reopening the frozen Review specif
 | Feed cursor | Order by `(published_at, id)` descending. | Stable pagination when moderation publishes older submissions later. |
 | Rating transitions | Lock the review and destination aggregate rows, check `version`, and apply `counted_rating` deltas once. | Prevents double counting under retries and concurrent moderation. |
 | Member rating eligibility | Only an active, non-revoked `VERIFIED_MEMBER` verification is eligible. Team and conflict-declared reviews are excluded. | Keeps the Community Rating claim truthful. |
-| Visit month clock | Reject future months using `Asia/Dhaka`. | Makes the rule deterministic for a Bangladesh-first platform. |
+| Visit month clock | Reject future months using `DEFAULT_DISPLAY_TIMEZONE` (default `Asia/Dhaka`); all timestamps are stored and computed in UTC. | Makes the rule deterministic for a Bangladesh-first platform. |
 | Moderator self-review | Denied in the service layer. | Prevents an obvious conflict of interest. |
 | Infrastructure order | PostgreSQL correctness first. Redis, CDN, and media processing remain deferred. | Keeps the first release testable and within semester scope. |
 | Pending-review revisions | A Guest receipt may edit only a `PENDING` or `CHANGES_REQUESTED` review through `PATCH /api/v1/reviews/{review_id}/pending`. | Published-review editing remains deferred to v1.1. |

@@ -34,6 +34,9 @@ jobs:
       DATABASE_URL: postgresql+psycopg://abhijatri:abhijatri_ci@localhost:5432/abhijatri_test
       TEST_DATABASE_URL: postgresql+psycopg://abhijatri:abhijatri_ci@localhost:5432/abhijatri_test
       RECEIPT_PEPPER: ci-only-pepper-not-a-secret-0123456789
+      TZ: UTC
+      APP_TIMEZONE: UTC
+      DEFAULT_DISPLAY_TIMEZONE: Asia/Dhaka
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

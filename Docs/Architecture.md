@@ -85,6 +85,8 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 | `CORS_ALLOWED_ORIGINS` | yes (prod) | Comma-separated explicit origins. |
 | `LOG_LEVEL` | no | Default `INFO`; never logs secrets. |
 | `DOCS_ENABLED` | no | Defaults on outside production. |
+| `TZ`, `APP_TIMEZONE` | no | Both `UTC`. Timestamps are stored as `timestamptz` and computed in UTC; the DB session is pinned with `SET TIME ZONE 'UTC'`. |
+| `DEFAULT_DISPLAY_TIMEZONE` | no | Default `Asia/Dhaka`; IANA zone used for calendar rules such as the visit-month check. |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE` | no | Pool tuning for Supabase connection limits. |
 
 ### Deployed environments (fill in; never record secrets here)
