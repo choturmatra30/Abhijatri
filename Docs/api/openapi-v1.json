@@ -190,6 +190,12 @@
       "ModerationRequest": {
         "properties": {
           "decision": {
+            "enum": [
+              "PUBLISH",
+              "REJECT",
+              "HIDE",
+              "RESTORE"
+            ],
             "title": "Decision",
             "type": "string"
           },
@@ -538,6 +544,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 200,
                   "type": "string"
                 },
                 {

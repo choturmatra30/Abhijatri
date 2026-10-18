@@ -1,14 +1,17 @@
 import base64
 import hmac
+import logging
 import uuid
 from datetime import UTC, datetime
+from typing import NoReturn
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_session
+from app.limits import guest_submit_limit, limiter, receipt_limit
 from app.models import (
     DestinationRatingStats,
     ModerationDecision,
@@ -45,10 +48,11 @@ from app.services import (
     withdraw_review,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1")
 
 
-def _raise_service_error(error: Exception) -> None:
+def _raise_service_error(error: Exception) -> NoReturn:
     if isinstance(error, ReviewNotFound):
         raise HTTPException(status_code=404, detail=str(error)) from error
     if isinstance(error, ReviewForbidden):
@@ -63,7 +67,7 @@ def require_staff(
     session: Session = Depends(get_session),
 ) -> User:
     settings = get_settings()
-    if settings.app_env not in {"development", "test"}:
+    if settings.is_production or not settings.allow_test_staff_header:
         raise HTTPException(status_code=501, detail="staff authentication adapter is not configured")
     if x_test_staff_id is None:
         raise HTTPException(status_code=401, detail="test staff identity required")
@@ -100,6 +104,7 @@ def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
     try:
         session.execute(text("SELECT 1"))
     except Exception as error:
+        logger.exception("readiness check failed")
         raise HTTPException(status_code=503, detail="database unavailable") from error
     return HealthResponse(status="ok")
 
@@ -109,7 +114,9 @@ def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
     response_model=GuestReviewCreated,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(guest_submit_limit)
 def create_guest_review(
+    request: Request,
     payload: GuestReviewCreate,
     session: Session = Depends(get_session),
 ) -> GuestReviewCreated:
@@ -126,7 +133,6 @@ def create_guest_review(
     except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
         session.rollback()
         _raise_service_error(error)
-        raise AssertionError("unreachable")
 
 
 @router.get("/staff/moderation/reviews", response_model=list[ModerationResult])
@@ -162,10 +168,7 @@ def decide_review(
     staff: User = Depends(require_staff),
     session: Session = Depends(get_session),
 ) -> ModerationResult:
-    try:
-        decision = ModerationDecision(payload.decision.upper())
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail="unsupported moderation decision") from error
+    decision = ModerationDecision(payload.decision)
     try:
         review = moderate_review(
             session,
@@ -186,7 +189,6 @@ def decide_review(
     except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
         session.rollback()
         _raise_service_error(error)
-        raise AssertionError("unreachable")
 
 
 @router.put(
@@ -219,7 +221,6 @@ def change_review_conflict(
     except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
         session.rollback()
         _raise_service_error(error)
-        raise AssertionError("unreachable")
 
 
 def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
@@ -227,15 +228,20 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         padded = cursor + "=" * (-len(cursor) % 4)
         raw = base64.urlsafe_b64decode(padded).decode("utf-8")
         timestamp, review_id = raw.rsplit("|", 1)
-        return datetime.fromisoformat(timestamp), uuid.UUID(review_id)
+        moment = datetime.fromisoformat(timestamp)
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment, uuid.UUID(review_id)
     except (ValueError, UnicodeDecodeError) as error:
         raise HTTPException(status_code=422, detail="invalid cursor") from error
 
 
 @router.get("/destinations/{destination_id}/reviews", response_model=ReviewFeed)
+@limiter.limit("60/minute")
 def public_reviews(
+    request: Request,
     destination_id: uuid.UUID,
-    after: str | None = Query(default=None),
+    after: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
     session: Session = Depends(get_session),
 ) -> ReviewFeed:
@@ -272,11 +278,13 @@ def public_reviews(
             body=revision.body,
         )
         for review, revision in rows
+        if review.published_at is not None
     ]
     next_cursor = None
     if has_more and rows:
         last_review = rows[-1][0]
-        next_cursor = encode_cursor(last_review.published_at, last_review.id)
+        if last_review.published_at is not None:
+            next_cursor = encode_cursor(last_review.published_at, last_review.id)
     stats = session.get(DestinationRatingStats, destination_id)
     guest_count = stats.guest_rating_count if stats else 0
     guest_average = (
@@ -291,14 +299,15 @@ def public_reviews(
 
 
 def _verify_receipt(session: Session, review_id: uuid.UUID, raw_token: str) -> Review:
-    receipts = session.scalars(
+    candidate_hash = hash_secret(raw_token)
+    receipt = session.scalar(
         select(ReviewReceipt).where(
             ReviewReceipt.review_id == review_id,
+            ReviewReceipt.token_hash == candidate_hash,
             ReviewReceipt.revoked_at.is_(None),
         )
-    ).all()
-    candidate_hash = hash_secret(raw_token)
-    if not any(hmac.compare_digest(receipt.token_hash, candidate_hash) for receipt in receipts):
+    )
+    if receipt is None or not hmac.compare_digest(receipt.token_hash, candidate_hash):
         raise HTTPException(status_code=404, detail="receipt not found")
     review = session.get(Review, review_id)
     if review is None:
@@ -307,7 +316,9 @@ def _verify_receipt(session: Session, review_id: uuid.UUID, raw_token: str) -> R
 
 
 @router.post("/review-receipts/exchange", response_model=ReceiptStatus)
+@limiter.limit(receipt_limit)
 def exchange_receipt(
+    request: Request,
     payload: ReceiptExchange,
     session: Session = Depends(get_session),
 ) -> ReceiptStatus:
@@ -321,7 +332,9 @@ def exchange_receipt(
 
 
 @router.post("/reviews/{review_id}/withdraw", response_model=ReceiptStatus)
+@limiter.limit(receipt_limit)
 def withdraw_guest_review(
+    request: Request,
     review_id: uuid.UUID,
     payload: WithdrawRequest,
     session: Session = Depends(get_session),
@@ -339,5 +352,4 @@ def withdraw_guest_review(
     except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
         session.rollback()
         _raise_service_error(error)
-        raise AssertionError("unreachable")
 

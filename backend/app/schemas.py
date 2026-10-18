@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -7,7 +8,11 @@ from app.config import get_settings
 from app.models import ComfortTier, ReviewLanguage, ReviewStatus, TravellerType
 
 
-class GuestReviewCreate(BaseModel):
+class StrictRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class GuestReviewCreate(StrictRequestModel):
     destination_id: uuid.UUID
     client_draft_id: uuid.UUID
     guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
@@ -41,9 +46,9 @@ class GuestReviewCreated(BaseModel):
     duplicate_recovered: bool
 
 
-class ModerationRequest(BaseModel):
+class ModerationRequest(StrictRequestModel):
     expected_version: int = Field(ge=1)
-    decision: str
+    decision: Literal["PUBLISH", "REJECT", "HIDE", "RESTORE"]
     reason_code: str = Field(min_length=2, max_length=60)
     note: str | None = Field(default=None, max_length=500)
 
@@ -55,14 +60,14 @@ class ModerationResult(BaseModel):
     counted_rating: int | None
 
 
-class ConflictFlagRequest(BaseModel):
+class ConflictFlagRequest(StrictRequestModel):
     expected_version: int = Field(ge=1)
     conflict_declared: bool
     reason_code: str = Field(min_length=2, max_length=60)
     note: str | None = Field(default=None, max_length=500)
 
 
-class ReceiptExchange(BaseModel):
+class ReceiptExchange(StrictRequestModel):
     review_id: uuid.UUID
     receipt_token: str = Field(min_length=40, max_length=200, repr=False)
 
@@ -74,7 +79,7 @@ class ReceiptStatus(BaseModel):
     published_at: datetime | None
 
 
-class WithdrawRequest(BaseModel):
+class WithdrawRequest(StrictRequestModel):
     expected_version: int = Field(ge=1)
     receipt_token: str = Field(min_length=40, max_length=200, repr=False)
 

@@ -6,6 +6,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_PEPPER = "development-only-change-me"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://abhijatri:abhijatri_dev@localhost:5432/abhijatri"
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "postgres"}
 
 
@@ -20,8 +21,8 @@ def normalize_database_url(value: str) -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_env: str = "development"
-    database_url: str = "postgresql+psycopg://abhijatri:abhijatri_dev@localhost:5432/abhijatri"
+    app_env: str = "production"  # fail closed: dev/test must be requested explicitly
+    database_url: str = DEFAULT_DATABASE_URL
     migration_database_url: str | None = None
     receipt_pepper: str = Field(default=DEFAULT_PEPPER, min_length=24, repr=False)
     receipt_session_minutes: int = 15
@@ -33,6 +34,18 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=5, ge=1, le=20)
     db_max_overflow: int = Field(default=2, ge=0, le=20)
     db_pool_recycle: int = Field(default=1800, ge=30)
+    db_pool_timeout: int = Field(default=5, ge=1, le=60)
+    db_connect_timeout: int = Field(default=5, ge=1, le=60)
+    db_statement_timeout_ms: int = Field(default=5000, ge=100, le=60000)
+    db_lock_timeout_ms: int = Field(default=3000, ge=100, le=60000)
+    db_idle_in_transaction_timeout_ms: int = Field(default=15000, ge=1000, le=120000)
+    request_timeout_seconds: int = Field(default=15, ge=1, le=120)
+    max_request_body_bytes: int = Field(default=65536, ge=1024, le=1048576)
+    allow_test_staff_header: bool = False
+    rate_limit_enabled: bool = True
+    rate_limit_storage_uri: str = Field(default="redis://localhost:6379/0", min_length=1)
+    rate_limit_guest_submit: str = "5/minute"
+    rate_limit_receipt: str = "10/minute"
 
     @field_validator("database_url", "migration_database_url")
     @classmethod
@@ -79,6 +92,8 @@ class Settings(BaseSettings):
     def _production_guard(self) -> "Settings":
         if not self.is_production:
             return self
+        if self.database_url == DEFAULT_DATABASE_URL:
+            raise ValueError("DATABASE_URL must be explicitly configured in production")
         if self.receipt_pepper == DEFAULT_PEPPER or len(self.receipt_pepper) < 32:
             raise ValueError("RECEIPT_PEPPER must be a unique value of at least 32 characters")
         if "*" in self.cors_origins or not self.cors_origins:

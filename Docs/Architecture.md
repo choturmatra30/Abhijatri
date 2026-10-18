@@ -77,7 +77,7 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `APP_ENV` | yes | `development`, `test`, or `production`; production enables the fail-closed guard. |
+| `APP_ENV` | yes | `development`, `test`, or `production`. **Unset means production** (fail closed): the guard runs and the test staff login is unavailable. |
 | `DATABASE_URL` | yes | Runtime connection; `postgres://` is normalised to `postgresql+psycopg://`; needs `sslmode=require` for remote hosts. |
 | `MIGRATION_DATABASE_URL` | migration workflow only | Never present in the Render runtime environment. |
 | `TEST_DATABASE_URL` | tests | Must name a database ending `_test`. |
@@ -88,6 +88,12 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 | `TZ`, `APP_TIMEZONE` | no | Both `UTC`. Timestamps are stored as `timestamptz` and computed in UTC; the DB session is pinned with `SET TIME ZONE 'UTC'`. |
 | `DEFAULT_DISPLAY_TIMEZONE` | no | Default `Asia/Dhaka`; IANA zone used for calendar rules such as the visit-month check. |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE` | no | Pool tuning for Supabase connection limits. |
+| `DB_POOL_TIMEOUT`, `DB_CONNECT_TIMEOUT` | no | Seconds to wait for a pooled / new connection (default 5). Failure returns 503. |
+| `DB_STATEMENT_TIMEOUT_MS`, `DB_LOCK_TIMEOUT_MS`, `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` | no | Applied to every session (defaults 5000 / 3000 / 15000). A slow query or lock wait is cancelled instead of holding a worker. |
+| `REQUEST_TIMEOUT_SECONDS`, `MAX_REQUEST_BODY_BYTES` | no | Hard request deadline (default 15 s, then 504) and `Content-Length` cap (default 64 KiB, then 413). |
+| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_GUEST_SUBMIT`, `RATE_LIMIT_RECEIPT` | no | Per-client-IP limits on the public write endpoints (defaults 5/minute and 10/minute, then 429). |
+| `ALLOW_TEST_STAFF_HEADER` | no | Local development only; enables the `X-Test-Staff-Id` stand-in login. Ignored in production. |
+| `FORWARDED_ALLOW_IPS` | prod | Proxy IPs whose `X-Forwarded-For` is trusted (rate limiting keys on the client IP). Defaults to `*`; set to the platform proxy range. |
 
 ### Deployed environments (fill in; never record secrets here)
 
