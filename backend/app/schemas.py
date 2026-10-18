@@ -1,9 +1,9 @@
 import uuid
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.config import get_settings
 from app.models import ComfortTier, ReviewLanguage, ReviewStatus, TravellerType
 
 
@@ -26,10 +26,10 @@ class GuestReviewCreate(BaseModel):
     def first_day_of_month(cls, value: date) -> date:
         if value.day != 1:
             raise ValueError("visit_month must use the first day of its month")
-        today_in_dhaka = datetime.now(ZoneInfo("Asia/Dhaka")).date()
-        current_month = today_in_dhaka.replace(day=1)
+        display_tz = get_settings().display_tz
+        current_month = datetime.now(display_tz).date().replace(day=1)
         if value > current_month:
-            raise ValueError("visit_month cannot be in the future in Asia/Dhaka")
+            raise ValueError(f"visit_month cannot be in the future in {display_tz.key}")
         return value
 
 

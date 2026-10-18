@@ -1,5 +1,6 @@
 from functools import lru_cache
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     receipt_session_minutes: int = 15
     cors_allowed_origins: str = "http://localhost:5173"
     log_level: str = "INFO"
+    app_timezone: str = "UTC"
+    default_display_timezone: str = "Asia/Dhaka"
     docs_enabled: bool | None = None
     db_pool_size: int = Field(default=5, ge=1, le=20)
     db_max_overflow: int = Field(default=2, ge=0, le=20)
@@ -35,6 +38,26 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_url(cls, value: str | None) -> str | None:
         return normalize_database_url(value) if value else value
+
+    @field_validator("app_timezone")
+    @classmethod
+    def _storage_zone_is_utc(cls, value: str) -> str:
+        if value != "UTC":
+            raise ValueError("APP_TIMEZONE must be UTC; timestamps are stored and computed in UTC")
+        return value
+
+    @field_validator("default_display_timezone")
+    @classmethod
+    def _display_zone_exists(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as error:
+            raise ValueError(f"DEFAULT_DISPLAY_TIMEZONE {value!r} is not a valid IANA zone") from error
+        return value
+
+    @property
+    def display_tz(self) -> ZoneInfo:
+        return ZoneInfo(self.default_display_timezone)
 
     @property
     def is_production(self) -> bool:

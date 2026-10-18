@@ -55,3 +55,19 @@ def test_development_keeps_defaults() -> None:
     settings = Settings(_env_file=None)
     assert settings.docs_are_enabled is True
     assert settings.cors_origins == ["http://localhost:5173"]
+
+
+def test_timezone_defaults() -> None:
+    s = Settings(_env_file=None)
+    assert s.app_timezone == "UTC"
+    assert s.default_display_timezone == "Asia/Dhaka"
+    assert s.display_tz.key == "Asia/Dhaka"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"app_timezone": "Asia/Dhaka"}, {"default_display_timezone": "Not/AZone"}],
+)
+def test_invalid_timezones_are_rejected(overrides: dict) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **overrides)
