@@ -102,7 +102,9 @@ The Sajek advisory "Road blockade eased until 21 October" is time-bound and expi
 
 ## 7. Verification evidence (19 October 2026)
 
-All runs were local against an embedded PostgreSQL 16 server (the project targets 17; the embedded build was used because Docker is not installed on this machine). Nothing was written to the shared Supabase database.
+All runs were local against an embedded PostgreSQL 16 server (the project targets 17; the embedded build was used because Docker is not installed on this machine).
+
+**Shared Supabase database, 19 October 2026** (the project in the local `backend/.env`, `APP_ENV=development`): it was at `0002_enable_rls` with no destinations or reviews. With the team's approval, `alembic upgrade head` applied `0003` to `0005`, then `seed_destinations.py` loaded 5 destinations, 21 guide items, 6 advisories, 18 contacts and 5 rating rows. `GET /destinations` and the Sajek profile returned `200` from that database. This was run from a developer machine, not the protected migration workflow (PF 22); staging and production must still migrate only through that workflow.
 
 | Check | Result |
 |---|---|
