@@ -130,3 +130,4 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Self-hosted fonts (CSP `style-src 'self'`, 40 KiB Bangla font budget) | F03 or R12 |
 | Frontend lint and unit tests in CI | PF 27 items 2 and 5 |
 | Planner, offline packs and saved trips still use prototype data | E08, R13, E09 |
+| Public deployment. `frontend/vercel.json` is ready; deploying and adding the Vercel origin to the API's `CORS_ALLOWED_ORIGINS` is with Shahriar Islam (`Architecture.md` section 5). | Interim Vercel deploy |

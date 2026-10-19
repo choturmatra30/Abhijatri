@@ -15,6 +15,7 @@ This log records build-time decisions without reopening the frozen Review specif
 | Turnstile widget | Deferred to an R09 follow-up. Development runs with `TURNSTILE_ENABLED=false`; production submission needs the widget before release. | Needs the site key and the CSP origin in PF 16.3. |
 | Seed content ownership | The five-destination content was researched and sourced by Abdullah to unblock R03. It stays R01 work owned by Shahriar Islam and is accepted only after that review sets `reviewer`. | Gantt R01 ownership; R01 acceptance "pass review". |
 | CORS origin normalisation | Trailing slashes are stripped from `CORS_ALLOWED_ORIGINS`. | A trailing slash never matches a browser `Origin`, which blocked the local frontend. |
+| Vercel for the public frontend (interim) | The public PWA is deployed to Vercel by Shahriar Islam using `frontend/vercel.json`; steps are in `Architecture.md` section 5. This amends the Render static-site plan of PF 4 for the interim only. Before R04 cookies or Gate B, the frontend and API must share an owned domain (PF 5.2, 5.3); the staff build is not deployed here. | The shared deployment account is available to Shahriar; Guest features need no cookies, so `vercel.app` is acceptable until authentication lands. |
 
 ## 2026-10-19 (WP2 error contract, WP3 receipts and keyring)
 

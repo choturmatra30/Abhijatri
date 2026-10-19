@@ -110,6 +110,46 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 |---|---|---|---|
 | Staging | `https://api.<owned-domain>` | Supabase `abhijatri-staging` | |
 | Production or pilot | `https://api.<owned-domain>` | Supabase `abhijatri-prod` | |
+| Public frontend (interim, Vercel) | `https://<project>.vercel.app` (fill in after first deploy) | uses the API above | |
+
+### Public frontend deployment on Vercel (interim)
+
+Owner: Shahriar Islam (deploys from the shared Vercel account). Prepared by: Abdullah. Decision: `Docs/Decisions.md`, 2026-10-19 (Vercel).
+
+**One-time project setup**
+
+| Setting | Value |
+|---|---|
+| Git repository and branch | `shahriar6130/Abhijatri`, production branch agreed by the team (`main` after `abd` is merged) |
+| Root Directory | `frontend` |
+| Framework preset | Vite (also set in `frontend/vercel.json`) |
+| Build command / output | `npm run build` / `dist` (from `frontend/vercel.json`) |
+| Node.js version | 22 (matches CI) |
+| Environment variable | `VITE_API_BASE_URL` = the deployed API origin, e.g. `https://api.<owned-domain>`, **no trailing slash**. It is baked in at build time, so changing it needs a redeploy. Set it for Production and Preview. |
+
+`frontend/vercel.json` already provides:
+
+- a rewrite of every path to `/index.html`, so refreshing `/destinations/<id>` or `/reviews` does not return 404 (static files still win);
+- `Cache-Control: public, max-age=31536000, immutable` on hashed `/assets/*` (Security 7.1);
+- `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin` and a `Permissions-Policy` disabling camera, microphone, payment and geolocation (PF 16.4).
+
+**Backend change required at the same time**
+
+Add the exact Vercel origin to the API's `CORS_ALLOWED_ORIGINS` (comma-separated, e.g. `https://<project>.vercel.app,http://localhost:5173`) and restart the API. Without it the browser blocks every request and the site shows "Could not reach the server". Preview deployments get different URLs and will be blocked unless added; test on the production URL.
+
+**Smoke test after deploy**
+
+1. `/` shows "5 published destinations" and the advisory list.
+2. Open Sajek Valley, refresh the page: it reloads (no 404) with advisories and contacts.
+3. Switch to English: the page changes language without reloading data.
+4. Submit a Guest review: a receipt `abr1_…` is shown once; "Check status" shows "Waiting for moderation".
+5. Browser console has no CORS errors.
+
+**Known limits of the interim deployment**
+
+- Production Guest submission needs the Turnstile widget, which is not built yet (`Docs/Frontend-Implemented.md` section 8). Against an API with `TURNSTILE_ENABLED=true`, submission returns `CHALLENGE_FAILED`; reading works.
+- No Content Security Policy yet: fonts still load from Google Fonts and prototype pages still hotlink images. CSP lands with self-hosted fonts (PF 16.3).
+- `vercel.app` is a public suffix, like `onrender.com` (PF 5.2). Member and staff cookies (R04) need the frontend and API on one owned domain, so this deployment is for Guest features and demonstrations only until the domain is in place.
 
 ## 6. Trust boundaries
 
