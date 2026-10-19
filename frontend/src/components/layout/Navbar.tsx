@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Search, 
-  Wifi, 
+
   Sun, 
   Moon, 
   Activity, 
@@ -70,12 +70,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isSidebarOpen }
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Offline Ready Badge */}
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime text-xs font-en">
-            <Wifi size={14} className="text-forest-primary dark:text-emerald-accent" />
-            <span className="font-semibold">{t('অফলাইন প্যাক রেডি', 'PWA Offline Ready')}</span>
-          </div>
-
           {/* Backend API Health Pill */}
           <Link
             to="/health"

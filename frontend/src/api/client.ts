@@ -1,82 +1,96 @@
 /**
  * Abhijatri Base API Client
- * Configures base URL resolution, headers, and standard error handling
- * aligned with Platform Foundation 12.3 ({ code, message, details }).
+ * Base URL resolution, headers, and the single error contract of Platform Foundation 12.3:
+ * every error body is { error: { code, message, request_id, field_errors } }.
+ * Callers branch on `code`, never on `message`.
  */
+
+import type { ApiErrorBody, FieldError } from '../types';
 
 export const API_BASE_URL: string = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
-export interface ApiErrorResponse {
-  code?: string;
-  message: string;
-  details?: Record<string, unknown> | unknown[];
-}
-
 export class ApiError extends Error {
   status: number;
-  code?: string;
-  details?: Record<string, unknown> | unknown[];
+  code: string;
+  requestId?: string;
+  fieldErrors: FieldError[];
 
-  constructor(status: number, message: string, code?: string, details?: Record<string, unknown> | unknown[]) {
+  constructor(status: number, code: string, message: string, requestId?: string, fieldErrors: FieldError[] = []) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
-    this.details = details;
+    this.requestId = requestId;
+    this.fieldErrors = fieldErrors;
   }
 }
 
-export interface RequestOptions extends RequestInit {
-  params?: Record<string, string | number | boolean | undefined>;
+/** Raised when the request never produced an HTTP response (offline, DNS, CORS, aborted). */
+export const NETWORK_ERROR = 'NETWORK_ERROR';
+
+export interface RequestOptions extends Omit<RequestInit, 'body'> {
+  params?: Record<string, string | number | boolean | undefined | null>;
+  body?: unknown;
+}
+
+function isErrorBody(value: unknown): value is ApiErrorBody {
+  if (typeof value !== 'object' || value === null || !('error' in value)) return false;
+  const error = (value as { error: unknown }).error;
+  return typeof error === 'object' && error !== null && typeof (error as { code?: unknown }).code === 'string';
 }
 
 /**
- * Universal JSON fetch helper with standard headers and typed error normalization.
+ * JSON fetch helper.
+ *
+ * - `Accept-Language` follows the interface language, so server error messages match it.
+ * - `Content-Type` is sent only with a body: public GETs stay CORS "simple" requests with no
+ *   preflight round trip on slow networks (Platform Foundation 16.1).
  */
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers, ...rest } = options;
+  const { params, headers, body, ...rest } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, val]) => {
-      if (val !== undefined) searchParams.append(key, String(val));
+      if (val !== undefined && val !== null) searchParams.append(key, String(val));
     });
     const qs = searchParams.toString();
-    if (qs) {
-      url += (url.includes('?') ? '&' : '?') + qs;
-    }
+    if (qs) url += (url.includes('?') ? '&' : '?') + qs;
   }
 
-  const response = await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    ...rest,
-  });
+  const requestHeaders: Record<string, string> = {
+    Accept: 'application/json',
+    'Accept-Language': document.documentElement.lang === 'en' ? 'en' : 'bn',
+  };
+  if (body !== undefined) requestHeaders['Content-Type'] = 'application/json';
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...rest,
+      headers: { ...requestHeaders, ...(headers as Record<string, string> | undefined) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw new ApiError(0, NETWORK_ERROR, error instanceof Error ? error.message : 'Network request failed');
+  }
 
   if (!response.ok) {
-    let errorData: ApiErrorResponse = { message: `HTTP ${response.status}: ${response.statusText}` };
+    let parsed: unknown = null;
     try {
-      errorData = await response.json();
+      parsed = await response.json();
     } catch {
-      // Non-JSON error body fallback
+      // Non-JSON error body (proxy or gateway page)
     }
-    throw new ApiError(
-      response.status,
-      errorData.message || response.statusText,
-      errorData.code,
-      errorData.details
-    );
+    if (isErrorBody(parsed)) {
+      const { code, message, request_id, field_errors } = parsed.error;
+      throw new ApiError(response.status, code, message, request_id, field_errors ?? []);
+    }
+    throw new ApiError(response.status, `HTTP_${response.status}`, response.statusText || `HTTP ${response.status}`);
   }
 
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return response.json();
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
-

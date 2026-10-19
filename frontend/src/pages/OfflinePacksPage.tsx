@@ -7,7 +7,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../api/destinations';
+import { PROTOTYPE_DESTINATIONS } from '../data/prototypeDestinations';
 
 export const OfflinePacksPage: React.FC = () => {
   const { language, t } = useLanguage();
@@ -21,7 +21,7 @@ export const OfflinePacksPage: React.FC = () => {
     }
   };
 
-  const totalCachedMb = SEEDED_DESTINATIONS
+  const totalCachedMb = PROTOTYPE_DESTINATIONS
     .filter((d) => downloadedPacks.includes(d.id))
     .reduce((acc, curr) => acc + curr.offlinePackSizeMb, 0);
 
@@ -55,8 +55,8 @@ export const OfflinePacksPage: React.FC = () => {
               <h2 className="font-bold text-base font-title text-on-surface dark:text-on-dark">
                 {t('ডিভাইস অফলাইন স্টোরেজ', 'Local Offline Storage')}
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold font-en">
-                Active (Dexie.js)
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
+                {t('প্রোটোটাইপ: এখনো কিছু সংরক্ষিত হয় না', 'Prototype: nothing is stored yet')}
               </span>
             </div>
             <p className="text-xs text-on-surface-variant dark:text-on-dark-muted font-en mt-0.5">
@@ -80,7 +80,7 @@ export const OfflinePacksPage: React.FC = () => {
         </h3>
 
         <div className="grid grid-cols-1 gap-3">
-          {SEEDED_DESTINATIONS.map((dest) => {
+          {PROTOTYPE_DESTINATIONS.map((dest) => {
             const isCached = downloadedPacks.includes(dest.id);
             return (
               <div

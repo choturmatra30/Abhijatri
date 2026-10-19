@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Bookmark, Calendar, Users, Trash2, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../api/destinations';
+import { PROTOTYPE_DESTINATIONS } from '../data/prototypeDestinations';
 
 interface SavedBrief {
   id: string;
@@ -82,7 +82,7 @@ export const SavedTripsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {trips.map((trip) => {
-            const dest = SEEDED_DESTINATIONS.find((d) => d.id === trip.destination);
+            const dest = PROTOTYPE_DESTINATIONS.find((d) => d.id === trip.destination);
             return (
               <div
                 key={trip.id}

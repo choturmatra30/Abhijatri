@@ -1,220 +1,55 @@
 import React, { useState } from 'react';
-import { 
-  MessageSquareText, 
-  Star, 
-  Send, 
-  ShieldCheck, 
-  CheckCircle2
-} from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { MessageSquareText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../api/destinations';
+import { listAllDestinations } from '../api/destinations';
+import { useApiResource } from '../hooks/useApiResource';
+import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { GuestReviewForm, type SubmittedReview } from '../components/reviews/GuestReviewForm';
+import { ReceiptPanel } from '../components/reviews/ReceiptPanel';
+import { ReceiptStatusPanel } from '../components/reviews/ReceiptStatusPanel';
 
 export const ReviewsPage: React.FC = () => {
-  const { language, t } = useLanguage();
-  const [selectedDest, setSelectedDest] = useState('sajek-valley');
-  const [rating, setRating] = useState(5);
-  const [reviewText, setReviewText] = useState('');
-  const [travellerType, setTravellerType] = useState('STUDENT');
-  const [submitting, setSubmitting] = useState(false);
-  const [receiptToken, setReceiptToken] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reviewText.trim()) return;
-
-    setSubmitting(true);
-    setSubmitError(null);
-    // Submit review to backend endpoint POST /api/v1/reviews/guest
-    const clientDraftId = crypto.randomUUID();
-    const secretBytes = new Uint8Array(32);
-    crypto.getRandomValues(secretBytes);
-    const guestSecret = Array.from(secretBytes, (byte) =>
-      byte.toString(16).padStart(2, '0')
-    ).join('');
-
-    try {
-      const res = await fetch('/api/v1/reviews/guest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': clientDraftId,
-        },
-        body: JSON.stringify({
-          destination_id: selectedDest,
-          client_draft_id: clientDraftId,
-          guest_scope_secret: guestSecret,
-          overall_rating: rating,
-          travel_date: new Date().toISOString().split('T')[0],
-          traveller_type: travellerType,
-          comfort_tier: 'STANDARD',
-          body: reviewText,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Review submission failed (${res.status})`);
-      }
-
-      const data: unknown = await res.json();
-      if (
-        typeof data !== 'object' ||
-        data === null ||
-        typeof (data as { receipt_token?: unknown }).receipt_token !== 'string' ||
-        (data as { receipt_token: string }).receipt_token.length === 0
-      ) {
-        throw new Error('Backend returned an invalid receipt token');
-      }
-
-      setReceiptToken((data as { receipt_token: string }).receipt_token);
-    } catch (error: unknown) {
-      setSubmitError(error instanceof Error ? error.message : 'Review submission failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const { t } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const [submitted, setSubmitted] = useState<SubmittedReview | null>(null);
+  const { data: destinations, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
 
   return (
-    <div className="flex flex-col gap-6 pb-12 max-w-4xl mx-auto">
+    <div className="flex flex-col gap-6 pb-12 max-w-3xl mx-auto">
       <div>
-        <div className="flex items-center gap-2 text-forest-primary dark:text-neon-lime text-xs font-bold uppercase font-en tracking-wider mb-1">
-          <MessageSquareText size={16} />
-          <span>{t('স্বচ্ছ কমিউনিটি রিভিউ ও ফিডব্যাক', 'Structured Review Lifecycle (FR04/FR13)')}</span>
+        <div className="flex items-center gap-2 text-forest-primary dark:text-neon-lime text-xs font-bold uppercase tracking-wider mb-1">
+          <MessageSquareText size={16} aria-hidden="true" />
+          <span>{t('অতিথি রিভিউ', 'Guest review')}</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark tracking-tight">
-          {t('গেস্ট রিভিউ সাবমিশন ও রিসিট ম্যানেজমেন্ট', 'Guest Review Submission & Receipt Management')}
+          {t('আপনার ভ্রমণ অভিজ্ঞতা লিখুন', 'Share your travel experience')}
         </h1>
-        <p className="text-xs sm:text-sm text-on-surface-variant dark:text-on-dark-muted font-body mt-1">
+        <p className="text-sm text-on-surface-variant dark:text-on-dark-muted font-body mt-1">
           {t(
-            'অ্যাকাউন্ট ছাড়াও নিরাপদ রিসিট টোকেনের মাধ্যমে রিভিউ সাবমিট ও উইথড্র (প্রত্যাহার) করুন। অফলাইনে ড্রাফট স্বয়ংক্রিয়ভাবে সংরক্ষিত থাকে।',
-            'Submit reviews without mandatory registration. Permanent draft deduplication prevents multiple submissions.'
+            'অ্যাকাউন্ট ছাড়াই রিভিউ দিন। মডারেশনের পর প্রকাশিত হবে, আর রিসিপ্ট দিয়ে অবস্থা দেখা বা প্রত্যাহার করা যাবে।',
+            'No account needed. Reviews are published after moderation, and your receipt lets you check status or withdraw.',
           )}
         </p>
       </div>
 
-      {receiptToken ? (
-        <div className="tonal-card p-6 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 flex flex-col gap-4">
-          <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 size={24} />
-            <h3 className="font-bold text-lg font-title">
-              {t('রিভিউ সফলভাবে গৃহীত হয়েছে (মডারেশন অপেক্ষমাণ)', 'Review Submitted (Pending Moderation)')}
-            </h3>
-          </div>
-          <p className="text-xs text-emerald-900 dark:text-emerald-200 font-body leading-relaxed">
-            {t(
-              'আপনার রিভিউটি সফলভাবে সিস্টেমে নিবন্ধিত হয়েছে। এটি আপনার গোপনীয় রিসিট টোকেন (Receipt Token) যা সংরক্ষণ করে ভবিষ্যতে রিভিউ স্ট্যাটাস দেখতে বা প্রত্যাহার করতে পারবেন:',
-              'Your review has been registered. Save this one-time receipt token to manage or withdraw your submission later:'
-            )}
-          </p>
-          <div className="p-3.5 rounded-xl bg-white dark:bg-dark-surface-2 border border-emerald-200 dark:border-emerald-800 font-mono text-xs font-bold text-emerald-800 dark:text-emerald-300 break-all select-all">
-            {receiptToken}
-          </div>
-          <button
-            onClick={() => { setReceiptToken(null); setReviewText(''); }}
-            className="self-start px-4 py-2 rounded-full bg-emerald-700 text-white text-xs font-bold font-title hover:bg-emerald-800 transition-colors"
-          >
-            {t('আরেকটি রিভিউ লিখুন', 'Write Another Review')}
-          </button>
-        </div>
+      {submitted ? (
+        <ReceiptPanel review={submitted} onDone={() => setSubmitted(null)} />
+      ) : loading ? (
+        <LoadingState />
+      ) : error !== null ? (
+        <ErrorState error={error} onRetry={reload} />
+      ) : destinations && destinations.length > 0 ? (
+        <GuestReviewForm
+          destinations={destinations}
+          initialDestinationId={searchParams.get('destination')}
+          onSubmitted={setSubmitted}
+        />
       ) : (
-        <form onSubmit={handleSubmit} className="tonal-card p-6 flex flex-col gap-5">
-          {submitError && (
-            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-              {submitError}
-            </div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold uppercase font-en text-on-surface-variant">
-              {t('গন্তব্য', 'Destination')}
-            </label>
-            <select
-              value={selectedDest}
-              onChange={(e) => setSelectedDest(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/40 text-sm font-title"
-            >
-              {SEEDED_DESTINATIONS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {language === 'bn' ? d.nameBn : d.nameEn}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase font-en text-on-surface-variant">
-                {t('রেটিং', 'Rating')}
-              </label>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    className="p-1 text-yellow-400 hover:scale-110 transition-transform"
-                  >
-                    <Star
-                      size={24}
-                      className={star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300 dark:text-gray-600'}
-                    />
-                  </button>
-                ))}
-                <span className="text-sm font-bold font-en ml-2">{rating} / 5</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase font-en text-on-surface-variant">
-                {t('ভ্রমণকারীর ধরণ', 'Traveller Type')}
-              </label>
-              <select
-                value={travellerType}
-                onChange={(e) => setTravellerType(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/40 text-sm font-title"
-              >
-                <option value="SOLO">Solo Traveller (একক যাত্রী)</option>
-                <option value="STUDENT">Student Group (শিক্ষার্থী দল)</option>
-                <option value="COUPLE">Couple (দম্পতি)</option>
-                <option value="FAMILY">Family (পরিবার)</option>
-                <option value="GROUP">Friends Group (বন্ধুর দল)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold uppercase font-en text-on-surface-variant">
-              {t('আপনার ভ্রমণ অভিজ্ঞতা ও রিভিউ', 'Your Travel Experience')}
-            </label>
-            <textarea
-              rows={4}
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              placeholder={t(
-                'ভ্রমণের তারিখ, স্থানীয় অভিজ্ঞতা, হোটেল বা পরিবহন সংক্রান্ত সততা এবং সতর্কতা সম্পর্কে লিখুন...',
-                'Share details about transport, stay, seasonality, and practical warnings...'
-              )}
-              required
-              className="w-full p-3.5 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/40 text-sm font-body focus:ring-1 focus:ring-forest-primary"
-            />
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-surface-container/60 dark:bg-dark-surface-2 text-xs text-on-surface-variant flex items-center gap-2 font-en">
-            <ShieldCheck size={16} className="text-forest-primary dark:text-neon-lime shrink-0" />
-            <span>
-              Reviews pass through server moderation before inclusion in Bayesian rating stats. Retries use unique client draft UUIDs.
-            </span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="self-start px-6 py-2.5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-title flex items-center gap-2 shadow-sm hover:opacity-95 disabled:opacity-50"
-          >
-            <Send size={14} />
-            <span>{submitting ? t('সাবমিট হচ্ছে...', 'Submitting...') : t('রিভিউ সাবমিট করুন', 'Submit Review')}</span>
-          </button>
-        </form>
+        <EmptyState title={t('রিভিউ দেওয়ার মতো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations to review yet')} />
       )}
+
+      <ReceiptStatusPanel />
     </div>
   );
 };
