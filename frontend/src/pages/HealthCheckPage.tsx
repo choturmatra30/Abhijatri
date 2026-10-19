@@ -26,8 +26,11 @@ export const HealthCheckPage: React.FC = () => {
     const target = urlToTest || backendUrl;
     if (!isAllowedBackendUrl(target)) {
       setHealthResult({
-        status: 'error',
-        error: 'Backend URL is not allowed. Use HTTPS or an approved localhost URL.',
+        status: 'blocked',
+        error: t(
+          'এই URL অনুমোদিত তালিকায় নেই, তাই কোনো অনুরোধ পাঠানো হয়নি। HTTPS ব্যবহার করুন এবং হোস্টটি frontend/.env-এর VITE_ALLOWED_BACKEND_HOSTS-এ যোগ করুন।',
+          'This URL is not on the allow-list, so no request was sent. Use HTTPS and add the host to VITE_ALLOWED_BACKEND_HOSTS in frontend/.env.',
+        ),
         timestamp: new Date().toISOString(),
         urlChecked: target,
       });
@@ -133,13 +136,20 @@ export const HealthCheckPage: React.FC = () => {
               )}
               <div>
                 <h3 className="font-bold text-lg font-title text-on-surface dark:text-on-dark">
-                  {healthResult.status === 'ok' 
+                  {healthResult.status === 'ok'
                     ? t('ব্যাকএন্ড সার্ভিস সচল ও কানেক্টেড!', 'Backend Service is Live & Connected!')
-                    : t('কানেকশন ব্যর্থ হয়েছে (Unreachable)', 'Backend Service Unreachable')}
+                    : healthResult.status === 'blocked'
+                      ? t('URL অনুমোদিত নয় (পরীক্ষা করা হয়নি)', 'URL not allowed (not tested)')
+                      : t('কানেকশন ব্যর্থ হয়েছে (Unreachable)', 'Backend Service Unreachable')}
                 </h3>
                 <p className="text-xs text-on-surface-variant dark:text-on-dark-muted font-en">
                   Checked endpoint: {healthResult.urlChecked}
                 </p>
+                {healthResult.status !== 'ok' && healthResult.error && (
+                  <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">
+                    {healthResult.error}
+                  </p>
+                )}
               </div>
             </div>
 

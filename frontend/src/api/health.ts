@@ -6,6 +6,11 @@ const ALLOWED_BACKEND_HOSTS = new Set([
   '127.0.0.1',
   '::1',
   'api.abhijatri.example',
+  // Extra deployed API hosts, comma-separated hostnames (e.g. abhijatri-backend.up.railway.app).
+  ...(import.meta.env.VITE_ALLOWED_BACKEND_HOSTS || '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
 ]);
 
 /**
@@ -36,7 +41,7 @@ export async function checkBackendHealth(customUrl?: string): Promise<HealthStat
   const targetBase = customUrl ? customUrl.replace(/\/+$/, '') : API_BASE_URL;
   if (customUrl && !isAllowedBackendUrl(targetBase)) {
     return {
-      status: 'error',
+      status: 'blocked',
       error: 'Backend URL is not allowed',
       timestamp: new Date().toISOString(),
       urlChecked: targetBase,

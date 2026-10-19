@@ -57,4 +57,6 @@ Full account: [`Docs/Frontend-Implemented.md`](Frontend-Implemented.md). Evidenc
 | Frontend error contract (`{error:{code,message,request_id,field_errors}}`), `Accept-Language`, no preflight on public GETs | Implemented | `frontend/src/api/client.ts` |
 | CORS origins with a trailing slash never matched the browser origin | Fixed | `backend/app/config.py`; `tests/test_config.py::test_cors_origins_ignore_trailing_slashes` |
 | False offline claims and invented ratings removed from the interface | Fixed | `Docs/Frontend-Implemented.md` section 5 |
+| System Status refused deployed API hosts and labelled them "Unreachable" without a reason | Fixed | `VITE_ALLOWED_BACKEND_HOSTS`; `Docs/Frontend-Implemented.md` D10, D11 |
+| Railway API deployment serves pre-merge code (no destinations API, old error shape, review feed `500`) | Open, backend owner | `Docs/Frontend-Implemented.md` B4 |
 | Turnstile widget, member review path, review filters, offline drafts, PWA shell, staff build | Not implemented | `Docs/Frontend-Implemented.md` section 8 |

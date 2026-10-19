@@ -111,6 +111,7 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 | Staging | `https://api.<owned-domain>` | Supabase `abhijatri-staging` | |
 | Production or pilot | `https://api.<owned-domain>` | Supabase `abhijatri-prod` | |
 | Public frontend (interim, Vercel) | `https://<project>.vercel.app` (fill in after first deploy) | uses the API above | |
+| API on Railway (not in the approved plan) | `https://abhijatri-backend.up.railway.app` | unknown; check its `DATABASE_URL` | 19 Oct 2026: live, but serving pre-merge code (`Docs/Frontend-Implemented.md` B4) |
 
 ### Public frontend deployment on Vercel (interim)
 
@@ -126,6 +127,7 @@ Owner: Shahriar Islam (deploys from the shared Vercel account). Prepared by: Abd
 | Build command / output | `npm run build` / `dist` (from `frontend/vercel.json`) |
 | Node.js version | 22 (matches CI) |
 | Environment variable | `VITE_API_BASE_URL` = the deployed API origin, e.g. `https://api.<owned-domain>`, **no trailing slash**. It is baked in at build time, so changing it needs a redeploy. Set it for Production and Preview. |
+| Optional variable | `VITE_ALLOWED_BACKEND_HOSTS` = extra API hostnames (comma-separated, no scheme) that the System Status page may test besides the `VITE_API_BASE_URL` host. |
 
 `frontend/vercel.json` already provides:
 
