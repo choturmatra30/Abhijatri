@@ -65,6 +65,11 @@ def test_development_keeps_defaults() -> None:
     assert settings.cors_origins == ["http://localhost:5173"]
 
 
+def test_cors_origins_ignore_trailing_slashes() -> None:
+    settings = Settings(_env_file=None, app_env="test", cors_allowed_origins="http://localhost:5173/, https://app.example.com//,")
+    assert settings.cors_origins == ["http://localhost:5173", "https://app.example.com"]
+
+
 def test_timezone_defaults() -> None:
     s = Settings(_env_file=None, app_env="test")
     assert s.app_timezone == "UTC"
