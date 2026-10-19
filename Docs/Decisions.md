@@ -2,6 +2,47 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-19 (WP2 error contract, WP3 receipts and keyring)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Error body | Every error is `{"error": {"code", "message", "request_id", "field_errors"}}` from `app/errors.py`. Codes, statuses and Bangla/English messages live in one catalogue. `Accept-Language` selects the message; Bangla is the default. | API.md section 2, PF 12.3. |
+| Field errors | Only `{field, code}` pairs are returned; submitted values are never echoed. | A rejected request can contain a receipt or Guest secret (PF 13.4). |
+| Request id | `X-Request-ID` is a UUID and equals `error.request_id`. | API.md section 2. |
+| Receipt origin | The client generates the receipt (`abr1_` plus 32 random bytes, base64url). The server validates the exact format, rejects non-canonical and low-entropy values, stores only a keyed digest, and never issues or returns one. | PF 13.1 to 13.2; removes the receipt-minting weakness of the Guest scope. |
+| Keyring | One versioned ring (`RECEIPT_KEYS`, `RECEIPT_KEY_CURRENT`) serves receipt, Guest-scope and network digests, separated by context labels. Lookups try every retained key; a successful receipt use re-digests under the current key. Without `RECEIPT_KEYS` the pepper is key `v1`. | PF 13.4. |
+| Duplicate draft | Same Guest scope and `client_draft_id`: same receipt returns `200` with `duplicate_recovered: true`; a different receipt returns `409 DRAFT_ALREADY_SUBMITTED` and no review id. A receipt already bound to another review is refused the same way. | PF 13.3. |
+| Legacy data | Receipts and Guest-scope digests created before migration `0004` are marked `legacy`; the receipts are revoked. Pending drafts from the old scheme cannot be recovered. | The old digests used an unlabelled pepper and cannot be verified under the new scheme. Pre-release data only. |
+| Rejection details | `decision_reason` is the moderator `reason_code` of the latest rejection and `appeal_deadline` is 30 days after it. Moderator notes are never returned. Moderators must therefore use catalogue codes (full catalogue planned with R10). | API.md 5.3. |
+| Withdrawal order | An already `WITHDRAWN`/`DELETED` review returns `200` before the `expected_version` check. | A retry after a lost response must succeed (API.md 5.4). |
+
+## 2026-10-19 (WP5 abuse controls)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Client address | Uvicorn runs with `--no-proxy-headers`. `app/client_address.py` reads one configured header (`CLIENT_ADDRESS_HEADER`) at one position (default right-most). A missing or malformed value falls back to the socket peer, never to another client-controlled header. IPv6 is truncated to /64. Only a keyed digest is stored. Production refuses to start without the header setting. | PF 14.2. The header name is **unproven** until the staging forged-header test records it in `Architecture.md`. |
+| Counters | `rate_limit_buckets` holds fixed-window counters keyed by (rule, keyed digest, window start). Every increment commits in its own transaction before the business operation, so a later failure never erases the attempt. Windows older than two days are purged at most once a minute per process. Fixed windows allow up to twice the limit across a window boundary; this is accepted for the MVP. | PF 14.5. |
+| Limits | New Guest drafts: 3 per scope per 24 h; 30 per network per hour; 100 per network per 24 h. Receipt operations: 20 per receipt per hour; 100 per network per hour. All are settings with these defaults. | API.md section 7. |
+| Progressive block | Failed receipt lookups are counted per receipt and per network in two tiers (5 per 15 minutes, then 20 per 24 hours). While either tier is exhausted, receipt operations are refused with `429` and `Retry-After` before any lookup, so the right receipt from a guessing network is also refused but other networks are unaffected. A request sleeping in a worker is not used as a delay. | "Progressive delay after repeated failures" without tying up workers. |
+| Order of checks | 1 schema and receipt format, 2 recoverable draft (free: no challenge, no counter), 3 idempotency replay (**pending WP4**), then the emergency switch, 4 Turnstile, 5 counters, 6 limits and pending ceilings, 7 business transaction. The emergency switch sits before Turnstile so a paused system does not spend a visitor's challenge. | PF 14.4. |
+| Turnstile | Server-side validation of success, hostname and action; one retry of the siteverify call with the same `idempotency_key`; an unreachable Cloudflare returns `503`, never a pass and never `CHALLENGE_FAILED`. Disabled only in development and test; production refuses to start without it. | PF 14.1. |
+| Pending ceilings | Pending Guest reviews are `PENDING`, `UNDER_REVIEW` and `CHANGES_REQUESTED`. Ceilings 50 per destination and 500 total return `503 GUEST_WRITES_PAUSED` for new Guest submissions only; a warning is logged from 80 percent. | PF 14.3. |
+| Emergency switch | `GUEST_WRITES_PAUSED=true` stops new Guest submissions. Reads, receipt status, withdrawal and recovery of an existing draft continue. Changing it needs a deploy; the administrator toggle with an audit event arrives with `audit_events` (R11). | PF 14.6. |
+| In-memory pre-filter | slowapi remains as a per-address burst filter (5 and 10 per minute by default), now keyed by the trusted address. It is an optimisation, not the limiter. | PF 14.5. |
+
+## 2026-10-19 (R02: destination, advisory and contact services)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Endpoint set | Exactly the two R02 routes in `Docs/api/API.md` 4.3: `GET /destinations` and `GET /destinations/{destination_id}`. Advisories and contacts are embedded in the profile; they have no routes of their own. | Keeps the code identical to the approved contract and gives the PWA and the offline pack a single fetch. |
+| Contract file | `Docs/api/API.md` is the single API contract. `tests/test_openapi_contract.py` reads it. | The earlier `Docs/API.md` was moved; two copies would drift. |
+| Read-only scope | No staff write endpoints for destination content. Content enters through seed and migration scripts until R10 and R11 provide real staff authentication. | The staff header is a development stub that returns 501 in production. |
+| Language | Every response carries both Bangla and English fields. | Offline packs need both, and the client chooses the language (FR02). |
+| Advisory state | `EXPIRED` when the Asia/Dhaka date is after `valid_until`; `STALE` when last verified more than `ADVISORY_STALE_AFTER_DAYS` (default 30) ago; `NOT_YET_EFFECTIVE` before `effective_on`. State is computed on read and never stored. Expired items appear only with `include_expired=true`. | Expired information must never be presented as current (PF 17). |
+| Provenance | Guide items, advisories and contacts store source type, reference, publisher, effective and verification dates, next review date, licence, researcher and reviewer. Researcher and reviewer names are not returned publicly. | PF 17; avoids exposing team members' names in a public payload. |
+| Public caching | The two destination routes and the review feed send `Cache-Control: public, max-age=60` (`PUBLIC_CACHE_MAX_AGE_SECONDS`); the destination routes add a weak `ETag` and answer `If-None-Match` with 304. Every other route stays `no-store`. | Security 7.1 route allowlist with a short explicit TTL. |
+| Row-level security | Migration `0003_destination_content` enables RLS on its three new tables itself. | `0002` only covered tables that existed at the time. |
+
 ## 2026-10-16 (Platform Foundation revision 3)
 
 | Decision | Rule | Reason |
@@ -25,7 +66,7 @@ This log records build-time decisions without reopening the frozen Review specif
 | Feed cursor | Order by `(published_at, id)` descending. | Stable pagination when moderation publishes older submissions later. |
 | Rating transitions | Lock the review and destination aggregate rows, check `version`, and apply `counted_rating` deltas once. | Prevents double counting under retries and concurrent moderation. |
 | Member rating eligibility | Only an active, non-revoked `VERIFIED_MEMBER` verification is eligible. Team and conflict-declared reviews are excluded. | Keeps the Community Rating claim truthful. |
-| Visit month clock | Reject future months using `Asia/Dhaka`. | Makes the rule deterministic for a Bangladesh-first platform. |
+| Visit month clock | Reject future months using `DEFAULT_DISPLAY_TIMEZONE` (default `Asia/Dhaka`); all timestamps are stored and computed in UTC. | Makes the rule deterministic for a Bangladesh-first platform. |
 | Moderator self-review | Denied in the service layer. | Prevents an obvious conflict of interest. |
 | Infrastructure order | PostgreSQL correctness first. Redis, CDN, and media processing remain deferred. | Keeps the first release testable and within semester scope. |
 | Pending-review revisions | A Guest receipt may edit only a `PENDING` or `CHANGES_REQUESTED` review through `PATCH /api/v1/reviews/{review_id}/pending`. | Published-review editing remains deferred to v1.1. |
@@ -54,8 +95,8 @@ This log records build-time decisions without reopening the frozen Review specif
 
 | Decision | Rule | Reason |
 |---|---|---|
-| ERD and contract location | `Docs/Schema.md` (Mermaid ERD, implemented vs planned) and `Docs/API.md` plus `Docs/api/openapi-v1.json`. | One reviewed source for Abdullah and Irfan. |
-| Contract drift | `tests/test_openapi_contract.py` fails when `app.openapi()` differs from the committed snapshot or a route is missing from `Docs/API.md`; `tests/test_docs_schema.py` does the same for tables. | Keeps documents honest without manual review. |
+| ERD and contract location | `Docs/Schema.md` (Mermaid ERD, implemented vs planned) and `Docs/api/API.md` plus `Docs/api/openapi-v1.json`. | One reviewed source for Abdullah and Irfan. |
+| Contract drift | `tests/test_openapi_contract.py` fails when `app.openapi()` differs from the committed snapshot or a route is missing from `Docs/api/API.md`; `tests/test_docs_schema.py` does the same for tables. | Keeps documents honest without manual review. |
 | Pending-review edit | `PATCH /reviews/{id}/pending` stays **planned (R07)**; it is not implemented in this slice. | Avoids shipping unreviewed revision logic during a documentation task. |
 | Versioning | Additive changes stay in `/api/v1`; breaking changes need `/api/v2`. | Frontend can rely on stability. |
 
@@ -65,7 +106,7 @@ This log records build-time decisions without reopening the frozen Review specif
 |---|---|---|
 | Supabase exposure | Migration `0002_enable_rls` enables RLS with no policies on all public tables and revokes `anon`/`authenticated` grants; Data API is also disabled in the dashboard. | Tables created through Alembic are otherwise reachable with the public anon key. |
 | CI dependency audit | `pip-audit` runs on a hashed `uv export` (without `--no-hashes`). | `--disable-pip` requires hashed requirements; first run failed on this. |
-| Moderation decisions | `/decisions` accepts `PUBLISH`, `REJECT`, `HIDE`, `RESTORE`; conflict changes use `PUT .../conflict`. | Matches implemented transitions; documented in `Docs/API.md`. |
+| Moderation decisions | `/decisions` accepts `PUBLISH`, `REJECT`, `HIDE`, `RESTORE`; conflict changes use `PUT .../conflict`. | Matches implemented transitions; documented in `Docs/api/API.md`. |
 
 ## Decisions scheduled during implementation
 

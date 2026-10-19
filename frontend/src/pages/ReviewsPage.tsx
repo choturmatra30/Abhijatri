@@ -17,15 +17,21 @@ export const ReviewsPage: React.FC = () => {
   const [travellerType, setTravellerType] = useState('STUDENT');
   const [submitting, setSubmitting] = useState(false);
   const [receiptToken, setReceiptToken] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewText.trim()) return;
 
     setSubmitting(true);
+    setSubmitError(null);
     // Submit review to backend endpoint POST /api/v1/reviews/guest
     const clientDraftId = crypto.randomUUID();
-    const guestSecret = 'abhijatri_guest_' + Math.random().toString(36).substring(2);
+    const secretBytes = new Uint8Array(32);
+    crypto.getRandomValues(secretBytes);
+    const guestSecret = Array.from(secretBytes, (byte) =>
+      byte.toString(16).padStart(2, '0')
+    ).join('');
 
     try {
       const res = await fetch('/api/v1/reviews/guest', {
@@ -46,16 +52,23 @@ export const ReviewsPage: React.FC = () => {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setReceiptToken(data.receipt_token || 'receipt_demo_token_' + clientDraftId.slice(0, 8));
-      } else {
-        // Fallback for demonstration if backend is not currently running
-        setReceiptToken('receipt_local_mock_' + clientDraftId.slice(0, 8));
+      if (!res.ok) {
+        throw new Error(`Review submission failed (${res.status})`);
       }
-    } catch {
-      // Local draft fallback (Proposal FR12)
-      setReceiptToken('receipt_offline_draft_' + clientDraftId.slice(0, 8));
+
+      const data: unknown = await res.json();
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        typeof (data as { receipt_token?: unknown }).receipt_token !== 'string' ||
+        (data as { receipt_token: string }).receipt_token.length === 0
+      ) {
+        throw new Error('Backend returned an invalid receipt token');
+      }
+
+      setReceiptToken((data as { receipt_token: string }).receipt_token);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : 'Review submission failed');
     } finally {
       setSubmitting(false);
     }
@@ -105,6 +118,11 @@ export const ReviewsPage: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="tonal-card p-6 flex flex-col gap-5">
+          {submitError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {submitError}
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold uppercase font-en text-on-surface-variant">
               {t('গন্তব্য', 'Destination')}

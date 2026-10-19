@@ -1,11 +1,13 @@
 import unicodedata
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from app import schemas
 from app.services import ReviewConflict, encode_cursor, normalize_guest_name
 
 
@@ -49,3 +51,11 @@ def test_incremental_rating_aggregate_matches_full_recompute(
     assert running_sum == sum(counted)
     assert running_count == len(counted)
 
+
+def test_visit_month_rule_uses_configured_display_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeSettings:
+        display_tz = ZoneInfo("Pacific/Auckland")
+
+    monkeypatch.setattr(schemas, "get_settings", lambda: FakeSettings())
+    with pytest.raises(ValueError, match="Pacific/Auckland"):
+        schemas.GuestReviewCreate.first_day_of_month(date(9999, 1, 1))

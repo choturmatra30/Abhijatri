@@ -77,7 +77,7 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `APP_ENV` | yes | `development`, `test`, or `production`; production enables the fail-closed guard. |
+| `APP_ENV` | yes | `development`, `test`, or `production`. **Unset means production** (fail closed): the guard runs and the test staff login is unavailable. |
 | `DATABASE_URL` | yes | Runtime connection; `postgres://` is normalised to `postgresql+psycopg://`; needs `sslmode=require` for remote hosts. |
 | `MIGRATION_DATABASE_URL` | migration workflow only | Never present in the Render runtime environment. |
 | `TEST_DATABASE_URL` | tests | Must name a database ending `_test`. |
@@ -85,7 +85,24 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 | `CORS_ALLOWED_ORIGINS` | yes (prod) | Comma-separated explicit origins. |
 | `LOG_LEVEL` | no | Default `INFO`; never logs secrets. |
 | `DOCS_ENABLED` | no | Defaults on outside production. |
+| `TZ`, `APP_TIMEZONE` | no | Both `UTC`. Timestamps are stored as `timestamptz` and computed in UTC; the DB session is pinned with `SET TIME ZONE 'UTC'`. |
+| `DEFAULT_DISPLAY_TIMEZONE` | no | Default `Asia/Dhaka`; IANA zone used for calendar rules such as the visit-month check. |
+| `RECEIPT_KEYS`, `RECEIPT_KEY_CURRENT` | prod: yes (or the pepper) | JSON keyring `{"v1": "<secret>"}` and the id of the key used for new digests. Receipt, Guest-scope and network digests share the ring and differ by context label. Old keys stay until no row references their `key_id` (PF 13.4). Defaults to `{"v1": RECEIPT_PEPPER}`. |
+| `ADVISORY_STALE_AFTER_DAYS` | no | Default 30. An advisory last verified longer ago than this is returned with state `STALE`; past `valid_until` it is `EXPIRED` and never shown as current. |
+| `PUBLIC_CACHE_MAX_AGE_SECONDS` | no | Default 60. `Cache-Control: public, max-age` on the public destination routes only; every other route stays `no-store`. |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE` | no | Pool tuning for Supabase connection limits. |
+| `DB_POOL_TIMEOUT`, `DB_CONNECT_TIMEOUT` | no | Seconds to wait for a pooled / new connection (default 5). Failure returns 503. |
+| `DB_STATEMENT_TIMEOUT_MS`, `DB_LOCK_TIMEOUT_MS`, `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` | no | Applied to every session (defaults 5000 / 3000 / 15000). A slow query or lock wait is cancelled instead of holding a worker. |
+| `REQUEST_TIMEOUT_SECONDS`, `MAX_REQUEST_BODY_BYTES` | no | Hard request deadline (default 15 s, then 504) and `Content-Length` cap (default 64 KiB, then 413). |
+| `RATE_LIMIT_ENABLED`, `RATE_LIMIT_GUEST_SUBMIT`, `RATE_LIMIT_RECEIPT` | no | Per-client-IP limits on the public write endpoints (defaults 5/minute and 10/minute, then 429). |
+| `ALLOW_TEST_STAFF_HEADER` | no | Local development only; enables the `X-Test-Staff-Id` stand-in login. Ignored in production. |
+| `CLIENT_ADDRESS_HEADER`, `CLIENT_ADDRESS_POSITION` | prod: yes | The single provider-appended header and entry position (default right-most) from which `app/client_address.py` derives the client address. Uvicorn runs with `--no-proxy-headers`; no other forwarding header is read. The chosen header and position are recorded here after the staging forged-header test (PF 14.2): **not yet tested, Gate A evidence outstanding**. |
+| `TURNSTILE_ENABLED`, `TURNSTILE_SECRET`, `TURNSTILE_HOSTNAME` | prod: yes | Server-side Turnstile validation. Production start-up fails if any is missing. Off by default only in development and test. |
+| `GUEST_SUBMIT_PER_SCOPE_PER_DAY`, `GUEST_SUBMIT_PER_NETWORK_PER_HOUR`, `GUEST_SUBMIT_PER_NETWORK_PER_DAY` | no | Durable limits for new Guest drafts (defaults 3, 30, 100). |
+| `RECEIPT_OPS_PER_RECEIPT_PER_HOUR`, `RECEIPT_OPS_PER_NETWORK_PER_HOUR`, `RECEIPT_FAILURES_SHORT_LIMIT`, `RECEIPT_FAILURES_LONG_LIMIT` | no | Receipt-operation limits (defaults 20, 100) and the failure tiers (5 per 15 minutes, 20 per 24 hours) that drive the progressive block. |
+| `GUEST_PENDING_PER_DESTINATION`, `GUEST_PENDING_TOTAL`, `GUEST_PENDING_ALERT_RATIO` | no | Pending Guest ceilings (50, 500); a warning is logged from 80 percent; reaching a ceiling returns `503 GUEST_WRITES_PAUSED`. |
+| `GUEST_WRITES_PAUSED` | no | Emergency switch. Pauses new Guest submissions only; reads, receipt status and recovery of an existing draft continue. |
+| `RATE_LIMIT_GUEST_SUBMIT`, `RATE_LIMIT_RECEIPT` | no | In-memory burst pre-filter per trusted address (defaults 5 and 10 per minute). Not the authoritative limiter. |
 
 ### Deployed environments (fill in; never record secrets here)
 

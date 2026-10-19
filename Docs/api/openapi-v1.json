@@ -1,6 +1,81 @@
 {
   "components": {
     "schemas": {
+      "Advisory": {
+        "properties": {
+          "effective_on": {
+            "format": "date",
+            "title": "Effective On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AdvisorySeverity"
+          },
+          "state": {
+            "enum": [
+              "NOT_YET_EFFECTIVE",
+              "CURRENT",
+              "STALE",
+              "EXPIRED"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text_bn": {
+            "title": "Text Bn",
+            "type": "string"
+          },
+          "text_en": {
+            "title": "Text En",
+            "type": "string"
+          },
+          "title_bn": {
+            "title": "Title Bn",
+            "type": "string"
+          },
+          "title_en": {
+            "title": "Title En",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "title_bn",
+          "title_en",
+          "text_bn",
+          "text_en",
+          "effective_on",
+          "valid_until",
+          "state",
+          "provenance"
+        ],
+        "title": "Advisory",
+        "type": "object"
+      },
+      "AdvisorySeverity": {
+        "enum": [
+          "INFO",
+          "CAUTION",
+          "WARNING",
+          "CRITICAL"
+        ],
+        "title": "AdvisorySeverity",
+        "type": "string"
+      },
       "ComfortTier": {
         "enum": [
           "ECONOMY",
@@ -10,7 +85,33 @@
         "title": "ComfortTier",
         "type": "string"
       },
+      "CommunityRatingSummary": {
+        "properties": {
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "average",
+          "count"
+        ],
+        "title": "CommunityRatingSummary",
+        "type": "object"
+      },
       "ConflictFlagRequest": {
+        "additionalProperties": false,
         "properties": {
           "conflict_declared": {
             "title": "Conflict Declared",
@@ -48,7 +149,494 @@
         "title": "ConflictFlagRequest",
         "type": "object"
       },
+      "Contact": {
+        "properties": {
+          "address_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Bn"
+          },
+          "address_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address En"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactKind"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "name_bn": {
+            "title": "Name Bn",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name_bn",
+          "name_en",
+          "phone",
+          "address_bn",
+          "address_en",
+          "latitude",
+          "longitude",
+          "provenance"
+        ],
+        "title": "Contact",
+        "type": "object"
+      },
+      "ContactKind": {
+        "enum": [
+          "POLICE",
+          "TOURIST_POLICE",
+          "AMBULANCE",
+          "FIRE",
+          "HOSPITAL",
+          "COAST_GUARD",
+          "FOREST_OFFICE",
+          "LOCAL_GUIDE",
+          "OTHER"
+        ],
+        "title": "ContactKind",
+        "type": "string"
+      },
+      "DestinationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DestinationSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "DestinationList",
+        "type": "object"
+      },
+      "DestinationProfile": {
+        "properties": {
+          "advisories": {
+            "items": {
+              "$ref": "#/components/schemas/Advisory"
+            },
+            "title": "Advisories",
+            "type": "array"
+          },
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "community_rating": {
+            "$ref": "#/components/schemas/CommunityRatingSummary"
+          },
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            },
+            "title": "Contacts",
+            "type": "array"
+          },
+          "content_licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Licence"
+          },
+          "content_verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Verified On"
+          },
+          "guest_feedback": {
+            "$ref": "#/components/schemas/GuestFeedbackSummary"
+          },
+          "guide_items": {
+            "items": {
+              "$ref": "#/components/schemas/GuideItem"
+            },
+            "title": "Guide Items",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_updated": {
+            "format": "date-time",
+            "title": "Last Updated",
+            "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "name_bn": {
+            "title": "Name Bn",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "region_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Bn"
+          },
+          "region_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region En"
+          },
+          "restrictions_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrictions Bn"
+          },
+          "restrictions_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrictions En"
+          },
+          "seasonality_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seasonality Bn"
+          },
+          "seasonality_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seasonality En"
+          },
+          "stale_after_days": {
+            "title": "Stale After Days",
+            "type": "integer"
+          },
+          "summary_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Bn"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          }
+        },
+        "required": [
+          "id",
+          "name_bn",
+          "name_en",
+          "region_bn",
+          "region_en",
+          "summary_bn",
+          "summary_en",
+          "seasonality_bn",
+          "seasonality_en",
+          "restrictions_bn",
+          "restrictions_en",
+          "latitude",
+          "longitude",
+          "community_rating",
+          "guest_feedback",
+          "guide_items",
+          "advisories",
+          "contacts",
+          "content_licence",
+          "content_verified_on",
+          "as_of",
+          "stale_after_days",
+          "last_updated"
+        ],
+        "title": "DestinationProfile",
+        "type": "object"
+      },
+      "DestinationSummary": {
+        "properties": {
+          "active_advisory_count": {
+            "title": "Active Advisory Count",
+            "type": "integer"
+          },
+          "community_rating": {
+            "$ref": "#/components/schemas/CommunityRatingSummary"
+          },
+          "guest_feedback": {
+            "$ref": "#/components/schemas/GuestFeedbackSummary"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_updated": {
+            "format": "date-time",
+            "title": "Last Updated",
+            "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "name_bn": {
+            "title": "Name Bn",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "region_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Bn"
+          },
+          "region_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region En"
+          },
+          "summary_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Bn"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          }
+        },
+        "required": [
+          "id",
+          "name_bn",
+          "name_en",
+          "region_bn",
+          "region_en",
+          "summary_bn",
+          "summary_en",
+          "latitude",
+          "longitude",
+          "community_rating",
+          "guest_feedback",
+          "active_advisory_count",
+          "last_updated"
+        ],
+        "title": "DestinationSummary",
+        "type": "object"
+      },
+      "GuestFeedbackSummary": {
+        "properties": {
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "average",
+          "count"
+        ],
+        "title": "GuestFeedbackSummary",
+        "type": "object"
+      },
       "GuestReviewCreate": {
+        "additionalProperties": false,
         "properties": {
           "body": {
             "maxLength": 6000,
@@ -96,6 +684,12 @@
             "title": "Overall Rating",
             "type": "integer"
           },
+          "receipt_secret": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Receipt Secret",
+            "type": "string"
+          },
           "title": {
             "maxLength": 160,
             "minLength": 3,
@@ -104,6 +698,18 @@
           },
           "traveller_type": {
             "$ref": "#/components/schemas/TravellerType"
+          },
+          "turnstile_token": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnstile Token"
           },
           "visit_month": {
             "format": "date",
@@ -115,6 +721,7 @@
           "destination_id",
           "client_draft_id",
           "guest_scope_secret",
+          "receipt_secret",
           "guest_display_name",
           "language",
           "traveller_type",
@@ -134,10 +741,6 @@
             "title": "Duplicate Recovered",
             "type": "boolean"
           },
-          "receipt_token": {
-            "title": "Receipt Token",
-            "type": "string"
-          },
           "review_id": {
             "format": "uuid",
             "title": "Review Id",
@@ -155,10 +758,67 @@
           "review_id",
           "status",
           "version",
-          "receipt_token",
           "duplicate_recovered"
         ],
         "title": "GuestReviewCreated",
+        "type": "object"
+      },
+      "GuideCategory": {
+        "enum": [
+          "ATTRACTION",
+          "ACCOMMODATION",
+          "FOOD",
+          "TRANSPORT",
+          "LOCAL_PRACTICE"
+        ],
+        "title": "GuideCategory",
+        "type": "string"
+      },
+      "GuideItem": {
+        "properties": {
+          "body_bn": {
+            "title": "Body Bn",
+            "type": "string"
+          },
+          "body_en": {
+            "title": "Body En",
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/GuideCategory"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "title_bn": {
+            "title": "Title Bn",
+            "type": "string"
+          },
+          "title_en": {
+            "title": "Title En",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "title_bn",
+          "title_en",
+          "body_bn",
+          "body_en",
+          "sort_order",
+          "provenance"
+        ],
+        "title": "GuideItem",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -188,8 +848,15 @@
         "type": "object"
       },
       "ModerationRequest": {
+        "additionalProperties": false,
         "properties": {
           "decision": {
+            "enum": [
+              "PUBLISH",
+              "REJECT",
+              "HIDE",
+              "RESTORE"
+            ],
             "title": "Decision",
             "type": "string"
           },
@@ -260,6 +927,59 @@
         "title": "ModerationResult",
         "type": "object"
       },
+      "Provenance": {
+        "description": "Public source metadata. Researcher and reviewer names stay internal.",
+        "properties": {
+          "effective_on": {
+            "format": "date",
+            "title": "Effective On",
+            "type": "string"
+          },
+          "licence": {
+            "title": "Licence",
+            "type": "string"
+          },
+          "next_review_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Review On"
+          },
+          "publisher": {
+            "title": "Publisher",
+            "type": "string"
+          },
+          "source_ref": {
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "verified_on": {
+            "format": "date",
+            "title": "Verified On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "source_ref",
+          "publisher",
+          "effective_on",
+          "verified_on",
+          "next_review_on",
+          "licence"
+        ],
+        "title": "Provenance",
+        "type": "object"
+      },
       "PublicReview": {
         "properties": {
           "body": {
@@ -311,29 +1031,31 @@
         "title": "PublicReview",
         "type": "object"
       },
-      "ReceiptExchange": {
-        "properties": {
-          "receipt_token": {
-            "maxLength": 200,
-            "minLength": 40,
-            "title": "Receipt Token",
-            "type": "string"
-          },
-          "review_id": {
-            "format": "uuid",
-            "title": "Review Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "review_id",
-          "receipt_token"
-        ],
-        "title": "ReceiptExchange",
-        "type": "object"
-      },
       "ReceiptStatus": {
         "properties": {
+          "appeal_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appeal Deadline"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -363,9 +1085,33 @@
           "review_id",
           "status",
           "version",
-          "published_at"
+          "published_at",
+          "decision_reason",
+          "appeal_deadline"
         ],
         "title": "ReceiptStatus",
+        "type": "object"
+      },
+      "ReceiptStatusRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "receipt_secret": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Receipt Secret",
+            "type": "string"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "review_id",
+          "receipt_secret"
+        ],
+        "title": "ReceiptStatusRequest",
         "type": "object"
       },
       "ReviewFeed": {
@@ -436,6 +1182,17 @@
         "title": "ReviewStatus",
         "type": "string"
       },
+      "SourceType": {
+        "enum": [
+          "OFFICIAL",
+          "TEAM_RESEARCH",
+          "OPEN_LICENCE",
+          "VENDOR_LICENSED",
+          "OTHER"
+        ],
+        "title": "SourceType",
+        "type": "string"
+      },
       "TravellerType": {
         "enum": [
           "SOLO",
@@ -488,22 +1245,23 @@
         "type": "object"
       },
       "WithdrawRequest": {
+        "additionalProperties": false,
         "properties": {
           "expected_version": {
             "minimum": 1.0,
             "title": "Expected Version",
             "type": "integer"
           },
-          "receipt_token": {
-            "maxLength": 200,
-            "minLength": 40,
-            "title": "Receipt Token",
+          "receipt_secret": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Receipt Secret",
             "type": "string"
           }
         },
         "required": [
           "expected_version",
-          "receipt_token"
+          "receipt_secret"
         ],
         "title": "WithdrawRequest",
         "type": "object"
@@ -517,6 +1275,115 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/destinations": {
+      "get": {
+        "operationId": "list_destinations_api_v1_destinations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 300,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Destinations"
+      }
+    },
+    "/api/v1/destinations/{destination_id}": {
+      "get": {
+        "operationId": "destination_profile_api_v1_destinations__destination_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "destination_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Destination Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_expired",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Expired",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Destination Profile"
+      }
+    },
     "/api/v1/destinations/{destination_id}/reviews": {
       "get": {
         "operationId": "public_reviews_api_v1_destinations__destination_id__reviews_get",
@@ -538,6 +1405,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 200,
                   "type": "string"
                 },
                 {
@@ -587,7 +1455,7 @@
     },
     "/api/v1/health": {
       "get": {
-        "operationId": "health_api_v1_health_head",
+        "operationId": "health_get",
         "responses": {
           "200": {
             "content": {
@@ -603,7 +1471,7 @@
         "summary": "Health"
       },
       "head": {
-        "operationId": "health_api_v1_health_head",
+        "operationId": "health_head",
         "responses": {
           "200": {
             "content": {
@@ -621,7 +1489,7 @@
     },
     "/api/v1/health/ready": {
       "get": {
-        "operationId": "health_ready_api_v1_health_ready_head",
+        "operationId": "health_ready_get",
         "responses": {
           "200": {
             "content": {
@@ -637,7 +1505,7 @@
         "summary": "Health Ready"
       },
       "head": {
-        "operationId": "health_ready_api_v1_health_ready_head",
+        "operationId": "health_ready_head",
         "responses": {
           "200": {
             "content": {
@@ -653,14 +1521,14 @@
         "summary": "Health Ready"
       }
     },
-    "/api/v1/review-receipts/exchange": {
+    "/api/v1/review-receipts/status": {
       "post": {
-        "operationId": "exchange_receipt_api_v1_review_receipts_exchange_post",
+        "operationId": "receipt_status_api_v1_review_receipts_status_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReceiptExchange"
+                "$ref": "#/components/schemas/ReceiptStatusRequest"
               }
             }
           },
@@ -688,11 +1556,12 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Exchange Receipt"
+        "summary": "Receipt Status"
       }
     },
     "/api/v1/reviews/guest": {
       "post": {
+        "description": "Order of checks (API.md 5.2, PF 14.4).",
         "operationId": "create_guest_review_api_v1_reviews_guest_post",
         "requestBody": {
           "content": {

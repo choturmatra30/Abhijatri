@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -16,6 +17,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -96,8 +98,72 @@ class ModerationDecision(str, enum.Enum):
     CLEAR_CONFLICT = "CLEAR_CONFLICT"
 
 
+class SourceType(str, enum.Enum):
+    OFFICIAL = "OFFICIAL"
+    TEAM_RESEARCH = "TEAM_RESEARCH"
+    OPEN_LICENCE = "OPEN_LICENCE"
+    VENDOR_LICENSED = "VENDOR_LICENSED"
+    OTHER = "OTHER"
+
+
+class GuideCategory(str, enum.Enum):
+    ATTRACTION = "ATTRACTION"
+    ACCOMMODATION = "ACCOMMODATION"
+    FOOD = "FOOD"
+    TRANSPORT = "TRANSPORT"
+    LOCAL_PRACTICE = "LOCAL_PRACTICE"
+
+
+class AdvisorySeverity(str, enum.Enum):
+    INFO = "INFO"
+    CAUTION = "CAUTION"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class ContactKind(str, enum.Enum):
+    POLICE = "POLICE"
+    TOURIST_POLICE = "TOURIST_POLICE"
+    AMBULANCE = "AMBULANCE"
+    FIRE = "FIRE"
+    HOSPITAL = "HOSPITAL"
+    COAST_GUARD = "COAST_GUARD"
+    FOREST_OFFICE = "FOREST_OFFICE"
+    LOCAL_GUIDE = "LOCAL_GUIDE"
+    OTHER = "OTHER"
+
+
+class ProvenanceMixin:
+    """Source, date and licence metadata required on every maintained record (PF 17)."""
+
+    source_type: Mapped[SourceType] = mapped_column(Enum(SourceType, name="source_type"), nullable=False)
+    source_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    publisher: Mapped[str] = mapped_column(String(160), nullable=False)
+    effective_on: Mapped[date] = mapped_column(Date, nullable=False)
+    verified_on: Mapped[date] = mapped_column(Date, nullable=False)
+    next_review_on: Mapped[date | None] = mapped_column(Date)
+    licence: Mapped[str] = mapped_column(String(160), nullable=False)
+    researcher: Mapped[str] = mapped_column(String(120), nullable=False)
+    reviewer: Mapped[str | None] = mapped_column(String(120))
+
+
 class Destination(Base):
     __tablename__ = "destinations"
+    __table_args__ = (
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90", name="ck_destination_latitude_range"
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180", name="ck_destination_longitude_range"
+        ),
+        CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="ck_destination_coordinates_pair"),
+        Index(
+            "ix_destinations_published_name",
+            "name_en",
+            "id",
+            postgresql_where=text("status = 'PUBLISHED'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     status: Mapped[DestinationStatus] = mapped_column(
@@ -107,7 +173,92 @@ class Destination(Base):
     )
     name_bn: Mapped[str] = mapped_column(String(160), nullable=False)
     name_en: Mapped[str] = mapped_column(String(160), nullable=False)
+    region_bn: Mapped[str | None] = mapped_column(String(160))
+    region_en: Mapped[str | None] = mapped_column(String(160))
+    summary_bn: Mapped[str | None] = mapped_column(Text)
+    summary_en: Mapped[str | None] = mapped_column(Text)
+    seasonality_bn: Mapped[str | None] = mapped_column(Text)
+    seasonality_en: Mapped[str | None] = mapped_column(Text)
+    restrictions_bn: Mapped[str | None] = mapped_column(Text)
+    restrictions_en: Mapped[str | None] = mapped_column(Text)
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    content_licence: Mapped[str | None] = mapped_column(String(160))
+    content_verified_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class DestinationGuideItem(ProvenanceMixin, Base):
+    __tablename__ = "destination_guide_items"
+    __table_args__ = (
+        Index("ix_guide_items_destination_category", "destination_id", "category", "sort_order"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    destination_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False
+    )
+    category: Mapped[GuideCategory] = mapped_column(Enum(GuideCategory, name="guide_category"), nullable=False)
+    title_bn: Mapped[str] = mapped_column(String(160), nullable=False)
+    title_en: Mapped[str] = mapped_column(String(160), nullable=False)
+    body_bn: Mapped[str] = mapped_column(Text, nullable=False)
+    body_en: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class DestinationAdvisory(ProvenanceMixin, Base):
+    __tablename__ = "destination_advisories"
+    __table_args__ = (
+        CheckConstraint("valid_until >= effective_on", name="ck_advisory_validity_window"),
+        Index("ix_advisories_destination_valid_until", "destination_id", "valid_until"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    destination_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False
+    )
+    severity: Mapped[AdvisorySeverity] = mapped_column(
+        Enum(AdvisorySeverity, name="advisory_severity"), nullable=False
+    )
+    title_bn: Mapped[str] = mapped_column(String(160), nullable=False)
+    title_en: Mapped[str] = mapped_column(String(160), nullable=False)
+    text_bn: Mapped[str] = mapped_column(Text, nullable=False)
+    text_en: Mapped[str] = mapped_column(Text, nullable=False)
+    valid_until: Mapped[date] = mapped_column(Date, nullable=False)
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class DestinationContact(ProvenanceMixin, Base):
+    __tablename__ = "destination_contacts"
+    __table_args__ = (
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90", name="ck_contact_latitude_range"
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180", name="ck_contact_longitude_range"
+        ),
+        CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="ck_contact_coordinates_pair"),
+        CheckConstraint(r"phone ~ '^\+?[0-9][0-9 -]{2,30}$'", name="ck_contact_phone_format"),
+        Index("ix_contacts_destination_kind", "destination_id", "kind"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    destination_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[ContactKind] = mapped_column(Enum(ContactKind, name="contact_kind"), nullable=False)
+    name_bn: Mapped[str] = mapped_column(String(160), nullable=False)
+    name_en: Mapped[str] = mapped_column(String(160), nullable=False)
+    phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    address_bn: Mapped[str | None] = mapped_column(String(300))
+    address_en: Mapped[str | None] = mapped_column(String(300))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
@@ -168,6 +319,10 @@ class Review(Base):
             "(author_user_id IS NULL AND guest_display_name IS NOT NULL AND guest_scope_hash IS NOT NULL)",
             name="ck_review_author_shape",
         ),
+        CheckConstraint(
+            "(guest_scope_hash IS NULL) = (guest_scope_key_id IS NULL)",
+            name="ck_review_scope_key_pair",
+        ),
         Index(
             "uq_reviews_member_draft",
             "author_user_id",
@@ -209,6 +364,7 @@ class Review(Base):
     author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     guest_display_name: Mapped[str | None] = mapped_column(String(80))
     guest_scope_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+    guest_scope_key_id: Mapped[str | None] = mapped_column(String(16))
     client_draft_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     current_revision_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(
@@ -276,13 +432,17 @@ class ReviewRevision(Base):
 
 
 class ReviewReceipt(Base):
+    """Keyed digest of a client-generated receipt. The raw receipt is never stored."""
+
     __tablename__ = "review_receipts"
+    __table_args__ = (UniqueConstraint("key_id", "digest", name="uq_review_receipt_key_digest"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     review_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False
     )
-    token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True, nullable=False)
+    key_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -337,3 +497,19 @@ class OutboxEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
+
+class RateLimitBucket(Base):
+    """Fixed-window attempt counter keyed by a keyed digest; never holds raw identifiers."""
+
+    __tablename__ = "rate_limit_buckets"
+    __table_args__ = (
+        CheckConstraint("count >= 0", name="ck_rate_limit_count_nonnegative"),
+        Index("ix_rate_limit_buckets_window_start", "window_start"),
+    )
+
+    rule: Mapped[str] = mapped_column(String(60), primary_key=True)
+    key_digest: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)

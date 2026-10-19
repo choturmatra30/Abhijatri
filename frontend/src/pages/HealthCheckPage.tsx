@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { checkBackendHealth } from '../api/health';
+import { checkBackendHealth, isAllowedBackendUrl } from '../api/health';
 import { HealthStatus } from '../types';
 
 export const HealthCheckPage: React.FC = () => {
@@ -23,9 +23,20 @@ export const HealthCheckPage: React.FC = () => {
   const [healthResult, setHealthResult] = useState<HealthStatus | null>(null);
 
   const runTest = async (urlToTest?: string) => {
+    const target = urlToTest || backendUrl;
+    if (!isAllowedBackendUrl(target)) {
+      setHealthResult({
+        status: 'error',
+        error: 'Backend URL is not allowed. Use HTTPS or an approved localhost URL.',
+        timestamp: new Date().toISOString(),
+        urlChecked: target,
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await checkBackendHealth(urlToTest || backendUrl);
+      const res = await checkBackendHealth(target);
       setHealthResult(res);
     } catch (err: unknown) {
       setHealthResult({

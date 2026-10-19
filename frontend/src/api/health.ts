@@ -1,12 +1,47 @@
 import { HealthStatus } from '../types';
 import { API_BASE_URL } from './client';
 
+const ALLOWED_BACKEND_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  'api.abhijatri.example',
+]);
+
+/**
+ * Allows only same-origin paths, HTTPS hosts on the allow-list or the configured
+ * API host, and plain HTTP for localhost.
+ */
+export function isAllowedBackendUrl(value: string): boolean {
+  try {
+    if (value.startsWith('/') && !value.startsWith('//')) return true;
+    const url = new URL(value, window.location.origin);
+    const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    const validProtocol = url.protocol === 'https:' || (isLocalhost && url.protocol === 'http:');
+    let configuredHost = '';
+    if (API_BASE_URL) {
+      try { configuredHost = new URL(API_BASE_URL).hostname; } catch { configuredHost = ''; }
+    }
+    return validProtocol && (ALLOWED_BACKEND_HOSTS.has(url.hostname) || url.hostname === configuredHost);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Diagnostic health check service for the Abhijatri FastAPI backend.
  * Checks /api/v1/health (liveness) and probes /api/v1/health/ready (database readiness).
  */
 export async function checkBackendHealth(customUrl?: string): Promise<HealthStatus> {
   const targetBase = customUrl ? customUrl.replace(/\/+$/, '') : API_BASE_URL;
+  if (customUrl && !isAllowedBackendUrl(targetBase)) {
+    return {
+      status: 'error',
+      error: 'Backend URL is not allowed',
+      timestamp: new Date().toISOString(),
+      urlChecked: targetBase,
+    };
+  }
   const start = performance.now();
 
   // Try /api/v1/health first, then fallbacks
