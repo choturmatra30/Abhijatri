@@ -8,9 +8,11 @@ The first development slice is the review lifecycle: Guest submission, permanent
 - [`Features/Review.md`](Features/Review.md): frozen review-system specification and acceptance rules.
 - [`Docs/Decisions.md`](Docs/Decisions.md): implementation decisions made after specification freeze.
 - [`backend/`](backend/): FastAPI modular monolith, PostgreSQL models, Alembic migration, and tests.
+- [`frontend/`](frontend/): Vite + React 18 + TypeScript PWA with Tailwind CSS and modular API layer (`client.ts`, `health.ts`, `destinations.ts`, `reviews.ts`). Destination and Guest review screens use the live API; see [`Docs/Frontend-Implemented.md`](Docs/Frontend-Implemented.md).
 - [`compose.yaml`](compose.yaml): local PostgreSQL service.
 
-See [`backend/README.md`](backend/README.md) for local setup and test commands.
+See [`backend/README.md`](backend/README.md) for local backend setup and [`frontend/`](frontend/) for client dev server commands.
+- [`Docs/Design.md`](Docs/Design.md): UI/UX design tokens, ColorHunt botanical sage & neon slate palettes, and typography specifications.
 
 
 ## Architecture and delivery
@@ -22,5 +24,5 @@ React PWA -> HTTPS -> FastAPI (Render) -> SQLAlchemy/Psycopg -> Supabase-managed
 - [`Docs/Architecture.md`](Docs/Architecture.md): system flow, modules, environments, environment variables.
 - [`Docs/Schema.md`](Docs/Schema.md): ERD and table catalogue.
 - [`Docs/api/API.md`](Docs/api/API.md): versioned API contract and snapshot.
-- [`Docs/Implemented.md`](Docs/Implemented.md): evidenced implementation status.
+- [`Docs/Implemented.md`](Docs/Implemented.md): evidenced implementation status ([`Backend-Implemented.md`](Docs/Backend-Implemented.md), [`Frontend-Implemented.md`](Docs/Frontend-Implemented.md) hold the detail).
 - [`render.yaml`](render.yaml) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml): deployment blueprint and CI.

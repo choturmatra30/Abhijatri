@@ -1,158 +1,103 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, DownloadCloud, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, MapPin, Search } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SEEDED_DESTINATIONS } from '../services/api';
+import { listAllDestinations } from '../api/destinations';
+import { useApiResource } from '../hooks/useApiResource';
+import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { RatingSummary } from '../components/destination/RatingSummary';
+import { formatNumber, pick } from '../utils/format';
 
 export const DestinationsPage: React.FC = () => {
   const { language, t } = useLanguage();
-  const [filter, setFilter] = useState<'all' | 'sea' | 'hills' | 'forest'>('all');
+  const [query, setQuery] = useState('');
+  const { data, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
 
-  const filteredDestinations = SEEDED_DESTINATIONS.filter((d) => {
-    if (filter === 'sea') return d.id === 'coxs-bazar';
-    if (filter === 'hills') return d.id === 'sajek-valley' || d.id === 'bandarban';
-    if (filter === 'forest') return d.id === 'sundarbans' || d.id === 'sylhet';
-    return true;
-  });
+  const visible = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!data || !needle) return data ?? [];
+    return data.filter((d) =>
+      [d.name_bn, d.name_en, d.region_bn, d.region_en].some((v) => v?.toLocaleLowerCase().includes(needle)),
+    );
+  }, [data, query]);
 
   return (
     <div className="flex flex-col gap-6 pb-12">
-      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark tracking-tight">
-            {t('গন্তব্য ও কিউরেটেড ট্রাভেল গাইড', 'Destinations & Curated Guides')}
+            {t('গন্তব্য ও ভ্রমণ গাইড', 'Destinations & Guides')}
           </h1>
           <p className="text-sm text-on-surface-variant dark:text-on-dark-muted font-body mt-1">
             {t(
-              'বাংলাদেশের ৫টি প্রধান সীডেড গন্তব্যের দ্বিভাষিক তথ্য, নিরাপত্তা সতর্কতা ও যোগাযোগের তালিকা।',
-              'Bilingual profiles, active advisories, seasonality, and emergency contacts for 5 seeded locations.'
+              'সূত্র ও তারিখসহ দ্বিভাষিক তথ্য, নিরাপত্তা সতর্কতা ও জরুরি যোগাযোগ।',
+              'Bilingual, source-dated guidance with safety advisories and emergency contacts.',
             )}
           </p>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 p-1 rounded-full bg-surface-container dark:bg-dark-surface-1 border border-surface-muted/30 self-start md:self-auto overflow-x-auto max-w-full">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold font-title transition-all ${
-              filter === 'all'
-                ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base shadow-sm'
-                : 'text-on-surface-variant dark:text-on-dark-muted hover:text-on-surface'
-            }`}
-          >
-            {t('সব গন্তব্য', 'All Guides')}
-          </button>
-          <button
-            onClick={() => setFilter('hills')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold font-title transition-all ${
-              filter === 'hills'
-                ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base shadow-sm'
-                : 'text-on-surface-variant dark:text-on-dark-muted hover:text-on-surface'
-            }`}
-          >
-            {t('পাহাড় ও মেঘ', 'Hills & Clouds')}
-          </button>
-          <button
-            onClick={() => setFilter('sea')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold font-title transition-all ${
-              filter === 'sea'
-                ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base shadow-sm'
-                : 'text-on-surface-variant dark:text-on-dark-muted hover:text-on-surface'
-            }`}
-          >
-            {t('সমুদ্র সৈকত', 'Sea Beach')}
-          </button>
-          <button
-            onClick={() => setFilter('forest')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold font-title transition-all ${
-              filter === 'forest'
-                ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base shadow-sm'
-                : 'text-on-surface-variant dark:text-on-dark-muted hover:text-on-surface'
-            }`}
-          >
-            {t('অরণ্য ও হাওড়', 'Forest & Wetlands')}
-          </button>
-        </div>
+        <label className="relative w-full md:w-72">
+          <span className="sr-only">{t('গন্তব্য খুঁজুন', 'Filter destinations')}</span>
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('নাম বা এলাকা দিয়ে খুঁজুন', 'Filter by name or region')}
+            className="w-full pl-10 pr-4 min-h-[44px] rounded-full bg-surface-sage/50 dark:bg-dark-surface-1 border border-surface-muted/40 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark"
+          />
+        </label>
       </div>
 
-      {/* Destinations Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredDestinations.map((dest) => (
-          <div key={dest.id} className="tonal-card overflow-hidden flex flex-col justify-between group">
-            <div>
-              <div className="relative h-48 w-full overflow-hidden">
-                <img
-                  src={dest.coverImage}
-                  alt={language === 'bn' ? dest.nameBn : dest.nameEn}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                  <span className="px-2.5 py-1 rounded-full bg-canvas-light/90 dark:bg-dark-surface-1/90 backdrop-blur-md text-[11px] font-bold text-forest-primary dark:text-neon-lime uppercase font-en">
-                    {language === 'bn' ? dest.regionBn : dest.regionEn}
+      {loading && <LoadingState label={t('গন্তব্যের তালিকা লোড হচ্ছে…', 'Loading destinations…')} />}
+      {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}
+      {!loading && !error && data && data.length === 0 && (
+        <EmptyState
+          title={t('এখনো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations yet')}
+          hint={t('কনটেন্ট প্রকাশিত হলে এখানে দেখা যাবে।', 'Destinations appear here once their content is published.')}
+        />
+      )}
+      {!loading && !error && data && data.length > 0 && visible.length === 0 && (
+        <EmptyState title={t('কোনো মিল পাওয়া যায়নি', 'No matches')} hint={t('অন্য শব্দ দিয়ে খুঁজুন।', 'Try another word.')} />
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {visible.map((dest) => (
+            <li key={dest.id} className="tonal-card flex flex-col justify-between p-5 gap-4">
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-on-surface-variant dark:text-on-dark-muted">
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={13} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
+                    {pick(language, dest.region_bn, dest.region_en)}
                   </span>
-                  {dest.activeAdvisoriesCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-white text-[10px] font-bold flex items-center gap-1">
-                      <AlertTriangle size={11} />
-                      {dest.activeAdvisoriesCount}
+                  {dest.active_advisory_count > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                      <AlertTriangle size={12} aria-hidden="true" />
+                      {formatNumber(dest.active_advisory_count, language)} {t('সতর্কতা', dest.active_advisory_count === 1 ? 'advisory' : 'advisories')}
                     </span>
                   )}
                 </div>
-                <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-en font-bold">
-                  <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                  <span>{dest.rating.toFixed(1)}</span>
-                  <span className="opacity-70 text-[10px]">({dest.reviewCount})</span>
-                </div>
-              </div>
-
-              <div className="p-5 flex flex-col gap-2.5">
-                <h3 className="text-xl font-bold font-title text-on-surface dark:text-on-dark group-hover:text-forest-primary dark:group-hover:text-neon-lime transition-colors">
-                  {language === 'bn' ? dest.nameBn : dest.nameEn}
-                </h3>
-                <p className="text-xs text-on-surface-variant dark:text-on-dark-muted line-clamp-3 font-body leading-relaxed">
-                  {language === 'bn' ? dest.descriptionBn : dest.descriptionEn}
+                <h2 className="text-xl font-bold font-title text-on-surface dark:text-on-dark">
+                  {pick(language, dest.name_bn, dest.name_en)}
+                </h2>
+                <p className="text-sm text-on-surface-variant dark:text-on-dark-muted font-body leading-relaxed line-clamp-3">
+                  {pick(language, dest.summary_bn, dest.summary_en)}
                 </p>
-
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {(language === 'bn' ? dest.highlightsBn : dest.highlightsEn).slice(0, 3).map((h, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-md bg-surface-container dark:bg-dark-surface-2 text-[11px] text-on-surface-variant dark:text-on-dark-muted">
-                      {h}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 pt-0">
-              <div className="flex items-center justify-between py-2 border-t border-surface-muted/30 dark:border-dark-surface-2 text-xs text-on-surface-variant dark:text-on-dark-muted font-en mb-3">
-                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
-                  <ShieldCheck size={14} />
-                  <span>{t('বায়েসিয়ান ভেরিফাইড', 'Bayesian Verified')}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <DownloadCloud size={13} />
-                  <span>{dest.offlinePackSizeMb} MB</span>
-                </div>
+                <RatingSummary community={dest.community_rating} guest={dest.guest_feedback} compact />
               </div>
 
-              <div className="flex items-center gap-2">
-                <Link
-                  to={`/destinations/${dest.id}`}
-                  className="flex-1 text-center py-2 px-3 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold hover:opacity-95 transition-all font-title"
-                >
-                  {t('গাইড ও রিভিউ দেখুন', 'View Guide & Reviews')}
-                </Link>
-                <Link
-                  to={`/planner?destination=${dest.id}`}
-                  className="py-2 px-3 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold hover:bg-surface-container transition-all font-title"
-                >
-                  {t('বাজেট', 'Cost')}
-                </Link>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+              <Link
+                to={`/destinations/${dest.id}`}
+                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-title hover:opacity-95"
+              >
+                {t('গাইড ও রিভিউ দেখুন', 'View guide & reviews')}
+                <ArrowRight size={14} aria-hidden="true" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

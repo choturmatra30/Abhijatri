@@ -221,8 +221,8 @@ To reproduce: start PostgreSQL 17, create a database whose name ends in `_test`,
 
 | Item | Status |
 |---|---|
-| Real destination content (five bilingual destinations with sources and licences) | R01. Only the one Cox's Bazar smoke-test record exists. |
-| Frontend use of the endpoints | R03. The Destinations pages still read hardcoded data in `frontend/src/services/api.ts`. |
+| Real destination content (five bilingual destinations with sources and licences) | Seeded by `scripts/seed_destinations.py` on 19 October 2026 (section 2.5); R01 content review pending. |
+| Frontend use of the endpoints | Done on 19 October 2026 (R03); see `Docs/Frontend-Implemented.md`. |
 | Staff create, edit, publish and delete of destination content, translations and advisories | R10 and R11, after real staff authentication. |
 | Confirmed advisory staleness threshold | Open decision for the team (section 1.10). |
 | `last_updated` using verification dates | It uses row `updated_at` values only. |
@@ -271,6 +271,18 @@ Migration `0005_rate_limit_buckets`; `app/client_address.py`, `app/abuse.py`, `a
 
 - The API contract moved to `Docs/api/API.md`. `tests/test_openapi_contract.py` reads it, and references in `Decisions.md`, `Implemented.md`, `Reviews/F02-review.md` and `README.md` were updated.
 - `httpx` became a runtime dependency (Turnstile); `uv.lock` was refreshed.
+
+### 2.5 Destination seed content and CORS origin fix (19 October 2026, frontend integration)
+
+| Item | Detail | Evidence |
+|---|---|---|
+| `scripts/seed_destinations.py` | Loads the five semester destinations from `scripts/destination_seed_content.py`: profile fields, guide items, advisories and contacts with full provenance. Idempotent: a destination is matched by `name_en` (so the `seed_destination.py` smoke record keeps its id and reviews), children are replaced with stable UUIDv5 ids, the rating aggregate row is created if missing and never reset. Refuses production without `--force`. `reviewer` stays empty until the R01 content review. | Two runs on a fresh database reused every id |
+| `tests/test_seed_content.py` | Checks the content against the database constraints (lengths, phone format, coordinate ranges, advisory window) and PF 17 provenance, with no database. | 52 passed |
+| `Settings.cors_origins` | Strips trailing slashes. Browsers send `Origin` without a path, so `http://localhost:5173/` in `CORS_ALLOWED_ORIGINS` silently blocked every request from the local frontend. | `tests/test_config.py::test_cors_origins_ignore_trailing_slashes` |
+
+Run after migrating: `uv run python scripts/seed_destinations.py`.
+
+Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` section 6: Guest reviews return `counted_rating` as the rating although API.md 5.10 says `null` (aggregates are correct); `test_unset_environment_fails_closed` depends on `DATABASE_URL` being set in the shell.
 
 ---
 

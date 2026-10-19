@@ -122,3 +122,18 @@ All fonts are loaded directly from Google Fonts:
 - [x] Clear bilingual toggle (`বাং / EN`) with Bangla as default locale.
 - [x] Real-time diagnostic console to verify backend connectivity.
 
+---
+
+## 7. Frontend API Architecture & Integration Topology
+
+To maintain single-responsibility boundaries and avoid monolithic networking code, client-side API operations are partitioned into focused modules under `frontend/src/api/`:
+
+1. **`client.ts`**: Fetch wrapper: base URL (`VITE_API_BASE_URL`), `Accept-Language` from the interface language, `Content-Type` only when there is a body, and the Platform Foundation 12.3 error body mapped to `ApiError` (`code`, `requestId`, `fieldErrors`).
+2. **`health.ts`**: Non-blocking diagnostics pinging `/api/v1/health` (liveness) and `/api/v1/health/ready` (validating database liveness with `SELECT 1`).
+3. **`destinations.ts`**: Public destination list and profile reads (R02 API).
+4. **`reviews.ts`**: Guest review feed, submission, receipt status and withdrawal; client-side receipt generation.
+5. **`index.ts`**: Barrel export (`import { listAllDestinations, submitGuestReview } from '../api'`).
+
+Shared UI states live in `src/components/common/StatusViews.tsx` (loading, error with retry, empty). Destination display components (`RatingSummary`, `AdvisoryCard`, `ProvenanceNote`) live in `src/components/destination/`. Status and evidence: `Docs/Frontend-Implemented.md`.
+
+

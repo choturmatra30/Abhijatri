@@ -110,6 +110,46 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 |---|---|---|---|
 | Staging | `https://api.<owned-domain>` | Supabase `abhijatri-staging` | |
 | Production or pilot | `https://api.<owned-domain>` | Supabase `abhijatri-prod` | |
+| Public frontend (interim, Vercel) | `https://<project>.vercel.app` (fill in after first deploy) | uses the API above | |
+
+### Public frontend deployment on Vercel (interim)
+
+Owner: Shahriar Islam (deploys from the shared Vercel account). Prepared by: Abdullah. Decision: `Docs/Decisions.md`, 2026-10-19 (Vercel).
+
+**One-time project setup**
+
+| Setting | Value |
+|---|---|
+| Git repository and branch | `shahriar6130/Abhijatri`, production branch agreed by the team (`main` after `abd` is merged) |
+| Root Directory | `frontend` |
+| Framework preset | Vite (also set in `frontend/vercel.json`) |
+| Build command / output | `npm run build` / `dist` (from `frontend/vercel.json`) |
+| Node.js version | 22 (matches CI) |
+| Environment variable | `VITE_API_BASE_URL` = the deployed API origin, e.g. `https://api.<owned-domain>`, **no trailing slash**. It is baked in at build time, so changing it needs a redeploy. Set it for Production and Preview. |
+
+`frontend/vercel.json` already provides:
+
+- a rewrite of every path to `/index.html`, so refreshing `/destinations/<id>` or `/reviews` does not return 404 (static files still win);
+- `Cache-Control: public, max-age=31536000, immutable` on hashed `/assets/*` (Security 7.1);
+- `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin` and a `Permissions-Policy` disabling camera, microphone, payment and geolocation (PF 16.4).
+
+**Backend change required at the same time**
+
+Add the exact Vercel origin to the API's `CORS_ALLOWED_ORIGINS` (comma-separated, e.g. `https://<project>.vercel.app,http://localhost:5173`) and restart the API. Without it the browser blocks every request and the site shows "Could not reach the server". Preview deployments get different URLs and will be blocked unless added; test on the production URL.
+
+**Smoke test after deploy**
+
+1. `/` shows "5 published destinations" and the advisory list.
+2. Open Sajek Valley, refresh the page: it reloads (no 404) with advisories and contacts.
+3. Switch to English: the page changes language without reloading data.
+4. Submit a Guest review: a receipt `abr1_…` is shown once; "Check status" shows "Waiting for moderation".
+5. Browser console has no CORS errors.
+
+**Known limits of the interim deployment**
+
+- Production Guest submission needs the Turnstile widget, which is not built yet (`Docs/Frontend-Implemented.md` section 8). Against an API with `TURNSTILE_ENABLED=true`, submission returns `CHALLENGE_FAILED`; reading works.
+- No Content Security Policy yet: fonts still load from Google Fonts and prototype pages still hotlink images. CSP lands with self-hosted fonts (PF 16.3).
+- `vercel.app` is a public suffix, like `onrender.com` (PF 5.2). Member and staff cookies (R04) need the frontend and API on one owned domain, so this deployment is for Guest features and demonstrations only until the domain is in place.
 
 ## 6. Trust boundaries
 
@@ -151,19 +191,35 @@ Browser (Vite + React 18 + TypeScript)
   ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon)
   ├── Route Layer: React Router v6 (/overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health)
   ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
-  ├── Cache Layer: IndexedDB (Dexie.js) for downloaded travel packs and offline drafts
-  └── API Client: /api/v1 proxying to FastAPI backend with real-time health diagnostic
+  ├── Cache Layer: planned (R12 service worker, R13/R15 IndexedDB packs and drafts); not built yet
+  └── API Client: src/api/* calling /api/v1 on VITE_API_BASE_URL (Vite also proxies /api in dev)
 ```
 
 ### 10.1 Page URL & Component Topology
 
 | Route | Component | Role | Traces to Requirement |
 |---|---|---|---|
-| `/` or `/overview` | `OverviewPage` | Dashboard, spotlight destination, live sync metrics | Proposal Section 1 |
-| `/destinations` | `DestinationsPage` | 5 seeded destination profiles with category filters | O2, FR01 |
-| `/destinations/:id` | `DestinationDetailPage` | Destination guide, seasonality, advisories, pack download | FR01, FR10, FR15 |
-| `/planner` | `PlannerPage` | Deterministic cost estimator with shared/individual split | O3, FR08, FR09 |
-| `/offline-packs` | `OfflinePacksPage` | Offline travel packs manager with IndexedDB cache | O4, FR10, FR17 |
-| `/trips` | `SavedTripsPage` | Local UUID-based trip briefs and saved estimates | FR11 |
-| `/reviews` | `ReviewsPage` | Guest review submission with receipt token & draft deduplication | O5, FR04, FR12, FR13 |
+| `/` or `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
+| `/destinations` | `DestinationsPage` | Published destinations from `GET /destinations`, bilingual text filter, loading/error/empty states | O2, FR01, R03 |
+| `/destinations/:id` | `DestinationDetailPage` | Profile from `GET /destinations/{id}`: advisories with state and source, seasonality, guide items, restrictions, contacts, published review feed | FR01, FR15, R03 |
+| `/planner` | `PlannerPage` | **Prototype** (E08): prototype destination list; calls a planned estimate endpoint | O3, FR08, FR09 |
+| `/offline-packs` | `OfflinePacksPage` | **Prototype** (R13): no storage behind it yet | O4, FR10, FR17 |
+| `/trips` | `SavedTripsPage` | **Prototype** (E09): `localStorage` briefs | FR11 |
+| `/reviews` | `ReviewsPage` | Guest review submission with client-generated receipt, receipt shown once, status and withdrawal | O5, FR04, FR13, R09 |
 | `/health` | `HealthCheckPage` | Real-time diagnostic console testing `GET /api/v1/health` & readiness | Acceptance testing |
+
+### 10.2 Modular API Architecture (`src/api/`)
+
+The frontend network and data layer is organized into isolated, domain-focused API modules under `src/api/`:
+
+| Module File | Scope & Exported Members | Architectural Contract |
+|---|---|---|
+| `src/api/client.ts` | `API_BASE_URL`, `apiRequest<T>()`, `ApiError`, `NETWORK_ERROR` | Base URL (`VITE_API_BASE_URL`), `Accept-Language` from the interface language, `Content-Type` only with a body (public GETs stay CORS simple requests), and the PF 12.3 error body `{error:{code,message,request_id,field_errors}}` mapped to `ApiError`. |
+| `src/api/health.ts` | `checkBackendHealth(customUrl?: string)` | Diagnostic health runner checking backend liveness (`GET /api/v1/health`) and database readiness probe (`GET /api/v1/health/ready` testing `SELECT 1`). |
+| `src/api/destinations.ts` | `listDestinations()`, `listAllDestinations()`, `getDestination(id)` | Public R02 reads (API.md 5.12, 5.13). |
+| `src/api/reviews.ts` | `getReviewFeed()`, `submitGuestReview()`, `getReceiptStatus()`, `withdrawGuestReview()`, `generateReceipt()`, `getGuestScopeSecret()`, `CONSENT_VERSION` | Guest review lifecycle (API.md 5.1 to 5.4, 5.8; PF 13). Secrets travel only in JSON bodies. |
+| `src/api/index.ts` | Barrel export of the four modules above | Unified entrypoint (`import { ... } from '../api'`). |
+| `src/data/prototypeDestinations.ts` | `PROTOTYPE_DESTINATIONS` | Unsourced prototype data for the planner, offline-packs and saved-trips screens only. Not an API module; delete when those screens migrate. |
+
+Implementation status and evidence: `Docs/Frontend-Implemented.md`.
+

@@ -8,8 +8,7 @@ import {
   Bookmark, 
   MessageSquareText, 
   HeartPulse, 
-  Compass,
-  Database
+  Compass
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -126,24 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </nav>
         </div>
 
-        {/* Bottom PWA & Cache Card */}
-        <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 border border-surface-muted/30 dark:border-dark-surface-2 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Database size={15} className="text-forest-primary dark:text-emerald-accent" />
-              <span className="font-en text-xs font-semibold text-on-surface dark:text-on-dark">
-                IndexedDB Cache
-              </span>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-accent"></span>
-          </div>
-          <p className="text-[12px] text-on-surface-variant dark:text-on-dark-muted leading-tight">
-            {t(
-              'অফলাইন ট্রাভেল প্যাক ও ড্রাফট সংরক্ষিত রয়েছে।',
-              'Offline packs & review drafts stored locally.'
-            )}
-          </p>
-        </div>
+        {/* Offline status card returns with the PWA and IndexedDB work (R12, R13); no claim until then. */}
       </aside>
     </>
   );

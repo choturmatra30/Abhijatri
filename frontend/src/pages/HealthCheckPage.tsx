@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { checkBackendHealth, isAllowedBackendUrl } from '../services/api';
+import { checkBackendHealth, isAllowedBackendUrl } from '../api/health';
 import { HealthStatus } from '../types';
 
 export const HealthCheckPage: React.FC = () => {

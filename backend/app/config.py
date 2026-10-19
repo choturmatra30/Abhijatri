@@ -140,7 +140,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+        # Browsers send an Origin without a path, so "http://localhost:5173/" would never match.
+        return [o.strip().rstrip("/") for o in self.cors_allowed_origins.split(",") if o.strip().rstrip("/")]
 
     @property
     def docs_are_enabled(self) -> bool:

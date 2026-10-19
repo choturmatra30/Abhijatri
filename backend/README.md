@@ -15,8 +15,11 @@ docker compose up -d postgres
 cd backend
 uv sync --dev
 uv run alembic upgrade head
+uv run python scripts/seed_destinations.py   # five sourced destinations; safe to re-run
 uv run uvicorn app.main:app --reload
 ```
+
+The frontend dev server (`http://localhost:5173`) must be listed in `CORS_ALLOWED_ORIGINS` (a trailing slash is tolerated).
 
 The default development database URL is:
 
