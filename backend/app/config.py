@@ -1,3 +1,5 @@
+import json
+import re
 from functools import lru_cache
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -26,6 +28,8 @@ class Settings(BaseSettings):
     migration_database_url: str | None = None
     receipt_pepper: str = Field(default=DEFAULT_PEPPER, min_length=24, repr=False)
     receipt_session_minutes: int = 15
+    receipt_keys: str | None = Field(default=None, repr=False)  # JSON {"v1": "<secret>", ...}
+    receipt_key_current: str = "v1"
     cors_allowed_origins: str = "http://localhost:5173"
     log_level: str = "INFO"
     app_timezone: str = "UTC"
@@ -41,16 +45,62 @@ class Settings(BaseSettings):
     db_idle_in_transaction_timeout_ms: int = Field(default=15000, ge=1000, le=120000)
     request_timeout_seconds: int = Field(default=15, ge=1, le=120)
     max_request_body_bytes: int = Field(default=65536, ge=1024, le=1048576)
+    advisory_stale_after_days: int = Field(default=30, ge=1, le=365)
+    public_cache_max_age_seconds: int = Field(default=60, ge=0, le=3600)
     allow_test_staff_header: bool = False
     rate_limit_enabled: bool = True
-    rate_limit_storage_uri: str = Field(default="redis://localhost:6379/0", min_length=1)
-    rate_limit_guest_submit: str = "5/minute"
-    rate_limit_receipt: str = "10/minute"
+    # Storage for the in-memory-style burst pre-filter. Redis is deferred (Decisions.md), so the
+    # default is per-process memory; set redis://... only when Redis is actually provisioned.
+    rate_limit_storage_uri: str = Field(default="memory://", min_length=1)
+    rate_limit_guest_submit: str = "5/minute"  # in-memory burst pre-filter only (PF 14.5)
+    rate_limit_receipt: str = "10/minute"  # in-memory burst pre-filter only (PF 14.5)
+
+    # Trusted client address (PF 14.2): the one provider-appended header entry, never a guess.
+    client_address_header: str | None = None
+    client_address_position: int = Field(default=-1, ge=-5, le=5)
+
+    # Durable abuse limits (API.md section 7, PF 14.3). All are hard limits.
+    guest_submit_per_scope_per_day: int = Field(default=3, ge=1)
+    guest_submit_per_network_per_hour: int = Field(default=30, ge=1)
+    guest_submit_per_network_per_day: int = Field(default=100, ge=1)
+    receipt_ops_per_receipt_per_hour: int = Field(default=20, ge=1)
+    receipt_ops_per_network_per_hour: int = Field(default=100, ge=1)
+    receipt_failures_short_limit: int = Field(default=5, ge=1)  # per 15 minutes
+    receipt_failures_long_limit: int = Field(default=20, ge=1)  # per 24 hours
+    guest_pending_per_destination: int = Field(default=50, ge=1)
+    guest_pending_total: int = Field(default=500, ge=1)
+    guest_pending_alert_ratio: float = Field(default=0.8, gt=0, le=1)
+    guest_writes_paused: bool = False  # emergency switch: guest writes only, reads continue
+
+    # Cloudflare Turnstile (PF 14.1). Disabled only in development and test.
+    turnstile_enabled: bool = False
+    turnstile_secret: str | None = Field(default=None, repr=False)
+    turnstile_hostname: str | None = None
+    turnstile_verify_url: str = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+    turnstile_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 
     @field_validator("database_url", "migration_database_url")
     @classmethod
     def _normalize_url(cls, value: str | None) -> str | None:
         return normalize_database_url(value) if value else value
+
+    @field_validator("receipt_keys")
+    @classmethod
+    def _keyring_is_valid(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        try:
+            ring = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError("RECEIPT_KEYS must be a JSON object") from error
+        if not isinstance(ring, dict) or not ring:
+            raise ValueError("RECEIPT_KEYS must be a non-empty JSON object")
+        for key_id, secret in ring.items():
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,16}", str(key_id)):
+                raise ValueError("RECEIPT_KEYS ids must be 1 to 16 letters, digits, '-' or '_'")
+            if not isinstance(secret, str) or len(secret) < 24:
+                raise ValueError("every RECEIPT_KEYS secret must be a string of at least 24 characters")
+        return value
 
     @field_validator("app_timezone")
     @classmethod
@@ -67,6 +117,18 @@ class Settings(BaseSettings):
         except (ZoneInfoNotFoundError, ValueError) as error:
             raise ValueError(f"DEFAULT_DISPLAY_TIMEZONE {value!r} is not a valid IANA zone") from error
         return value
+
+    @property
+    def hmac_keyring(self) -> dict[str, str]:
+        """Versioned HMAC keys shared by receipt, guest-scope and network digests.
+
+        Without ``RECEIPT_KEYS`` the single ``RECEIPT_PEPPER`` is key ``v1``. Old keys stay in
+        the ring until no stored digest references them (Platform Foundation 13.4).
+        """
+        if self.receipt_keys:
+            ring = json.loads(self.receipt_keys)
+            return {str(key_id): str(secret) for key_id, secret in ring.items()}
+        return {"v1": self.receipt_pepper}
 
     @property
     def display_tz(self) -> ZoneInfo:
@@ -89,6 +151,12 @@ class Settings(BaseSettings):
         return self.migration_database_url or self.database_url
 
     @model_validator(mode="after")
+    def _current_key_exists(self) -> "Settings":
+        if self.receipt_key_current not in self.hmac_keyring:
+            raise ValueError("RECEIPT_KEY_CURRENT must name a key in the keyring")
+        return self
+
+    @model_validator(mode="after")
     def _production_guard(self) -> "Settings":
         if not self.is_production:
             return self
@@ -96,6 +164,15 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must be explicitly configured in production")
         if self.receipt_pepper == DEFAULT_PEPPER or len(self.receipt_pepper) < 32:
             raise ValueError("RECEIPT_PEPPER must be a unique value of at least 32 characters")
+        if any(len(secret) < 32 or secret == DEFAULT_PEPPER for secret in self.hmac_keyring.values()):
+            raise ValueError("every RECEIPT_KEYS secret must be unique and at least 32 characters")
+        if not self.client_address_header:
+            raise ValueError(
+                "CLIENT_ADDRESS_HEADER must name the provider-appended header proven by the "
+                "forged-header test (Platform Foundation 14.2)"
+            )
+        if not (self.turnstile_enabled and self.turnstile_secret and self.turnstile_hostname):
+            raise ValueError("TURNSTILE_ENABLED, TURNSTILE_SECRET and TURNSTILE_HOSTNAME are required")
         if "*" in self.cors_origins or not self.cors_origins:
             raise ValueError("CORS_ALLOWED_ORIGINS must list explicit origins, never '*'")
         host = urlparse(self.database_url.replace("+psycopg", "", 1)).hostname or ""

@@ -16,6 +16,10 @@ def _prod(**overrides) -> Settings:
         "database_url": SUPABASE,
         "receipt_pepper": GOOD_PEPPER,
         "cors_allowed_origins": "https://app.example.com",
+        "client_address_header": "X-Forwarded-For",
+        "turnstile_enabled": True,
+        "turnstile_secret": "0x4AAAAAAA-secret",
+        "turnstile_hostname": "app.example.com",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -44,6 +48,10 @@ def test_production_accepts_valid_configuration() -> None:
         {"receipt_pepper": "y" * 26},
         {"cors_allowed_origins": "*"},
         {"database_url": SUPABASE.replace("?sslmode=require", "")},
+        {"client_address_header": None},
+        {"turnstile_enabled": False},
+        {"turnstile_secret": None},
+        {"turnstile_hostname": None},
     ],
 )
 def test_production_fails_closed(overrides: dict) -> None:
@@ -75,7 +83,16 @@ def test_invalid_timezones_are_rejected(overrides: dict) -> None:
 
 def test_unset_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("APP_ENV", raising=False)
-    settings = Settings(_env_file=None, receipt_pepper=GOOD_PEPPER)
+    with pytest.raises(ValidationError):  # unset APP_ENV is production, which needs the full set
+        Settings(_env_file=None, receipt_pepper=GOOD_PEPPER)
+    settings = Settings(
+        _env_file=None,
+        receipt_pepper=GOOD_PEPPER,
+        client_address_header="X-Forwarded-For",
+        turnstile_enabled=True,
+        turnstile_secret="s" * 20,
+        turnstile_hostname="app.example.com",
+    )
     assert settings.is_production
     assert not settings.docs_are_enabled
     assert not settings.allow_test_staff_header

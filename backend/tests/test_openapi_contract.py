@@ -21,9 +21,9 @@ def test_openapi_snapshot_matches_code() -> None:
 
 def test_every_implemented_route_is_documented() -> None:
     exporter = _load_exporter()
-    api_doc = (exporter.SNAPSHOT.parents[1] / "API.md").read_text(encoding="utf-8")
+    api_doc = (exporter.SNAPSHOT.parent / "API.md").read_text(encoding="utf-8")
     from app.main import create_app
 
     for route in create_app().openapi()["paths"]:
         path = route.removeprefix("/api/v1")
-        assert path in api_doc, f"{path} missing from Docs/API.md"
+        assert path in api_doc, f"{path} missing from Docs/api/API.md"

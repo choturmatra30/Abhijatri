@@ -1,23 +1,26 @@
 import base64
-import hmac
 import logging
 import uuid
 from datetime import UTC, datetime
 from typing import NoReturn
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
+from app import abuse
+from app.abuse import CounterSessions
+from app.client_address import network_digest, trusted_client_address
 from app.config import get_settings
 from app.db import get_session
+from app.destination_api import public_cache_headers
+from app.errors import ApiError
 from app.limits import guest_submit_limit, limiter, receipt_limit
 from app.models import (
     DestinationRatingStats,
     ModerationDecision,
     PlatformRole,
     Review,
-    ReviewReceipt,
     ReviewRevision,
     ReviewStatus,
     User,
@@ -31,34 +34,31 @@ from app.schemas import (
     ModerationRequest,
     ModerationResult,
     PublicReview,
-    ReceiptExchange,
     ReceiptStatus,
+    ReceiptStatusRequest,
     ReviewFeed,
     WithdrawRequest,
 )
 from app.services import (
-    ReviewConflict,
-    ReviewForbidden,
-    ReviewNotFound,
+    ReviewError,
     encode_cursor,
-    hash_secret,
+    find_recoverable_draft,
     moderate_review,
+    rejection_details,
     set_review_conflict,
     submit_guest_review,
+    verify_receipt,
     withdraw_review,
 )
+from app.turnstile import ACTION_GUEST_REVIEW, TurnstileDep
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1")
 
 
 def _raise_service_error(error: Exception) -> NoReturn:
-    if isinstance(error, ReviewNotFound):
-        raise HTTPException(status_code=404, detail=str(error)) from error
-    if isinstance(error, ReviewForbidden):
-        raise HTTPException(status_code=403, detail=str(error)) from error
-    if isinstance(error, ReviewConflict):
-        raise HTTPException(status_code=409, detail=str(error)) from error
+    if isinstance(error, ReviewError):
+        raise ApiError(error.code) from error
     raise error
 
 
@@ -68,13 +68,13 @@ def require_staff(
 ) -> User:
     settings = get_settings()
     if settings.is_production or not settings.allow_test_staff_header:
-        raise HTTPException(status_code=501, detail="staff authentication adapter is not configured")
+        raise ApiError("STAFF_AUTH_NOT_CONFIGURED")
     if x_test_staff_id is None:
-        raise HTTPException(status_code=401, detail="test staff identity required")
+        raise ApiError("AUTH_REQUIRED")
     try:
         user_id = uuid.UUID(x_test_staff_id)
     except ValueError as error:
-        raise HTTPException(status_code=401, detail="invalid staff identity") from error
+        raise ApiError("AUTH_REQUIRED") from error
 
     now = datetime.now(UTC)
     user = session.scalar(
@@ -88,7 +88,7 @@ def require_staff(
         )
     )
     if user is None:
-        raise HTTPException(status_code=403, detail="staff permission required")
+        raise ApiError("FORBIDDEN")
     return user
 
 
@@ -105,7 +105,7 @@ def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
         session.execute(text("SELECT 1"))
     except Exception as error:
         logger.exception("readiness check failed")
-        raise HTTPException(status_code=503, detail="database unavailable") from error
+        raise ApiError("SERVICE_UNAVAILABLE", headers={"Retry-After": "5"}) from error
     return HealthResponse(status="ok")
 
 
@@ -117,22 +117,58 @@ def health_ready(session: Session = Depends(get_session)) -> HealthResponse:
 @limiter.limit(guest_submit_limit)
 def create_guest_review(
     request: Request,
+    response: Response,
     payload: GuestReviewCreate,
+    sessions: CounterSessions,
+    verify_challenge: TurnstileDep,
     session: Session = Depends(get_session),
 ) -> GuestReviewCreated:
+    """Order of checks (API.md 5.2, PF 14.4)."""
+    settings = get_settings()
     try:
+        # 1-2. Schema and receipt format are validated; a recoverable draft returns here,
+        #      free of charge: no challenge, no counters.
+        recovered = find_recoverable_draft(session, payload)
+        if recovered is not None:
+            response.status_code = status.HTTP_200_OK
+            return GuestReviewCreated(
+                review_id=recovered.id,
+                status=recovered.status,
+                version=recovered.version,
+                duplicate_recovered=True,
+            )
+        # 3. Idempotency-Key replay: WP4.
+        # Emergency switch: stop new Guest writes before spending a challenge.
+        abuse.ensure_guest_writes_allowed(settings)
+        # 4. Turnstile (hostname and action checked; single use).
+        address = trusted_client_address(request)
+        verify_challenge(
+            payload.turnstile_token,
+            action=ACTION_GUEST_REVIEW,
+            remote_address=str(address) if address else None,
+        )
+        # 5-6. Durable counters commit on their own before the limits and ceilings are checked.
+        abuse.enforce(
+            sessions,
+            abuse.guest_submit_checks(
+                settings, abuse.scope_key(payload.guest_scope_secret), network_digest(request)
+            ),
+        )
+        abuse.check_pending_ceilings(session, payload.destination_id)
+        # 7. Business transaction.
         result = submit_guest_review(session, payload)
         session.commit()
-        return GuestReviewCreated(
-            review_id=result.review.id,
-            status=result.review.status,
-            version=result.review.version,
-            receipt_token=result.receipt_token,
-            duplicate_recovered=result.duplicate_recovered,
-        )
-    except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
+    except ReviewError as error:
         session.rollback()
         _raise_service_error(error)
+    if result.duplicate_recovered:
+        response.status_code = status.HTTP_200_OK
+    return GuestReviewCreated(
+        review_id=result.review.id,
+        status=result.review.status,
+        version=result.review.version,
+        duplicate_recovered=result.duplicate_recovered,
+    )
 
 
 @router.get("/staff/moderation/reviews", response_model=list[ModerationResult])
@@ -186,7 +222,7 @@ def decide_review(
             version=review.version,
             counted_rating=review.counted_rating,
         )
-    except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
+    except ReviewError as error:
         session.rollback()
         _raise_service_error(error)
 
@@ -218,7 +254,7 @@ def change_review_conflict(
             version=review.version,
             counted_rating=review.counted_rating,
         )
-    except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
+    except ReviewError as error:
         session.rollback()
         _raise_service_error(error)
 
@@ -233,13 +269,14 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
             moment = moment.replace(tzinfo=UTC)
         return moment, uuid.UUID(review_id)
     except (ValueError, UnicodeDecodeError) as error:
-        raise HTTPException(status_code=422, detail="invalid cursor") from error
+        raise ApiError("INVALID_CURSOR") from error
 
 
 @router.get("/destinations/{destination_id}/reviews", response_model=ReviewFeed)
 @limiter.limit("60/minute")
 def public_reviews(
     request: Request,
+    response: Response,
     destination_id: uuid.UUID,
     after: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
@@ -290,6 +327,7 @@ def public_reviews(
     guest_average = (
         stats.guest_rating_sum / guest_count if stats is not None and guest_count else None
     )
+    response.headers.update(public_cache_headers())
     return ReviewFeed(
         items=items,
         next_cursor=next_cursor,
@@ -298,37 +336,51 @@ def public_reviews(
     )
 
 
-def _verify_receipt(session: Session, review_id: uuid.UUID, raw_token: str) -> Review:
-    candidate_hash = hash_secret(raw_token)
-    receipt = session.scalar(
-        select(ReviewReceipt).where(
-            ReviewReceipt.review_id == review_id,
-            ReviewReceipt.token_hash == candidate_hash,
-            ReviewReceipt.revoked_at.is_(None),
-        )
-    )
-    if receipt is None or not hmac.compare_digest(receipt.token_hash, candidate_hash):
-        raise HTTPException(status_code=404, detail="receipt not found")
-    review = session.get(Review, review_id)
-    if review is None:
-        raise HTTPException(status_code=404, detail="review not found")
-    return review
+_RECEIPT_FAILURE_CODES = {"RECEIPT_NOT_FOUND", "INVALID_RECEIPT_FORMAT"}
 
 
-@router.post("/review-receipts/exchange", response_model=ReceiptStatus)
-@limiter.limit(receipt_limit)
-def exchange_receipt(
-    request: Request,
-    payload: ReceiptExchange,
-    session: Session = Depends(get_session),
-) -> ReceiptStatus:
-    review = _verify_receipt(session, payload.review_id, payload.receipt_token)
+def _receipt_status(session: Session, review: Review) -> ReceiptStatus:
+    details = rejection_details(session, review)
     return ReceiptStatus(
         review_id=review.id,
         status=review.status,
         version=review.version,
         published_at=review.published_at,
+        decision_reason=details.decision_reason,
+        appeal_deadline=details.appeal_deadline,
     )
+
+
+def _guard_receipt_operation(
+    request: Request, sessions: CounterSessions, receipt_secret: str
+) -> tuple[bytes, bytes]:
+    """Progressive delay after repeated failures, then the per-receipt and per-network limits."""
+    settings = get_settings()
+    receipt, network = abuse.receipt_key(receipt_secret), network_digest(request)
+    abuse.guard_receipt_failures(sessions, receipt, network)
+    abuse.enforce(sessions, abuse.receipt_op_checks(settings, receipt, network))
+    return receipt, network
+
+
+@router.post("/review-receipts/status", response_model=ReceiptStatus)
+@limiter.limit(receipt_limit)
+def receipt_status(
+    request: Request,
+    payload: ReceiptStatusRequest,
+    sessions: CounterSessions,
+    session: Session = Depends(get_session),
+) -> ReceiptStatus:
+    receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
+    try:
+        review = verify_receipt(session, payload.review_id, payload.receipt_secret)
+        result = _receipt_status(session, review)
+        session.commit()  # persists a re-digest under the current key after rotation
+    except ReviewError as error:
+        session.rollback()
+        if error.code in _RECEIPT_FAILURE_CODES:
+            abuse.record_receipt_failure(sessions, receipt, network)
+        _raise_service_error(error)
+    return result
 
 
 @router.post("/reviews/{review_id}/withdraw", response_model=ReceiptStatus)
@@ -337,19 +389,18 @@ def withdraw_guest_review(
     request: Request,
     review_id: uuid.UUID,
     payload: WithdrawRequest,
+    sessions: CounterSessions,
     session: Session = Depends(get_session),
 ) -> ReceiptStatus:
+    receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
     try:
-        _verify_receipt(session, review_id, payload.receipt_token)
+        verify_receipt(session, review_id, payload.receipt_secret)
         review = withdraw_review(session, review_id, payload.expected_version)
+        result = _receipt_status(session, review)
         session.commit()
-        return ReceiptStatus(
-            review_id=review.id,
-            status=review.status,
-            version=review.version,
-            published_at=review.published_at,
-        )
-    except (ReviewNotFound, ReviewConflict, ReviewForbidden) as error:
+    except ReviewError as error:
         session.rollback()
+        if error.code in _RECEIPT_FAILURE_CODES:
+            abuse.record_receipt_failure(sessions, receipt, network)
         _raise_service_error(error)
-
+    return result

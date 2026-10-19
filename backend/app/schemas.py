@@ -5,7 +5,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config import get_settings
-from app.models import ComfortTier, ReviewLanguage, ReviewStatus, TravellerType
+from app.models import (
+    AdvisorySeverity,
+    ComfortTier,
+    ContactKind,
+    GuideCategory,
+    ReviewLanguage,
+    ReviewStatus,
+    SourceType,
+    TravellerType,
+)
 
 
 class StrictRequestModel(BaseModel):
@@ -16,6 +25,8 @@ class GuestReviewCreate(StrictRequestModel):
     destination_id: uuid.UUID
     client_draft_id: uuid.UUID
     guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
+    receipt_secret: str = Field(min_length=1, max_length=100, repr=False)
+    turnstile_token: str | None = Field(default=None, max_length=2048, repr=False)
     guest_display_name: str = Field(min_length=1, max_length=80)
     language: ReviewLanguage
     traveller_type: TravellerType
@@ -42,7 +53,6 @@ class GuestReviewCreated(BaseModel):
     review_id: uuid.UUID
     status: ReviewStatus
     version: int
-    receipt_token: str = Field(repr=False)
     duplicate_recovered: bool
 
 
@@ -67,9 +77,9 @@ class ConflictFlagRequest(StrictRequestModel):
     note: str | None = Field(default=None, max_length=500)
 
 
-class ReceiptExchange(StrictRequestModel):
+class ReceiptStatusRequest(StrictRequestModel):
     review_id: uuid.UUID
-    receipt_token: str = Field(min_length=40, max_length=200, repr=False)
+    receipt_secret: str = Field(min_length=1, max_length=100, repr=False)
 
 
 class ReceiptStatus(BaseModel):
@@ -77,11 +87,13 @@ class ReceiptStatus(BaseModel):
     status: ReviewStatus
     version: int
     published_at: datetime | None
+    decision_reason: str | None
+    appeal_deadline: datetime | None
 
 
 class WithdrawRequest(StrictRequestModel):
     expected_version: int = Field(ge=1)
-    receipt_token: str = Field(min_length=40, max_length=200, repr=False)
+    receipt_secret: str = Field(min_length=1, max_length=100, repr=False)
 
 
 class PublicReview(BaseModel):
@@ -106,3 +118,114 @@ class ReviewFeed(BaseModel):
 class HealthResponse(BaseModel):
     status: str
 
+
+
+AdvisoryState = Literal["NOT_YET_EFFECTIVE", "CURRENT", "STALE", "EXPIRED"]
+
+
+class Provenance(BaseModel):
+    """Public source metadata. Researcher and reviewer names stay internal."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    source_type: SourceType
+    source_ref: str
+    publisher: str
+    effective_on: date
+    verified_on: date
+    next_review_on: date | None
+    licence: str
+
+
+class CommunityRatingSummary(BaseModel):
+    average: float | None
+    count: int
+
+
+class GuestFeedbackSummary(BaseModel):
+    average: float | None
+    count: int
+
+
+class DestinationSummary(BaseModel):
+    id: uuid.UUID
+    name_bn: str
+    name_en: str
+    region_bn: str | None
+    region_en: str | None
+    summary_bn: str | None
+    summary_en: str | None
+    latitude: float | None
+    longitude: float | None
+    community_rating: CommunityRatingSummary
+    guest_feedback: GuestFeedbackSummary
+    active_advisory_count: int
+    last_updated: datetime
+
+
+class DestinationList(BaseModel):
+    items: list[DestinationSummary]
+    next_cursor: str | None
+
+
+class GuideItem(BaseModel):
+    id: uuid.UUID
+    category: GuideCategory
+    title_bn: str
+    title_en: str
+    body_bn: str
+    body_en: str
+    sort_order: int
+    provenance: Provenance
+
+
+class Advisory(BaseModel):
+    id: uuid.UUID
+    severity: AdvisorySeverity
+    title_bn: str
+    title_en: str
+    text_bn: str
+    text_en: str
+    effective_on: date
+    valid_until: date
+    state: AdvisoryState
+    provenance: Provenance
+
+
+class Contact(BaseModel):
+    id: uuid.UUID
+    kind: ContactKind
+    name_bn: str
+    name_en: str
+    phone: str
+    address_bn: str | None
+    address_en: str | None
+    latitude: float | None
+    longitude: float | None
+    provenance: Provenance
+
+
+class DestinationProfile(BaseModel):
+    id: uuid.UUID
+    name_bn: str
+    name_en: str
+    region_bn: str | None
+    region_en: str | None
+    summary_bn: str | None
+    summary_en: str | None
+    seasonality_bn: str | None
+    seasonality_en: str | None
+    restrictions_bn: str | None
+    restrictions_en: str | None
+    latitude: float | None
+    longitude: float | None
+    community_rating: CommunityRatingSummary
+    guest_feedback: GuestFeedbackSummary
+    guide_items: list[GuideItem]
+    advisories: list[Advisory]
+    contacts: list[Contact]
+    content_licence: str | None
+    content_verified_on: date | None
+    as_of: date
+    stale_after_days: int
+    last_updated: datetime

@@ -4,12 +4,15 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 import pytest
+from fastapi.testclient import TestClient
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from receipts import new_receipt  # noqa: E402
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app.api import public_reviews
+from app.db import get_session
+from app.main import create_app
 from app.models import (
     ComfortTier,
     Destination,
@@ -44,6 +47,7 @@ def _payload(destination_id: uuid.UUID, draft_id: uuid.UUID | None = None) -> Gu
         destination_id=destination_id,
         client_draft_id=draft_id or uuid.uuid4(),
         guest_scope_secret=secrets.token_urlsafe(32),
+        receipt_secret=new_receipt(),
         guest_display_name="সাদিয়া রহমান",
         language="BN",
         traveller_type="FAMILY",
@@ -96,10 +100,14 @@ def test_guest_vertical_slice_and_retry_deduplication(postgres_session) -> None:
     assert published.status == ReviewStatus.PUBLISHED
     assert (stats.guest_rating_sum, stats.guest_rating_count) == (4, 1)
     assert full_guest_recompute(postgres_session, destination.id) == (4, 1)
-    feed = public_reviews(destination.id, after=None, limit=20, session=postgres_session)
-    assert [item.id for item in feed.items] == [published.id]
-    assert feed.guest_rating_average == 4.0
-    assert feed.guest_rating_count == 1
+    application = create_app()
+    application.dependency_overrides[get_session] = lambda: postgres_session
+    response = TestClient(application).get(f"/api/v1/destinations/{destination.id}/reviews")
+    assert response.status_code == 200
+    feed = response.json()
+    assert [item["id"] for item in feed["items"]] == [str(published.id)]
+    assert feed["guest_rating_average"] == 4.0
+    assert feed["guest_rating_count"] == 1
 
 
 def test_concurrent_publish_counts_once(postgres_session) -> None:

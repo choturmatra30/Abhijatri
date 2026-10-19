@@ -3,23 +3,20 @@
 import time
 import uuid
 from collections.abc import Callable, Generator
-from datetime import date
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
 
 from app.api import require_staff
 from app.config import get_settings
 from app.db import get_session
 from app.limits import limiter
 from app.main import create_app
-from app.models import Destination, DestinationStatus, User
+from app.models import User
 
 DESTINATION = uuid.uuid4()
-TOKEN = "t" * 43
 
 
 class FakeSession:
@@ -62,7 +59,7 @@ def test_responses_carry_request_id_and_security_headers() -> None:
     assert response.status_code == 200
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["cache-control"] == "no-store"
-    assert len(response.headers["x-request-id"]) == 32
+    assert len(response.headers["x-request-id"]) == 36
 
 
 def test_oversized_body_is_rejected_before_parsing() -> None:
@@ -105,7 +102,10 @@ def test_database_outage_becomes_503_with_retry_after() -> None:
 
     response = _client(FakeSession(fail)).get(f"/api/v1/destinations/{DESTINATION}/reviews")
     assert response.status_code == 503
-    assert response.json() == {"detail": "temporarily unavailable"}
+    body = response.json()["error"]
+    assert body["code"] == "SERVICE_UNAVAILABLE"
+    assert body["request_id"] == response.headers["x-request-id"]
+    assert body["field_errors"] == []
     assert response.headers["retry-after"] == "5"
 
 
@@ -115,16 +115,8 @@ def test_unexpected_error_is_a_generic_500_without_internals() -> None:
 
     response = _client(FakeSession(boom)).get(f"/api/v1/destinations/{DESTINATION}/reviews")
     assert response.status_code == 500
-    assert response.json() == {"detail": "internal server error"}
+    assert response.json()["error"]["code"] == "INTERNAL_ERROR"
     assert "secret" not in response.text
-
-
-def test_receipt_endpoint_is_rate_limited() -> None:
-    client = _client(FakeSession(lambda: None))
-    body = {"review_id": str(uuid.uuid4()), "receipt_token": TOKEN}
-    codes = [client.post("/api/v1/review-receipts/exchange", json=body).status_code for _ in range(12)]
-    assert codes[:10] == [404] * 10
-    assert codes[10:] == [429, 429]
 
 
 def test_slow_request_times_out_with_504(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -136,36 +128,3 @@ def test_slow_request_times_out_with_504(monkeypatch: pytest.MonkeyPatch) -> Non
     finally:
         get_settings.cache_clear()
     assert response.status_code == 504
-
-
-@pytest.mark.integration
-def test_duplicate_submit_rotates_receipt_and_retires_the_old_one(postgres_session: Session) -> None:
-    destination = Destination(status=DestinationStatus.PUBLISHED, name_bn="কক্সবাজার", name_en="Cox")
-    postgres_session.add(destination)
-    postgres_session.commit()
-    client = _client(postgres_session, raise_server_exceptions=True)
-    payload = {
-        "destination_id": str(destination.id),
-        "client_draft_id": str(uuid.uuid4()),
-        "guest_scope_secret": "s" * 43,
-        "guest_display_name": "Rahim",
-        "language": "EN",
-        "traveller_type": "SOLO",
-        "comfort_tier": "STANDARD",
-        "visit_month": date.today().replace(day=1).isoformat(),
-        "title": "Lovely beach",
-        "body": "A long enough review body for the validation rules.",
-        "overall_rating": 5,
-        "consent_version": "v1",
-    }
-    first = client.post("/api/v1/reviews/guest", json=payload)
-    assert first.status_code == 201, first.text
-    retry = client.post("/api/v1/reviews/guest", json=payload)
-    assert retry.status_code == 201
-    assert retry.json()["duplicate_recovered"] is True
-
-    review_id = first.json()["review_id"]
-    old, new = first.json()["receipt_token"], retry.json()["receipt_token"]
-    exchange = "/api/v1/review-receipts/exchange"
-    assert client.post(exchange, json={"review_id": review_id, "receipt_token": old}).status_code == 404
-    assert client.post(exchange, json={"review_id": review_id, "receipt_token": new}).status_code == 200
