@@ -2,6 +2,20 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-19 (Frontend integration: R03, R09 Guest path, R01 seed content)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Real data only on integrated screens | Overview, Destinations, destination detail and Reviews read the API. Prototype data moves to `frontend/src/data/prototypeDestinations.ts` and is used only by the planner, offline-packs and saved-trips screens until E08, R13 and E09. | Proposal "no fake live claims"; Review.md 6 forbids showing ratings that do not exist. |
+| Rating display | Community Rating and Guest Feedback are separate and always show a count. Below five eligible Verified Member reviews the interface shows "Editorial seeded selection" instead of a score. | Review.md 6.1, 6.2, 6.4. |
+| No destination images | Destination screens are text-first until the API carries licensed images. The hotlinked Unsplash photos are removed. | PF 17 licensing, PF 16.3 `img-src`, asset budget. |
+| Offline claims | Interface text claiming PWA, IndexedDB or pack downloads is removed until R12 and R13 deliver them. | Same as above. |
+| Guest scope secret storage | Kept in `localStorage` (key `abhijatri_guest_scope`) until the IndexedDB draft store (R15) exists, then moved there. The receipt is never stored; it is held in memory and shown once. | PF 18.1 names IndexedDB; PF 13.5 forbids keeping submitted-review receipts. |
+| Draft identity on retry | One `client_draft_id` and receipt per draft, reused on every retry; replaced only after success or `DRAFT_ALREADY_SUBMITTED`. | Review.md 4.1, API.md 5.2 order of checks. |
+| Turnstile widget | Deferred to an R09 follow-up. Development runs with `TURNSTILE_ENABLED=false`; production submission needs the widget before release. | Needs the site key and the CSP origin in PF 16.3. |
+| Seed content ownership | The five-destination content was researched and sourced by Abdullah to unblock R03. It stays R01 work owned by Shahriar Islam and is accepted only after that review sets `reviewer`. | Gantt R01 ownership; R01 acceptance "pass review". |
+| CORS origin normalisation | Trailing slashes are stripped from `CORS_ALLOWED_ORIGINS`. | A trailing slash never matches a browser `Origin`, which blocked the local frontend. |
+
 ## 2026-10-19 (WP2 error contract, WP3 receipts and keyring)
 
 | Decision | Rule | Reason |

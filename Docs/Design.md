@@ -128,9 +128,12 @@ All fonts are loaded directly from Google Fonts:
 
 To maintain single-responsibility boundaries and avoid monolithic networking code, client-side API operations are partitioned into focused modules under `frontend/src/api/`:
 
-1. **`client.ts`**: Universal fetch abstraction handling standard headers (`Accept: application/json`, `Content-Type: application/json`), query parameter serialization, base URL resolution (`VITE_API_BASE_URL`), and typed error handling conforming to Platform Foundation 12.3 (`ApiError` with `{code, message, details}`).
+1. **`client.ts`**: Fetch wrapper: base URL (`VITE_API_BASE_URL`), `Accept-Language` from the interface language, `Content-Type` only when there is a body, and the Platform Foundation 12.3 error body mapped to `ApiError` (`code`, `requestId`, `fieldErrors`).
 2. **`health.ts`**: Non-blocking diagnostics pinging `/api/v1/health` (liveness) and `/api/v1/health/ready` (validating database liveness with `SELECT 1`).
-3. **`destinations.ts`**: Seeded profiles and offline fallback catalog for the 5 semester scope destinations (Cox's Bazar, Sajek Valley, Sylhet, Sundarbans, Bandarban).
-4. **`index.ts`**: Clean barrel export allowing consolidated imports (`import { checkBackendHealth, SEEDED_DESTINATIONS } from '../api'`).
+3. **`destinations.ts`**: Public destination list and profile reads (R02 API).
+4. **`reviews.ts`**: Guest review feed, submission, receipt status and withdrawal; client-side receipt generation.
+5. **`index.ts`**: Barrel export (`import { listAllDestinations, submitGuestReview } from '../api'`).
+
+Shared UI states live in `src/components/common/StatusViews.tsx` (loading, error with retry, empty). Destination display components (`RatingSummary`, `AdvisoryCard`, `ProvenanceNote`) live in `src/components/destination/`. Status and evidence: `Docs/Frontend-Implemented.md`.
 
 

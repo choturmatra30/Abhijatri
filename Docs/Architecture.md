@@ -151,21 +151,21 @@ Browser (Vite + React 18 + TypeScript)
   ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon)
   ├── Route Layer: React Router v6 (/overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health)
   ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
-  ├── Cache Layer: IndexedDB (Dexie.js) for downloaded travel packs and offline drafts
-  └── API Client: /api/v1 proxying to FastAPI backend with real-time health diagnostic
+  ├── Cache Layer: planned (R12 service worker, R13/R15 IndexedDB packs and drafts); not built yet
+  └── API Client: src/api/* calling /api/v1 on VITE_API_BASE_URL (Vite also proxies /api in dev)
 ```
 
 ### 10.1 Page URL & Component Topology
 
 | Route | Component | Role | Traces to Requirement |
 |---|---|---|---|
-| `/` or `/overview` | `OverviewPage` | Dashboard, spotlight destination, live sync metrics | Proposal Section 1 |
-| `/destinations` | `DestinationsPage` | 5 seeded destination profiles with category filters | O2, FR01 |
-| `/destinations/:id` | `DestinationDetailPage` | Destination guide, seasonality, advisories, pack download | FR01, FR10, FR15 |
-| `/planner` | `PlannerPage` | Deterministic cost estimator with shared/individual split | O3, FR08, FR09 |
-| `/offline-packs` | `OfflinePacksPage` | Offline travel packs manager with IndexedDB cache | O4, FR10, FR17 |
-| `/trips` | `SavedTripsPage` | Local UUID-based trip briefs and saved estimates | FR11 |
-| `/reviews` | `ReviewsPage` | Guest review submission with receipt token & draft deduplication | O5, FR04, FR12, FR13 |
+| `/` or `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
+| `/destinations` | `DestinationsPage` | Published destinations from `GET /destinations`, bilingual text filter, loading/error/empty states | O2, FR01, R03 |
+| `/destinations/:id` | `DestinationDetailPage` | Profile from `GET /destinations/{id}`: advisories with state and source, seasonality, guide items, restrictions, contacts, published review feed | FR01, FR15, R03 |
+| `/planner` | `PlannerPage` | **Prototype** (E08): prototype destination list; calls a planned estimate endpoint | O3, FR08, FR09 |
+| `/offline-packs` | `OfflinePacksPage` | **Prototype** (R13): no storage behind it yet | O4, FR10, FR17 |
+| `/trips` | `SavedTripsPage` | **Prototype** (E09): `localStorage` briefs | FR11 |
+| `/reviews` | `ReviewsPage` | Guest review submission with client-generated receipt, receipt shown once, status and withdrawal | O5, FR04, FR13, R09 |
 | `/health` | `HealthCheckPage` | Real-time diagnostic console testing `GET /api/v1/health` & readiness | Acceptance testing |
 
 ### 10.2 Modular API Architecture (`src/api/`)
@@ -174,8 +174,12 @@ The frontend network and data layer is organized into isolated, domain-focused A
 
 | Module File | Scope & Exported Members | Architectural Contract |
 |---|---|---|
-| `src/api/client.ts` | `API_BASE_URL`, `apiRequest<T>()`, `ApiError`, `ApiErrorResponse` | Base HTTP client managing base URL resolution (`VITE_API_BASE_URL`), JSON headers, query serialization, and structured error mapping (`{code, message, details}`) per Platform Foundation 12.3. |
+| `src/api/client.ts` | `API_BASE_URL`, `apiRequest<T>()`, `ApiError`, `NETWORK_ERROR` | Base URL (`VITE_API_BASE_URL`), `Accept-Language` from the interface language, `Content-Type` only with a body (public GETs stay CORS simple requests), and the PF 12.3 error body `{error:{code,message,request_id,field_errors}}` mapped to `ApiError`. |
 | `src/api/health.ts` | `checkBackendHealth(customUrl?: string)` | Diagnostic health runner checking backend liveness (`GET /api/v1/health`) and database readiness probe (`GET /api/v1/health/ready` testing `SELECT 1`). |
-| `src/api/destinations.ts` | `SEEDED_DESTINATIONS`, `getSeededDestinations()`, `getDestinationById(id)` | Seeded destination profiles (Cox's Bazar, Sajek, Sylhet, Sundarbans, Bandarban) satisfying Semester Scope O2 and Proposal Section 1. |
-| `src/api/index.ts` | Barrel export (`* from './client'`, `'./health'`, `'./destinations'`) | Unified entrypoint for cleaner imports across UI pages and widgets (`import { ... } from '../api'`). |
+| `src/api/destinations.ts` | `listDestinations()`, `listAllDestinations()`, `getDestination(id)` | Public R02 reads (API.md 5.12, 5.13). |
+| `src/api/reviews.ts` | `getReviewFeed()`, `submitGuestReview()`, `getReceiptStatus()`, `withdrawGuestReview()`, `generateReceipt()`, `getGuestScopeSecret()`, `CONSENT_VERSION` | Guest review lifecycle (API.md 5.1 to 5.4, 5.8; PF 13). Secrets travel only in JSON bodies. |
+| `src/api/index.ts` | Barrel export of the four modules above | Unified entrypoint (`import { ... } from '../api'`). |
+| `src/data/prototypeDestinations.ts` | `PROTOTYPE_DESTINATIONS` | Unsourced prototype data for the planner, offline-packs and saved-trips screens only. Not an API module; delete when those screens migrate. |
+
+Implementation status and evidence: `Docs/Frontend-Implemented.md`.
 
