@@ -8,7 +8,7 @@ Acceptance (Gantt): "Versioned API contract and ERD reviewed". Risk: "Resolve au
 |---|---|---|---|
 | Architecture, auth and offline boundaries | `Docs/Architecture.md` sections 1-9 | Syed Muhtasim Alam | 2026-10-15 |
 | ERD and table catalogue | `Docs/Schema.md` | Syed Muhtasim Alam | 2026-10-15 |
-| API contract and snapshot | `Docs/API.md`, `Docs/api/openapi-v1.json` | Syed Muhtasim Alam | 2026-10-15 |
+| API contract and snapshot | `Docs/api/API.md`, `Docs/api/openapi-v1.json` | Syed Muhtasim Alam | 2026-10-15 |
 
 ## Review checklist
 

@@ -127,9 +127,9 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 
 | Method and path | Credential | Cache | Status |
 |---|---|---|---|
-| `POST /reviews/guest` | guest scope + receipt + Turnstile | no-store | Change required |
-| `POST /review-receipts/status` | receipt | no-store | Planned (R07). Replaces the legacy `POST /review-receipts/exchange`, which is removed in the same change. |
-| `POST /reviews/{review_id}/withdraw` | receipt | no-store | Change required |
+| `POST /reviews/guest` | guest scope + receipt + Turnstile | no-store | Change required: only `Idempotency-Key` replay (order-of-checks step 3, WP4) is pending. Client receipt, `201`/`200`, `409`, Turnstile, durable limits, ceilings and the emergency switch are done (WP3, WP5). |
+| `POST /review-receipts/status` | receipt | no-store | Implemented (WP3). Replaced the legacy `POST /review-receipts/exchange`, which is removed. |
+| `POST /reviews/{review_id}/withdraw` | receipt | no-store | Implemented (WP3, WP5 receipt limits). Idempotency-Key replay is added with WP4. |
 | `PATCH /reviews/{review_id}/pending` | receipt or owner | no-store | Planned (R07) |
 | `POST /review-receipts/appeals` | receipt | no-store | Planned (R07) |
 
@@ -137,9 +137,9 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 
 | Method and path | Credential | Cache | Status |
 |---|---|---|---|
-| `GET /destinations/{destination_id}/reviews` | none | Public, short TTL | Change required |
-| `GET /destinations` | none | Public, short TTL | Planned (R02) |
-| `GET /destinations/{destination_id}` | none | Public, short TTL | Planned (R02) |
+| `GET /destinations/{destination_id}/reviews` | none | Public, short TTL | Implemented (error body aside) |
+| `GET /destinations` | none | Public, short TTL | Implemented (R02) |
+| `GET /destinations/{destination_id}` | none | Public, short TTL | Implemented (R02) |
 | `GET /destinations/{destination_id}/pack/manifest` | none | Public, versioned | Planned (R14) |
 
 Public responses vary by `Accept-Language` and are purged on moderation or deletion (Security 7.1).
@@ -401,24 +401,124 @@ Response `200`:
 
 Response `200`: same shape as 5.10. Changing the flag on a published review locks the review and the destination aggregate, removes any previous `counted_rating`, recalculates eligibility and applies the new delta in one transaction (RV 6.1). The audit log records it as `SET_CONFLICT` or `CLEAR_CONFLICT`.
 
+### 5.12 `GET /destinations`
+
+Query: `after` (optional cursor, at most 300 characters), `limit` (1 to 50, default 20). Returns `PUBLISHED` destinations ordered by `name_en`, then `id`. The cursor is over `(name_en, id)` and is not reusable on other routes. An undecodable cursor returns `422`.
+
+```json
+{
+  "items": [
+    {
+      "id": "6f1c2c9e-0c0e-4a3b-9a55-2f4f7e1d2b10",
+      "name_bn": "কক্সবাজার",
+      "name_en": "Cox's Bazar",
+      "region_bn": "চট্টগ্রাম বিভাগ",
+      "region_en": "Chattogram Division",
+      "summary_bn": "...",
+      "summary_en": "...",
+      "latitude": 21.4272,
+      "longitude": 92.0058,
+      "community_rating": { "average": null, "count": 0 },
+      "guest_feedback": { "average": 4.5, "count": 2 },
+      "active_advisory_count": 1,
+      "last_updated": "2026-10-19T06:00:00Z"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+All text fields carry both languages in every response, so the client picks the language and an offline pack needs only one fetch. Profile fields are `null` until content is entered (R01). `community_rating.average` stays `null` until Verified Member ratings exist; Guest Feedback is never mixed into it (RV 6.2). `active_advisory_count` counts published advisories that are in effect and not expired on the Asia/Dhaka date.
+
+### 5.13 `GET /destinations/{destination_id}`
+
+Query: `include_expired` (boolean, default `false`). Returns one `PUBLISHED` destination. A draft, archived or unknown destination returns `404` with the same body, so existence is not leaked.
+
+```json
+{
+  "id": "6f1c2c9e-0c0e-4a3b-9a55-2f4f7e1d2b10",
+  "name_bn": "...", "name_en": "...",
+  "region_bn": "...", "region_en": "...",
+  "summary_bn": "...", "summary_en": "...",
+  "seasonality_bn": "...", "seasonality_en": "...",
+  "restrictions_bn": "...", "restrictions_en": "...",
+  "latitude": 21.4272, "longitude": 92.0058,
+  "community_rating": { "average": null, "count": 0 },
+  "guest_feedback": { "average": null, "count": 0 },
+  "guide_items": [
+    {
+      "id": "...", "category": "ATTRACTION", "sort_order": 0,
+      "title_bn": "...", "title_en": "...", "body_bn": "...", "body_en": "...",
+      "provenance": {
+        "source_type": "TEAM_RESEARCH", "source_ref": "https://example.org/source",
+        "publisher": "Abhijatri content team",
+        "effective_on": "2026-10-01", "verified_on": "2026-10-15", "next_review_on": "2027-01-15",
+        "licence": "CC-BY-4.0"
+      }
+    }
+  ],
+  "advisories": [
+    {
+      "id": "...", "severity": "CAUTION",
+      "title_bn": "...", "title_en": "...", "text_bn": "...", "text_en": "...",
+      "effective_on": "2026-10-01", "valid_until": "2026-12-01",
+      "state": "CURRENT",
+      "provenance": { "source_type": "OFFICIAL", "source_ref": "...", "publisher": "...",
+                      "effective_on": "2026-10-01", "verified_on": "2026-10-15",
+                      "next_review_on": null, "licence": "..." }
+    }
+  ],
+  "contacts": [
+    {
+      "id": "...", "kind": "TOURIST_POLICE",
+      "name_bn": "...", "name_en": "...", "phone": "+880 341-62000",
+      "address_bn": null, "address_en": null, "latitude": null, "longitude": null,
+      "provenance": { "...": "same shape as above" }
+    }
+  ],
+  "content_licence": "CC-BY-4.0",
+  "content_verified_on": "2026-10-15",
+  "as_of": "2026-10-19",
+  "stale_after_days": 30,
+  "last_updated": "2026-10-19T06:00:00Z"
+}
+```
+
+Rules:
+
+- Only published guide items, advisories and contacts appear. `guide_items` are ordered by category, then `sort_order`; `advisories` by severity (most severe first), then `valid_until`; `contacts` by kind, then name.
+- **Advisory state** is computed on read from the Asia/Dhaka date `as_of`, never stored:
+
+| `state` | Meaning |
+|---|---|
+| `CURRENT` | In effect (`effective_on <= as_of <= valid_until`) and verified within `stale_after_days`. |
+| `STALE` | In effect, but last verified more than `stale_after_days` ago. The client shows it distinctly with its `verified_on` date. |
+| `EXPIRED` | `as_of > valid_until`. Returned only with `include_expired=true`; never presented as current. |
+| `NOT_YET_EFFECTIVE` | `as_of < effective_on`. Never returned by this route. |
+
+- Every advisory and contact carries `provenance` (PF 17). `researcher` and `reviewer` names stay internal and are never returned.
+- Contacts are public institution and emergency numbers only; no personal contacts are stored.
+- `phone` matches `^\+?[0-9][0-9 -]{2,30}$` (for example `999`).
+- Both public destination routes send `Cache-Control: public, max-age=60` and a weak `ETag`; a matching `If-None-Match` returns `304` with no body. They are CORS simple requests (no custom headers, no credentials). Because the payload carries both languages, it does not vary by `Accept-Language`.
+
 ## 6. Changes required in the current code
 
 The routes marked "Change required" in Section 4 differ from this contract as follows. Each item is a code defect, not a reason to change this contract.
 
 | Route | Current behaviour | Required | Source |
 |---|---|---|---|
-| All | `{"detail": ...}` errors and FastAPI's default 422 body | Section 2 format | PF 12.3 |
+| All | ~~`{"detail": ...}` errors and FastAPI's default 422 body~~ Done 19 Oct (WP2): every error uses the Section 2 body, `app/errors.py` | Section 2 format | PF 12.3 |
 | All writes | `Idempotency-Key` allowed by CORS but ignored | Section 3 | PF 12.4 |
-| `POST /reviews/guest` | Server generates `receipt_token`, returns it, and issues a new one on every duplicate retry | Client `receipt_secret`, nothing returned, never reissued, Section 5.2 order of checks | PF 13.1 to 13.3, 14.4 |
-| `POST /reviews/guest` | No Turnstile; limits keyed on remote address only | Turnstile plus Section 7 limits | PF 14.1, 14.3 |
-| Receipt and scope digests | One pepper, no `key_id`, no context labels | Keyring with `key_id` and labels | PF 13.4 |
-| `POST /review-receipts/exchange` | Legacy name; returns no reason or deadline | Remove; add `POST /review-receipts/status` (5.3) | PF Annex A.7, RV 4.2 |
-| `POST /reviews/{review_id}/withdraw` | Checks `expected_version` before the already-withdrawn check, so a retry returns 409 | 5.4 | PF 12.4 |
-| `GET /destinations/{destination_id}/reviews` | Middleware sets `no-store` | Short public TTL | Security 7.1 |
+| `POST /reviews/guest` | ~~Server generates `receipt_token`, returns it, and issues a new one on every duplicate retry~~ Done 19 Oct (WP3): client `receipt_secret`, nothing returned, never reissued, match `200` / mismatch `409`. Order-of-checks steps 3 to 6 (idempotency, Turnstile, counters, limits) pending WP4/WP5 | Client `receipt_secret`, nothing returned, never reissued, Section 5.2 order of checks | PF 13.1 to 13.3, 14.4 |
+| `POST /reviews/guest` | ~~No Turnstile; limits keyed on remote address only~~ Done 19 Oct (WP5): server-side Turnstile, durable per-scope and per-network limits, pending ceilings, emergency switch | Turnstile plus Section 7 limits | PF 14.1, 14.3 |
+| Receipt and scope digests | ~~One pepper, no `key_id`, no context labels~~ Done 19 Oct (WP3): versioned keyring (`RECEIPT_KEYS`, `RECEIPT_KEY_CURRENT`), labels, `key_id`/`guest_scope_key_id`, unique `(key_id, digest)`, re-digest on use | Keyring with `key_id` and labels | PF 13.4 |
+| `POST /review-receipts/exchange` | ~~Legacy name; returns no reason or deadline~~ Removed 19 Oct (WP3); `POST /review-receipts/status` (5.3) added | Remove; add `POST /review-receipts/status` (5.3) | PF Annex A.7, RV 4.2 |
+| `POST /reviews/{review_id}/withdraw` | ~~Checks `expected_version` before the already-withdrawn check, so a retry returns 409~~ Done 19 Oct (WP3) | 5.4 | PF 12.4 |
+| `GET /destinations/{destination_id}/reviews` | ~~Middleware sets `no-store`~~ Done 19 Oct: `Cache-Control: public, max-age=60` | Short public TTL | Security 7.1 |
 | `GET /staff/moderation/reviews` | Returns only id, status, version, rating; bare list capped at 100 | 5.9 | RV 9.3 |
 | `GET /health/ready` | Returns `status` only | Add `build` and `db_revision` | PF 22.1 |
 | CORS | `allow_credentials=false`; no `X-CSRF-Token` or `Accept-Language` header | Section 1.2, with the R04 authentication milestone | PF 16.1 |
-| Client address | Uvicorn runs with `--proxy-headers` and `FORWARDED_ALLOW_IPS` defaulting to `*` | Provider-appended address only | PF 14.2 |
+| Client address | ~~Uvicorn runs with `--proxy-headers` and `FORWARDED_ALLOW_IPS` defaulting to `*`~~ Done 19 Oct (WP5): `--no-proxy-headers`; `app/client_address.py` reads only the configured provider-appended entry; the forged-header test on staging is still outstanding (Gate A) | Provider-appended address only | PF 14.2 |
 
 ## 7. Rate limits
 
@@ -443,6 +543,11 @@ The client address is the provider-appended entry only (PF 14.2). IPv6 is trunca
 | `ReviewLanguage` | `BN`, `EN`, `MIXED` |
 | `TravellerType` | `SOLO`, `STUDENT`, `COUPLE`, `FAMILY`, `GROUP` |
 | `ComfortTier` | `ECONOMY`, `STANDARD`, `PREMIUM` |
+| `GuideCategory` | `ATTRACTION`, `ACCOMMODATION`, `FOOD`, `TRANSPORT`, `LOCAL_PRACTICE` |
+| `AdvisorySeverity` | `INFO`, `CAUTION`, `WARNING`, `CRITICAL` |
+| `AdvisoryState` | `CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE` (Section 5.13) |
+| `ContactKind` | `POLICE`, `TOURIST_POLICE`, `AMBULANCE`, `FIRE`, `HOSPITAL`, `COAST_GUARD`, `FOREST_OFFICE`, `LOCAL_GUIDE`, `OTHER` |
+| `SourceType` | `OFFICIAL`, `TEAM_RESEARCH`, `OPEN_LICENCE`, `VENDOR_LICENSED`, `OTHER` |
 | Moderation `decision` | `PUBLISH`, `REJECT`, `HIDE`, `RESTORE` |
 | Report `reason` | Section 5.7 |
 | Platform roles | `MODERATOR`, `ADMINISTRATOR`, `SUPER_ADMINISTRATOR` |

@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import base64
-import hashlib
-import hmac
-import secrets
 import unicodedata
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app import crypto
 from app.models import (
     Destination,
     DestinationRatingStats,
@@ -35,25 +32,30 @@ from app.schemas import GuestReviewCreate
 
 
 class ReviewError(Exception):
-    pass
+    """A domain failure. ``code`` is a key of ``app.errors.CATALOGUE``."""
+
+    default_code = "INTERNAL_ERROR"
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code or self.default_code
 
 
 class ReviewNotFound(ReviewError):
-    pass
+    default_code = "NOT_FOUND"
 
 
 class ReviewConflict(ReviewError):
-    pass
+    default_code = "INVALID_TRANSITION"
 
 
 class ReviewForbidden(ReviewError):
-    pass
+    default_code = "FORBIDDEN"
 
 
 @dataclass(frozen=True)
 class GuestSubmissionResult:
     review: Review
-    receipt_token: str
     duplicate_recovered: bool
 
 
@@ -71,11 +73,6 @@ def now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def hash_secret(value: str) -> bytes:
-    pepper = get_settings().receipt_pepper.encode("utf-8")
-    return hmac.new(pepper, value.encode("utf-8"), hashlib.sha256).digest()
-
-
 def _name_skeleton(value: str) -> str:
     folded = value.casefold()
     return "".join(character for character in folded if character.isalnum())
@@ -84,30 +81,72 @@ def _name_skeleton(value: str) -> str:
 def normalize_guest_name(value: str) -> str:
     normalized = unicodedata.normalize("NFC", value).strip()
     if not normalized or len(normalized) > 80:
-        raise ReviewConflict("invalid guest display name")
+        raise ReviewConflict("invalid guest display name", "RESERVED_DISPLAY_NAME")
     skeleton = _name_skeleton(normalized)
     if skeleton in RESERVED_NAME_SKELETONS or "✓" in normalized or "✔" in normalized:
-        raise ReviewConflict("reserved or misleading guest display name")
+        raise ReviewConflict("reserved or misleading guest display name", "RESERVED_DISPLAY_NAME")
     return normalized
 
 
-def _new_receipt_token() -> str:
-    return secrets.token_urlsafe(32)
+APPEAL_WINDOW = timedelta(days=30)
 
 
-def _issue_receipt(session: Session, review_id: uuid.UUID) -> str:
-    # One live receipt per review: rotating on a retry must retire the previous token.
-    session.execute(
-        update(ReviewReceipt)
-        .where(ReviewReceipt.review_id == review_id, ReviewReceipt.revoked_at.is_(None))
-        .values(revoked_at=now_utc())
+def require_receipt_format(receipt_secret: str) -> None:
+    if crypto.receipt_format_problem(receipt_secret) is not None:
+        raise ReviewError("receipt format is not valid", "INVALID_RECEIPT_FORMAT")
+
+
+def _receipt_matches(session: Session, review_id: uuid.UUID, receipt_secret: str) -> ReviewReceipt | None:
+    """The live receipt row of ``review_id`` that ``receipt_secret`` digests to, under any retained key."""
+    for key_id, value in crypto.candidate_digests(crypto.RECEIPT_LABEL, receipt_secret):
+        receipt = session.scalar(
+            select(ReviewReceipt).where(
+                ReviewReceipt.review_id == review_id,
+                ReviewReceipt.key_id == key_id,
+                ReviewReceipt.digest == value,
+                ReviewReceipt.revoked_at.is_(None),
+            )
+        )
+        if receipt is not None:
+            return receipt
+    return None
+
+
+def _find_guest_draft(session: Session, scope_secret: str, draft_id: uuid.UUID) -> Review | None:
+    hashes = [value for _, value in crypto.candidate_digests(crypto.GUEST_SCOPE_LABEL, scope_secret)]
+    return session.scalar(
+        select(Review).where(
+            Review.author_user_id.is_(None),
+            Review.guest_scope_hash.in_(hashes),
+            Review.client_draft_id == draft_id,
+        )
     )
-    token = _new_receipt_token()
-    session.add(ReviewReceipt(review_id=review_id, token_hash=hash_secret(token)))
-    return token
+
+
+def _recover_duplicate(session: Session, existing: Review, receipt_secret: str) -> GuestSubmissionResult:
+    # The same Guest scope and draft id identify the draft. Only the same receipt may recover it:
+    # a different receipt is refused and never reveals the review (PF 13.3).
+    if _receipt_matches(session, existing.id, receipt_secret) is None:
+        raise ReviewConflict("draft already submitted with a different receipt", "DRAFT_ALREADY_SUBMITTED")
+    return GuestSubmissionResult(review=existing, duplicate_recovered=True)
+
+
+def find_recoverable_draft(session: Session, payload: GuestReviewCreate) -> Review | None:
+    """Step 2 of the submission order (API.md 5.2).
+
+    Returns the existing review when the same Guest scope and draft id arrive with the same
+    receipt. A different receipt raises ``DRAFT_ALREADY_SUBMITTED``. Nothing is counted and no
+    challenge is consumed on this path, so a retry after a lost response is free.
+    """
+    require_receipt_format(payload.receipt_secret)
+    existing = _find_guest_draft(session, payload.guest_scope_secret, payload.client_draft_id)
+    if existing is None:
+        return None
+    return _recover_duplicate(session, existing, payload.receipt_secret).review
 
 
 def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSubmissionResult:
+    require_receipt_format(payload.receipt_secret)
     destination = session.scalar(
         select(Destination).where(
             Destination.id == payload.destination_id,
@@ -117,27 +156,25 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
     if destination is None:
         raise ReviewNotFound("published destination not found")
 
-    scope_hash = hash_secret(payload.guest_scope_secret)
-    existing = session.scalar(
-        select(Review).where(
-            Review.author_user_id.is_(None),
-            Review.guest_scope_hash == scope_hash,
-            Review.client_draft_id == payload.client_draft_id,
-        )
-    )
+    existing = _find_guest_draft(session, payload.guest_scope_secret, payload.client_draft_id)
     if existing is not None:
-        # The same high-entropy Guest scope proves ownership of this offline draft.
-        # Rotate the receipt so a lost response can be recovered without a duplicate.
-        return GuestSubmissionResult(
-            review=existing,
-            receipt_token=_issue_receipt(session, existing.id),
-            duplicate_recovered=True,
+        return _recover_duplicate(session, existing, payload.receipt_secret)
+
+    key_id = crypto.current_key_id()
+    receipt_digest = crypto.digest(crypto.RECEIPT_LABEL, key_id, payload.receipt_secret)
+    if session.scalar(
+        select(ReviewReceipt.id).where(
+            ReviewReceipt.key_id == key_id, ReviewReceipt.digest == receipt_digest
         )
+    ):
+        # A receipt is bound to exactly one review.
+        raise ReviewConflict("receipt already bound to another review", "DRAFT_ALREADY_SUBMITTED")
 
     review = Review(
         destination_id=payload.destination_id,
         guest_display_name=normalize_guest_name(payload.guest_display_name),
-        guest_scope_hash=scope_hash,
+        guest_scope_hash=crypto.digest(crypto.GUEST_SCOPE_LABEL, key_id, payload.guest_scope_secret),
+        guest_scope_key_id=key_id,
         client_draft_id=payload.client_draft_id,
         status=ReviewStatus.PENDING,
         rating_eligibility=RatingEligibility.NOT_EVALUATED,
@@ -148,23 +185,17 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
         with session.begin_nested():
             session.add(review)
             session.flush()
+            session.add(ReviewReceipt(review_id=review.id, key_id=key_id, digest=receipt_digest))
+            session.flush()
     except IntegrityError:
         # A simultaneous retry can pass the read check while the first request
-        # is still uncommitted. The partial unique index is authoritative.
-        existing = session.scalar(
-            select(Review).where(
-                Review.author_user_id.is_(None),
-                Review.guest_scope_hash == scope_hash,
-                Review.client_draft_id == payload.client_draft_id,
-            )
-        )
+        # is still uncommitted. The unique indexes are authoritative.
+        existing = _find_guest_draft(session, payload.guest_scope_secret, payload.client_draft_id)
         if existing is None:
-            raise
-        return GuestSubmissionResult(
-            review=existing,
-            receipt_token=_issue_receipt(session, existing.id),
-            duplicate_recovered=True,
-        )
+            raise ReviewConflict(
+                "receipt already bound to another review", "DRAFT_ALREADY_SUBMITTED"
+            ) from None
+        return _recover_duplicate(session, existing, payload.receipt_secret)
 
     revision = ReviewRevision(
         review_id=review.id,
@@ -187,7 +218,6 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
         .values(destination_id=payload.destination_id)
         .on_conflict_do_nothing(index_elements=[DestinationRatingStats.destination_id])
     )
-    receipt_token = _issue_receipt(session, review.id)
     session.add(
         OutboxEvent(
             topic="review.submitted",
@@ -195,7 +225,49 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
             payload={"review_id": str(review.id), "destination_id": str(review.destination_id)},
         )
     )
-    return GuestSubmissionResult(review=review, receipt_token=receipt_token, duplicate_recovered=False)
+    return GuestSubmissionResult(review=review, duplicate_recovered=False)
+
+
+def verify_receipt(session: Session, review_id: uuid.UUID, receipt_secret: str) -> Review:
+    """Return the review a receipt belongs to, or raise RECEIPT_NOT_FOUND.
+
+    A wrong receipt and a missing review give the same answer so existence is not leaked.
+    A receipt stored under an older key is re-digested under the current key in this transaction.
+    """
+    require_receipt_format(receipt_secret)
+    receipt = _receipt_matches(session, review_id, receipt_secret)
+    review = session.get(Review, review_id) if receipt is not None else None
+    if receipt is None or review is None:
+        raise ReviewNotFound("receipt not found", "RECEIPT_NOT_FOUND")
+    current = crypto.current_key_id()
+    if receipt.key_id != current:
+        receipt.key_id = current
+        receipt.digest = crypto.digest(crypto.RECEIPT_LABEL, current, receipt_secret)
+    return review
+
+
+@dataclass(frozen=True)
+class RejectionDetails:
+    decision_reason: str | None
+    appeal_deadline: datetime | None
+
+
+def rejection_details(session: Session, review: Review) -> RejectionDetails:
+    """Public-safe reason and appeal deadline; both are None unless the review is REJECTED."""
+    if review.status != ReviewStatus.REJECTED:
+        return RejectionDetails(None, None)
+    action = session.scalar(
+        select(ModerationActionRecord)
+        .where(
+            ModerationActionRecord.review_id == review.id,
+            ModerationActionRecord.decision == ModerationDecision.REJECT,
+        )
+        .order_by(ModerationActionRecord.created_at.desc())
+        .limit(1)
+    )
+    if action is None:
+        return RejectionDetails(None, None)
+    return RejectionDetails(action.reason_code, action.created_at + APPEAL_WINDOW)
 
 
 def _lock_review(session: Session, review_id: uuid.UUID) -> Review:
@@ -300,9 +372,9 @@ def moderate_review(
 ) -> Review:
     review = _lock_review(session, review_id)
     if review.version != expected_version:
-        raise ReviewConflict("review version changed")
+        raise ReviewConflict("review version changed", "REVIEW_VERSION_CONFLICT")
     if review.author_user_id == actor_user_id:
-        raise ReviewForbidden("moderators cannot act on their own reviews")
+        raise ReviewForbidden("moderators cannot act on their own reviews", "SELF_MODERATION_FORBIDDEN")
 
     actor = session.get(User, actor_user_id)
     if actor is None:
@@ -384,9 +456,9 @@ def set_review_conflict(
 ) -> Review:
     review = _lock_review(session, review_id)
     if review.version != expected_version:
-        raise ReviewConflict("review version changed")
+        raise ReviewConflict("review version changed", "REVIEW_VERSION_CONFLICT")
     if review.author_user_id == actor_user_id:
-        raise ReviewForbidden("moderators cannot act on their own reviews")
+        raise ReviewForbidden("moderators cannot act on their own reviews", "SELF_MODERATION_FORBIDDEN")
     if session.get(User, actor_user_id) is None:
         raise ReviewForbidden("moderator not found")
     if review.conflict_declared == conflict_declared:
@@ -434,10 +506,12 @@ def set_review_conflict(
 
 def withdraw_review(session: Session, review_id: uuid.UUID, expected_version: int) -> Review:
     review = _lock_review(session, review_id)
-    if review.version != expected_version:
-        raise ReviewConflict("review version changed")
+    # Withdrawal is idempotent: a retry after a lost response must succeed, so the
+    # already-withdrawn answer comes before the version check (API.md 5.4).
     if review.status in {ReviewStatus.WITHDRAWN, ReviewStatus.DELETED}:
         return review
+    if review.version != expected_version:
+        raise ReviewConflict("review version changed", "REVIEW_VERSION_CONFLICT")
     stats = _lock_stats(session, review.destination_id)
     _remove_counted_rating(review, stats)
     review.status = ReviewStatus.WITHDRAWN
