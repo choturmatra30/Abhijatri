@@ -3,6 +3,7 @@ import {
   REVIEW_CATEGORIES,
   buildGuestReviewPayload,
   cleanCategoryRatings,
+  detectReviewLanguage,
   generateReceipt,
   isReceiptFormat,
   type GuestReviewDraft,
@@ -116,5 +117,36 @@ describe('buildGuestReviewPayload (API.md 5.2)', () => {
   it('omits category_ratings when nothing was rated, even when enabled', () => {
     const payload = buildGuestReviewPayload(draft(), { sendCategoryRatings: true });
     expect(payload).not.toHaveProperty('category_ratings');
+  });
+});
+
+describe('review language follows the text, not the interface (Gantt R09)', () => {
+  it('labels Bangla script as BN', () => {
+    expect(detectReviewLanguage('মেঘের রাজ্যে দুই দিন। কংলাক পাড়ার সূর্যোদয় অসাধারণ।')).toBe('BN');
+  });
+
+  it('labels English as EN', () => {
+    expect(detectReviewLanguage('Clouds below the helipad. The sunrise was worth it.')).toBe('EN');
+  });
+
+  it('labels a real mix as MIXED', () => {
+    expect(detectReviewLanguage('Sajek trip ছিল অসাধারণ, but the road was rough পাহাড়ি পথে')).toBe('MIXED');
+  });
+
+  it('ignores a few borrowed words and numbers', () => {
+    expect(detectReviewLanguage('বাঘাইহাট থেকে এসকর্ট 10:30-এ ছেড়েছিল, CNG ভাড়া বেশি চেয়েছিল, তবু সব মিলিয়ে ভালো')).toBe('BN');
+  });
+
+  it('returns null before any letters are typed', () => {
+    expect(detectReviewLanguage('   12345 !!! ')).toBeNull();
+  });
+});
+
+describe('the note is sent exactly as written', () => {
+  it('keeps a Bangla note in Bangla and an English note in English', () => {
+    const bangla = 'বাঘাইহাট থেকে এসকর্ট সকাল সাড়ে দশটায় ছেড়েছিল।';
+    const english = 'The escort left Baghaihat at half past ten.';
+    expect(buildGuestReviewPayload(draft({ note: bangla, language: 'BN' }), { sendCategoryRatings: false }).body).toBe(bangla);
+    expect(buildGuestReviewPayload(draft({ note: english, language: 'EN' }), { sendCategoryRatings: false }).body).toBe(english);
   });
 });

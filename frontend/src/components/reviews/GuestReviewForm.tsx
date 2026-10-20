@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import {
   CATEGORY_RATINGS_ENABLED,
   buildGuestReviewPayload,
+  detectReviewLanguage,
   generateReceipt,
   getGuestScopeSecret,
   submitGuestReview,
@@ -46,7 +47,8 @@ export const GuestReviewForm: React.FC<{
     initialDestinationId && destinations.some((d) => d.id === initialDestinationId) ? initialDestinationId : '',
   );
   const [displayName, setDisplayName] = useState('');
-  const [reviewLanguage, setReviewLanguage] = useState<ReviewLanguage>(language === 'en' ? 'EN' : 'BN');
+  // null until the reviewer picks a language; until then it follows the script they write in.
+  const [chosenLanguage, setChosenLanguage] = useState<ReviewLanguage | null>(null);
   const [travellerType, setTravellerType] = useState<TravellerType>('SOLO');
   const [comfortTier, setComfortTier] = useState<ComfortTier>('STANDARD');
   const [visitMonth, setVisitMonth] = useState(maxMonth);
@@ -55,6 +57,8 @@ export const GuestReviewForm: React.FC<{
   const [photos, setPhotos] = useState<ReviewPhoto[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const detectedLanguage = detectReviewLanguage(`${title} ${body}`);
+  const reviewLanguage: ReviewLanguage = chosenLanguage ?? detectedLanguage ?? (language === 'en' ? 'EN' : 'BN');
   const [consent, setConsent] = useState(false);
   // One identity per draft: every retry reuses it so the server can recover a lost response.
   const [identity, setIdentity] = useState<DraftIdentity>(newIdentity);
@@ -111,6 +115,7 @@ export const GuestReviewForm: React.FC<{
       setRating(0);
       setCategoryRatings({});
       setPhotos([]);
+      setChosenLanguage(null);
       setConsent(false);
     } catch (error: unknown) {
       if (error instanceof ApiError) {
@@ -256,13 +261,26 @@ export const GuestReviewForm: React.FC<{
           <label htmlFor="review-language" className={labelClass}>
             {t('রিভিউয়ের ভাষা', 'Review language')}
           </label>
-          <select id="review-language" value={reviewLanguage} onChange={(e) => setReviewLanguage(e.target.value as ReviewLanguage)} className={inputClass}>
+          <select
+            id="review-language"
+            value={reviewLanguage}
+            onChange={(e) => setChosenLanguage(e.target.value as ReviewLanguage)}
+            aria-describedby="review-language-hint"
+            className={inputClass}
+          >
             {REVIEW_LANGUAGES.map(([value, label]) => (
               <option key={value} value={value}>
                 {t(...label)}
               </option>
             ))}
           </select>
+          <p id="review-language-hint" className="text-[11px] text-on-surface-variant dark:text-on-dark-muted">
+            {chosenLanguage
+              ? t('আপনার বেছে নেওয়া ভাষা', 'Chosen by you')
+              : detectedLanguage
+                ? t('আপনার লেখা থেকে শনাক্ত করা', 'Detected from your writing')
+                : t('লেখা শুরু করলে শনাক্ত হবে', 'Detected once you start writing')}
+          </p>
         </div>
       </div>
 

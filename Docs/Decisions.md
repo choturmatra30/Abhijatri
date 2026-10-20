@@ -26,6 +26,7 @@ This log records build-time decisions without reopening the frozen Review specif
 | Photos in the form | Guests see a locked notice and no file input. Verified Members get a picker (JPEG/PNG/WebP, 8 MiB, 20 MP, five photos, alt text and ownership declaration required). Upload uses media intents once they exist. | Review.md 8 and A1; PF 20 alternatives for images. |
 | Session state | `SessionContext` says who is using the app. It is guest-only until R04 and can only be filled from the server. It shapes the interface and is never an authorization boundary. | Review.md 1.1 ("every page and API requires server-side authorisation"). |
 | Frontend unit tests | Vitest runs with `npm test`; CI already runs it when the script exists. | PF 27 item 5. |
+| Review language | The declared `language` is detected from the script of the title and note (Bengali, Latin, or at least 20 % of each for `MIXED`), never from the interface language. A reviewer's explicit choice overrides detection. Review text is never translated. | Gantt R09 "Reviews remain in submitted language"; Review.md 3.1 original language. |
 
 ## 2026-10-19 (Frontend integration: R03, R09 Guest path, R01 seed content)
 

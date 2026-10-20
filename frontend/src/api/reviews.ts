@@ -55,6 +55,26 @@ export interface GuestReviewDraft {
   categoryRatings: CategoryRatings;
 }
 
+const BENGALI_LETTER = /[ঀ-৿]/gu;
+const LATIN_LETTER = /[A-Za-zÀ-ɏ]/gu;
+/** Share of the minority script above which a text counts as mixed. */
+const MIXED_THRESHOLD = 0.2;
+
+/**
+ * Detects the review language from the script actually written, so a Bangla note typed in the
+ * English interface is still labelled BN (Gantt R09: reviews remain in their submitted language).
+ * Returns null when there are no letters yet. Banglish (Bangla in Latin letters) reads as EN by
+ * script, so the reviewer can still override the choice.
+ */
+export function detectReviewLanguage(text: string): ReviewLanguage | null {
+  const bengali = text.match(BENGALI_LETTER)?.length ?? 0;
+  const latin = text.match(LATIN_LETTER)?.length ?? 0;
+  const total = bengali + latin;
+  if (total === 0) return null;
+  if (Math.min(bengali, latin) / total >= MIXED_THRESHOLD) return 'MIXED';
+  return bengali > latin ? 'BN' : 'EN';
+}
+
 /** Only rated categories (integers 1 to 5) are kept; "not applicable" is simply absent. */
 export function cleanCategoryRatings(ratings: CategoryRatings): CategoryRatings {
   const cleaned: CategoryRatings = {};
