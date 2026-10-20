@@ -91,6 +91,7 @@ All fonts are loaded directly from Google Fonts:
 - **Desktop (1024px+)**: Fixed 280px (`w-72`) sidebar with fluid main canvas (`max-w-7xl mx-auto`).
 - **Tablet (768px - 1023px)**: Adaptive 2-column card layouts, collapsed sidebar into slide-out drawer.
 - **Mobile (< 768px)**: Edge-to-edge touch targets, single-column cards, hamburger navigation, sticky top action bar.
+- **Public pages (`/`, `/login`)**: no sidebar. A top bar with the brand, language and theme switches, a centred content column (`max-w-6xl`, sign-in `max-w-md`) and a footer with the 999 emergency line. The landing page shows two path cards side by side on desktop and stacked on mobile; the primary action (Continue as guest) is the filled pill, Sign in is the outlined pill.
 
 ---
 

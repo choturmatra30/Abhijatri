@@ -191,7 +191,7 @@ Rules: Guest and Member credentials are different cookie names and scopes; a Ver
 ```text
 Browser (Vite + React 18 + TypeScript)
   ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon)
-  ├── Route Layer: React Router v6 (/overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health)
+  ├── Route Layer: React Router v6. Public shell: / (landing), /login. App shell: /overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health
   ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
   ├── Cache Layer: planned (R12 service worker, R13/R15 IndexedDB packs and drafts); not built yet
   └── API Client: src/api/* calling /api/v1 on VITE_API_BASE_URL (Vite also proxies /api in dev)
