@@ -93,12 +93,14 @@
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.tonal-card:hover {
+/* Lift only cards that are links. On forms and content panels the lift moved the card out
+   from under the cursor at its edge, so hover toggled on and off and the card jittered. */
+a.tonal-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
 }
 
-.dark .tonal-card:hover {
+.dark a.tonal-card:hover {
   box-shadow: 0 6px 24px rgba(163, 230, 53, 0.08);
 }
 

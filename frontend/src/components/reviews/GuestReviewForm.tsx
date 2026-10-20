@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Send, ShieldCheck, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { ApiError } from '../../api/client';
@@ -65,6 +65,31 @@ export const GuestReviewForm: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // Bumped on every failed submit; the effect below then moves to the topmost error.
+  const [errorFocusRequest, setErrorFocusRequest] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (errorFocusRequest === 0 || !formRef.current) return;
+    // Error messages are `<p id="<field>-error">` or the form-level `role="alert"`;
+    // querySelector returns the first match in document order, i.e. the topmost one.
+    const message = formRef.current.querySelector<HTMLElement>('[id$="-error"], [role="alert"]');
+    if (!message) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    message.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    // Focus the control the message describes (a radio group focuses its first option).
+    const owner = message.id
+      ? formRef.current.querySelector<HTMLElement>(`[aria-describedby~="${message.id}"]`)
+      : null;
+    const target = owner?.getAttribute('role') === 'radiogroup' ? owner.querySelector<HTMLElement>('[role="radio"]') : owner;
+    if (target) {
+      target.focus({ preventScroll: true });
+    } else {
+      // A form-level error has no field: focus the message so keyboard users land on it.
+      message.tabIndex = -1;
+      message.focus({ preventScroll: true });
+    }
+  }, [errorFocusRequest]);
 
   const validate = (): Record<string, string> => {
     const errors: Record<string, string> = {};
@@ -87,7 +112,10 @@ export const GuestReviewForm: React.FC<{
     setFormError(null);
     const errors = validate();
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      setErrorFocusRequest((n) => n + 1);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -134,6 +162,7 @@ export const GuestReviewForm: React.FC<{
         }
       }
       setFormError(describeError(error, t));
+      setErrorFocusRequest((n) => n + 1);
     } finally {
       setSubmitting(false);
     }
@@ -148,7 +177,7 @@ export const GuestReviewForm: React.FC<{
   const describedBy = (field: string) => (fieldErrors[field] ? `${field}-error` : undefined);
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="tonal-card p-6 flex flex-col gap-5">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="tonal-card p-6 flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="review-destination" className={labelClass}>
           {t('গন্তব্য', 'Destination')}
