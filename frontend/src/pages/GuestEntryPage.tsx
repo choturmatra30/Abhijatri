@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Compass, MessageSquarePlus, NotebookPen, PartyPopper, Star, UserRound } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
@@ -19,7 +19,8 @@ import { formatNumber } from '../utils/format';
  */
 export const GuestEntryPage: React.FC = () => {
   const { language, t } = useLanguage();
-  const { session, setGuestName, clearGuestName } = useSession();
+  const { session, setGuestName, clearGuestName, signOut } = useSession();
+  const navigate = useNavigate();
   const storedName = session.kind === 'guest' ? session.displayName : null;
   const guestNumber = session.kind === 'guest' ? session.guestNumber : null;
 
@@ -117,13 +118,25 @@ export const GuestEntryPage: React.FC = () => {
             {t('গন্তব্য দেখুন', 'Explore destinations')}
           </Link>
         </div>
-        <button
-          type="button"
-          onClick={clearGuestName}
-          className="self-start min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
-        >
-          {t(`${storedName} নন? নাম পরিবর্তন করুন`, `Not ${storedName}? Change name`)}
-        </button>
+        <div className="flex flex-wrap gap-x-5">
+          <button
+            type="button"
+            onClick={clearGuestName}
+            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+          >
+            {t(`${storedName} নন? নাম পরিবর্তন করুন`, `Not ${storedName}? Change name`)}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              signOut();
+              navigate('/');
+            }}
+            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+          >
+            {t('সাইন আউট', 'Sign out')}
+          </button>
+        </div>
       </section>
 
       <ReviewGuide />

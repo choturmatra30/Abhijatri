@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GUEST_NAME_MAX, loadGuestName, normalizeGuestName, recordDailyVisit, saveGuestName } from './guests';
+import {
+  GUEST_NAME_MAX,
+  loadGuestName,
+  loadGuestNumber,
+  normalizeGuestName,
+  recordDailyVisit,
+  saveGuestName,
+  signOutGuest,
+} from './guests';
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -101,5 +109,48 @@ describe('recordDailyVisit', () => {
   it('still works with storage blocked (number shown for this visit only)', async () => {
     vi.stubGlobal('localStorage', blockedStorage);
     expect(await recordDailyVisit(day1)).toBe(42);
+  });
+});
+
+describe('signOutGuest', () => {
+  const day1 = new Date('2026-10-20T10:00:00Z');
+
+  beforeEach(() => {
+    vi.stubGlobal('document', { documentElement: { lang: 'en' } });
+  });
+
+  it('forgets the name but keeps the device number, last visit and review scope', async () => {
+    const storage = memoryStorage();
+    vi.stubGlobal('localStorage', storage);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ visit_number: 7, visits_today: 1 }))));
+    storage.setItem('abhijatri_guest_scope', 'scope-secret');
+    saveGuestName('Sadia');
+    await recordDailyVisit(day1);
+
+    signOutGuest();
+
+    expect(loadGuestName()).toBeNull();
+    expect(loadGuestNumber()).toBe(7);
+    expect(storage.getItem('abhijatri_guest_last_visit')).not.toBeNull();
+    expect(storage.getItem('abhijatri_guest_scope')).toBe('scope-secret');
+  });
+
+  it('does not count the browser twice when the guest returns the same day', async () => {
+    vi.stubGlobal('localStorage', memoryStorage());
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ visit_number: 7, visits_today: 1 })));
+    vi.stubGlobal('fetch', fetchMock);
+    saveGuestName('Sadia');
+    await recordDailyVisit(day1);
+
+    signOutGuest();
+    saveGuestName('Rafi');
+
+    expect(await recordDailyVisit(day1)).toBe(7);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('tolerates blocked storage', () => {
+    vi.stubGlobal('localStorage', blockedStorage);
+    expect(() => signOutGuest()).not.toThrow();
   });
 });

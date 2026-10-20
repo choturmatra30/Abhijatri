@@ -49,6 +49,15 @@ export function saveGuestName(name: string | null): void {
   write(GUEST_NAME_KEY, name);
 }
 
+/**
+ * Signs the guest out by forgetting the name only. The guest number and last-visit day belong to
+ * the device: clearing them would count the same browser twice in one day. The review scope
+ * secret stays too, so duplicate-draft recovery and receipts keep working.
+ */
+export function signOutGuest(): void {
+  saveGuestName(null);
+}
+
 export function loadGuestNumber(): number | null {
   const value = Number(read(GUEST_NUMBER_KEY));
   return Number.isInteger(value) && value > 0 ? value : null;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   MapPin, 
@@ -10,6 +10,7 @@ import {
   HeartPulse, 
   Compass,
   LogIn,
+  LogOut,
   UserRound
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
@@ -23,7 +24,14 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { language, t } = useLanguage();
-  const { session, isVerifiedMember } = useSession();
+  const { session, isVerifiedMember, signOut } = useSession();
+  const navigate = useNavigate();
+
+  const handleSignOut = () => {
+    signOut();
+    onClose?.();
+    navigate('/');
+  };
 
   const navItems = [
     {
@@ -154,6 +162,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <LogIn size={14} aria-hidden="true" />
             {t('সাইন ইন', 'Sign in')}
           </Link>
+          )}
+          {/* A named guest can sign out; an anonymous guest has nothing to sign out of. */}
+          {session.kind === 'guest' && session.displayName && (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+          >
+            <LogOut size={14} aria-hidden="true" />
+            {t('সাইন আউট', 'Sign out')}
+          </button>
           )}
         </div>
       </aside>
