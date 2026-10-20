@@ -172,7 +172,7 @@ Public responses vary by `Accept-Language` and are purged on moderation or delet
 | `POST /staff/verifications/{verification_id}/decisions` | staff | no-store | Planned (R11) |
 | `POST /staff/users/{user_id}/roles` | super administrator, recent reauthentication | no-store | Planned (R11) |
 
-`POST /reviews/{review_id}/media-intents` is listed in RV 9.2 but starts only if the media pipeline is approved (Execution step 10).
+`POST /reviews/{review_id}/media-intents` (Verified Member only, constrained presigned upload into quarantine) is in core scope since Review.md amendment A1 (20 Oct 2026). Planned with R07 and the media pipeline; its shape is set when Review.md section 8 is implemented.
 
 ## 5. Request and response shapes
 
@@ -218,6 +218,8 @@ Idempotency-Key: 4a7e0b52-3f6d-4c1a-9a2e-6c1f0d7b8e21
 ```
 
 Field rules: `guest_display_name` 1 to 80 characters; `title` 3 to 160; `body` 20 to 6000, plain text; `overall_rating` 1 to 5; `visit_month` is the first day of a month and not in the future in the display time zone. Unknown fields return 422.
+
+**Planned addition (R07, Review.md amendment A2, change required):** optional `category_ratings`, an object whose keys are the `ReviewCategory` values (Section 8) and whose values are integers 1 to 5; a missing key means not applicable. Example: `"category_ratings": { "FOOD": 4, "SAFETY_PERCEPTION": 5 }`. Ratings are stored per revision in `review_category_ratings`. Until the server accepts the field, the client does not send it (`VITE_REVIEW_CATEGORY_RATINGS`). `body` is the reviewer's free-text note. A Guest submission never carries images.
 
 Response `201`:
 
@@ -515,6 +517,8 @@ The routes marked "Change required" in Section 4 differ from this contract as fo
 | `POST /review-receipts/exchange` | ~~Legacy name; returns no reason or deadline~~ Removed 19 Oct (WP3); `POST /review-receipts/status` (5.3) added | Remove; add `POST /review-receipts/status` (5.3) | PF Annex A.7, RV 4.2 |
 | `POST /reviews/{review_id}/withdraw` | ~~Checks `expected_version` before the already-withdrawn check, so a retry returns 409~~ Done 19 Oct (WP3) | 5.4 | PF 12.4 |
 | `GET /destinations/{destination_id}/reviews` | ~~Middleware sets `no-store`~~ Done 19 Oct: `Cache-Control: public, max-age=60` | Short public TTL | Security 7.1 |
+| `POST /reviews/guest` | Rejects `category_ratings` as an unknown field | Accept and store the optional `category_ratings` (5.2) | RV 3.1, amendment A2 |
+| `POST /reviews/{review_id}/media-intents` | Absent | Verified Member image upload intent | RV 8, amendment A1 |
 | `GET /staff/moderation/reviews` | Returns only id, status, version, rating; bare list capped at 100 | 5.9 | RV 9.3 |
 | `GET /health/ready` | Returns `status` only | Add `build` and `db_revision` | PF 22.1 |
 | CORS | `allow_credentials=false`; no `X-CSRF-Token` or `Accept-Language` header | Section 1.2, with the R04 authentication milestone | PF 16.1 |
@@ -543,6 +547,7 @@ The client address is the provider-appended entry only (PF 14.2). IPv6 is trunca
 | `ReviewLanguage` | `BN`, `EN`, `MIXED` |
 | `TravellerType` | `SOLO`, `STUDENT`, `COUPLE`, `FAMILY`, `GROUP` |
 | `ComfortTier` | `ECONOMY`, `STANDARD`, `PREMIUM` |
+| `ReviewCategory` | `CLEANLINESS`, `ACCESSIBILITY`, `HOSPITALITY`, `FOOD`, `TRANSPORT`, `SAFETY_PERCEPTION`, `VALUE` (planned with R07) |
 | `GuideCategory` | `ATTRACTION`, `ACCOMMODATION`, `FOOD`, `TRANSPORT`, `LOCAL_PRACTICE` |
 | `AdvisorySeverity` | `INFO`, `CAUTION`, `WARNING`, `CRITICAL` |
 | `AdvisoryState` | `CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE` (Section 5.13) |

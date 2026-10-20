@@ -91,6 +91,7 @@ All fonts are loaded directly from Google Fonts:
 - **Desktop (1024px+)**: Fixed 280px (`w-72`) sidebar with fluid main canvas (`max-w-7xl mx-auto`).
 - **Tablet (768px - 1023px)**: Adaptive 2-column card layouts, collapsed sidebar into slide-out drawer.
 - **Mobile (< 768px)**: Edge-to-edge touch targets, single-column cards, hamburger navigation, sticky top action bar.
+- **Public pages (`/`, `/login`)**: no sidebar. A top bar with the brand, language and theme switches, a centred content column (`max-w-6xl`, sign-in `max-w-md`) and a footer with the 999 emergency line. The landing page shows two path cards side by side on desktop and stacked on mobile; the primary action (Continue as guest) is the filled pill, Sign in is the outlined pill.
 
 ---
 
@@ -104,7 +105,7 @@ All fonts are loaded directly from Google Fonts:
 - `16px` (`rounded-2xl`) corner radius.
 - `1px solid var(--color-border-subtle)` micro-border.
 - `transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1)`.
-- Subtle hover elevation (`translateY(-2px)` with diffuse shadow).
+- Subtle hover elevation (`translateY(-2px)` with diffuse shadow) **only on cards that are links** (`a.tonal-card`). Forms and content panels do not move on hover: lifting a large card made it jitter when the cursor sat near its edge.
 
 ### 5.3 Badges & Status Indicators
 - **Bayesian Verified**: Shield icon with emerald green accent.

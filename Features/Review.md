@@ -1,6 +1,6 @@
 # Abhijatri Review System
 
-**Status:** Frozen implementation specification after schema amendments  
+**Status:** Frozen implementation specification after schema amendments; amended 20 October 2026 (section 13)  
 **Scope:** Platform foundation, destination reviews, moderation, ratings, weak-network operation, and Verified Member integration  
 **Primary release:** Semester MVP  
 **Architecture:** React and TypeScript PWA, FastAPI modular monolith, PostgreSQL, IndexedDB, S3-compatible object storage, and optional Redis
@@ -25,7 +25,7 @@ The mandatory release includes:
 - Database-managed staff roles and protected administration.
 - Text-first, low-bandwidth review presentation.
 
-Verified Member image upload is a conditional post-core extension, not a mandatory MVP acceptance requirement. Work begins only after implementation steps 1 through 9 pass regression. Multiple communities, video, chat, tour groups, vendors, agencies, bookings, and payments are future specifications.
+Verified Member image upload is part of the mandatory release (amendment A1, section 13). Guests submit text only. Multiple communities, video, chat, tour groups, vendors, agencies, bookings, and payments are future specifications.
 
 ### 1.1 Resolved decisions
 
@@ -62,7 +62,7 @@ This feature depends on three minimal platform modules. Their internal implement
 |---|---|---|
 | Guest | Guest | Browse, create an offline text draft, submit a moderated review, and manage it with a receipt. |
 | Member | No trust badge | Guest capabilities plus account-owned reviews, reports, and deletion requests. |
-| Verified Member | Verified Member | Member capabilities plus Community Rating eligibility. Image upload is available only if the conditional post-core pipeline is implemented. |
+| Verified Member | Verified Member | Member capabilities plus Community Rating eligibility and image upload with reviews (section 8). |
 | Moderator | Moderator | Review queues, reports, rating eligibility, and content decisions within granted authority. |
 | Administrator | Administrator | Destinations, verification decisions, policy configuration, and staff management within granted authority. |
 | Super Administrator | Not displayed on ordinary content | Initial staff bootstrap, privileged role assignment, and recovery controls. |
@@ -110,11 +110,11 @@ Each review contains:
 - Original language: Bangla, English, or Banglish/mixed.
 - Display name snapshot for a Guest, or `author_user_id` for a Member.
 - Overall rating from 1 to 5.
-- Category ratings selected from cleanliness, accessibility, hospitality, food, transport, safety perception, and value.
+- Category ratings selected from cleanliness, accessibility, hospitality, food, transport, safety perception, and value. Each category is optional (not applicable) or an integer from 1 to 5; the overall rating stays the single required score (amendment A2).
 - Traveller type: solo, student, couple, family, or group.
 - Comfort tier: economy, standard, or premium.
 - Visit month in `YYYY-MM` form.
-- Review title and body.
+- Review title and body. The body is the reviewer's free-text note and is available to Guests and Members alike (amendment A2).
 - Optional structured advantages and cautions.
 - Consent version.
 - Client draft identity.
@@ -321,9 +321,9 @@ Offline packs show cached thumbnails where available. Otherwise they show the ti
 
 The MVP guarantees offline text drafts only. If a Verified Member selects an image while offline, the draft retains its intended caption and filename where possible but asks the user to attach or confirm the file when online.
 
-## 8. Conditional post-core Verified Member image pipeline
+## 8. Verified Member image pipeline
 
-Image upload is outside mandatory MVP acceptance. It begins only after implementation steps 1 through 9 and their regression tests are accepted.
+Image upload is part of the mandatory release (amendment A1). It is built after Verified Member approval (step 7) because only Verified Members may upload. Guests cannot attach images.
 
 - Verified Members only.
 - Maximum five images per review.
@@ -459,7 +459,7 @@ The portfolio may state that the design supports horizontal growth. It must not 
 7. Add Member ownership, Verified Member approval, badges, and conflict checks.
 8. Complete offline snapshots, reconnection, low-data presentation, and accessibility.
 9. Add protected staff user management and role assignment.
-10. If schedule and capacity remain, add the Verified Member image pipeline only after steps 1 through 9 pass regression. Otherwise record it as post-MVP work.
+10. Add the Verified Member image pipeline (section 8). It is mandatory (amendment A1) and depends on step 7.
 
 ### 12.2 Mandatory acceptance cases
 
@@ -482,14 +482,25 @@ The portfolio may state that the design supports horizontal growth. It must not 
 - Every moderation and role-assignment action creates an append-only audit event.
 - Top Rated is not shown below five eligible Verified Member reviews; Seeded Destination Selection is shown instead.
 
-### 12.3 Conditional image-pipeline acceptance
+### 12.3 Image-pipeline acceptance
 
-These cases apply only if implementation step 10 is started:
+These cases are mandatory (amendment A1):
 
 - Only a Verified Member can create an image upload intent.
 - Invalid signatures, SVG, excessive size, excessive pixel count, and abandoned uploads are rejected or purged.
+- A Guest submission cannot carry or reference an image.
+- An image is public only after moderator approval, with EXIF and GPS metadata removed.
 
 ### 12.4 Explicit exclusions
 
 The Review MVP does not include video, automated Bangla sentiment analysis, real NID verification, Verified Visit proof, arbitrary private groups, live chat, vendor responses, guide or agency onboarding, booking, payment, or machine-learning moderation. These are separate future features and must not delay the accepted vertical slice.
 
+## 13. Amendments
+
+Approved by Shahriar Islam (scope owner) on 20 October 2026, requested by the frontend owner, and recorded in `Docs/Decisions.md` (2026-10-20). Each amendment replaces the earlier text in the sections named.
+
+| ID | Change | Sections |
+|---|---|---|
+| A1 | Verified Member image upload moves from a conditional post-core extension into the mandatory release. Limits in section 8 are unchanged (five images, JPEG/PNG/WebP, 8 MiB, 20 megapixels, quarantine, re-encode, moderation). Guests remain text-only. | 1, 2.1, 8, 12.1 step 10, 12.3 |
+| A2 | The review form is the seven section 3.1 category ratings (each optional, 1 to 5) plus the required overall rating and a free-text note (the body), for Guests and Members. No other question set is used. The request field is `category_ratings` (`Docs/api/API.md` 5.2). | 3.1 |
+| A3 | Verified Member status stays a manually approved verification record (section 2.3). No NID, birth-registration number or national verification API is used; section 12.4 still excludes real NID verification. | 2.3 (confirmed, unchanged) |

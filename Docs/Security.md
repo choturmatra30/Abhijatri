@@ -3,7 +3,7 @@
 **Status:** Approved specification for the current project scope  
 **Date:** 15 October 2026  
 **Companion documents:** `Features/Review.md` and `Docs/Decisions.md`  
-**Scope:** Review platform, accounts, verification, moderation, offline support, deployment, and conditional post-core media  
+**Scope:** Review platform, accounts, verification, moderation, offline support, deployment, and Verified Member review media (core since Review.md amendment A1)  
 **Release rule:** A control marked **Deploy gate** must be implemented and evidenced before a public production launch. A requirement in this document is not a claim that the current semester build already implements it.
 
 ## 1. Security principles
@@ -26,7 +26,7 @@
 | Implemented | Present in the repository and covered by an available test or migration check. |
 | Build requirement | Required during the named implementation step. |
 | Deploy gate | Required before public production traffic or real personal data. |
-| Conditional | Applies only if the post-core media, Redis, CDN, or similar component is introduced. |
+| Conditional | Applies only if Redis, a CDN, or a similar optional component is introduced. |
 
 ### 2.2 Current implementation boundary
 
@@ -88,7 +88,7 @@ The legal register must be reviewed again when law, regulation, hosting region, 
 | Proxy and security logs | Security operations | Restricted log store | May include IP address | Deploy gate |
 | Offline review draft | User-controlled drafting | Browser IndexedDB | May be personal data | Frontend build requirement |
 | Public offline destination pack | Weak-network access | Service Worker and browser storage | Public content only | Step 8 build requirement |
-| Review images | Conditional review evidence | Private quarantine, then processed storage | May contain personal data | Conditional post-core |
+| Review images | Verified Member review evidence | Private quarantine, then processed storage | May contain personal data | Core (Review.md A1) |
 
 Secrets, tokens, raw verification documents, and private review bodies must not appear in analytics, application logs, URLs, cache keys, audit notes, or error-monitoring payloads.
 
@@ -319,9 +319,9 @@ The existing public route `GET /api/v1/destinations/{destination_id}/reviews` re
 - Service-worker cache names are versioned. Activation removes obsolete caches only after the replacement is ready.
 - Sign-out clears session-derived local state. Public packs may remain only because they contain no private account data.
 
-## 8. Conditional object storage and media security
+## 8. Object storage and media security
 
-This section applies only if the post-core media pipeline starts.
+This section applies to the Verified Member image pipeline, which is in core scope since Review.md amendment A1 (20 October 2026). Guests cannot upload media.
 
 - Separate private prefixes or buckets are used for `quarantine/`, `processed/`, `evidence/`, and `backups/`.
 - Public ACLs are blocked. Quarantine and evidence are never routed through a CDN.

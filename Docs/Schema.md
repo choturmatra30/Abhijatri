@@ -205,12 +205,12 @@ Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity
 |---|---|---|
 | `auth_identities` | R04 | Password hash (Argon2id), email-verification and reset token digests with expiry. |
 | `user_sessions` | R04 | Server-side session id digest, created/expires/revoked, separate staff and member scopes. |
-| `review_category_ratings` | R07 | Per-category scores for a revision. |
+| `review_category_ratings` | R07 | Per-category scores (1 to 5) for a revision; one row per rated `ReviewCategory`, absent when not applicable (Review.md amendment A2). |
 | `review_reports`, `moderation_cases` | R11 | Duplicate-open-report control; queue priority and escalation. |
 | `audit_events` | R11, Security 4.4 | Append-only privileged activity; `UPDATE`/`DELETE` revoked from the app role. `moderation_actions` may be folded in. |
 | `idempotency_keys` | R16 | Unique `(scope, key)`, request hash, stored response, expiry. |
 | `destination_pack_versions` | R14 | Pack version, generated date, content hash, manifest. |
-| `review_media` | Post-core | Only if the media pipeline starts (Review.md section 8). |
+| `review_media` | Core (Review.md amendment A1) | Verified Member images: object key, title, alt text, caption, type, dimensions, processed size, ownership declaration, revision, moderation and removal state (Review.md section 8). |
 | `price_catalogue_items`, `estimates`, `saved_trip_briefs` | M2 (E06-E09) | Out of scope until M1. |
 
 ## 4. Rules that apply to every table

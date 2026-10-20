@@ -190,8 +190,8 @@ Rules: Guest and Member credentials are different cookie names and scopes; a Ver
 
 ```text
 Browser (Vite + React 18 + TypeScript)
-  ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon)
-  ├── Route Layer: React Router v6 (/overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health)
+  ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon), SessionContext (guest until R04; interface only, never authorization)
+  ├── Route Layer: React Router v6. Public shell: / (landing), /login. App shell: /overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health
   ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
   ├── Cache Layer: planned (R12 service worker, R13/R15 IndexedDB packs and drafts); not built yet
   └── API Client: src/api/* calling /api/v1 on VITE_API_BASE_URL (Vite also proxies /api in dev)
@@ -201,7 +201,9 @@ Browser (Vite + React 18 + TypeScript)
 
 | Route | Component | Role | Traces to Requirement |
 |---|---|---|---|
-| `/` or `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
+| `/` | `LandingPage` (public shell) | Entry: continue as guest or sign in; links to published destinations. Not a gate | Use case: Guest and Member entry |
+| `/login` | `SignInPage` (public shell) | Member sign-in (R05); disabled until the R04 account service exists | FR03, R05 |
+| `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
 | `/destinations` | `DestinationsPage` | Published destinations from `GET /destinations`, bilingual text filter, loading/error/empty states | O2, FR01, R03 |
 | `/destinations/:id` | `DestinationDetailPage` | Profile from `GET /destinations/{id}`: advisories with state and source, seasonality, guide items, restrictions, contacts, published review feed | FR01, FR15, R03 |
 | `/planner` | `PlannerPage` | **Prototype** (E08): prototype destination list; calls a planned estimate endpoint | O3, FR08, FR09 |

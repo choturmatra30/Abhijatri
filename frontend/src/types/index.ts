@@ -145,6 +145,17 @@ export type ReviewStatus =
 export type ReviewLanguage = 'BN' | 'EN' | 'MIXED';
 export type TravellerType = 'SOLO' | 'STUDENT' | 'COUPLE' | 'FAMILY' | 'GROUP';
 export type ComfortTier = 'ECONOMY' | 'STANDARD' | 'PREMIUM';
+/** Review.md 3.1: the seven frozen rating categories. */
+export type ReviewCategory =
+  | 'CLEANLINESS'
+  | 'ACCESSIBILITY'
+  | 'HOSPITALITY'
+  | 'FOOD'
+  | 'TRANSPORT'
+  | 'SAFETY_PERCEPTION'
+  | 'VALUE';
+/** Each category is optional (not applicable) or an integer from 1 to 5. */
+export type CategoryRatings = Partial<Record<ReviewCategory, number>>;
 
 export interface PublicReview {
   id: string;
@@ -177,6 +188,8 @@ export interface GuestReviewCreate {
   title: string;
   body: string;
   overall_rating: number;
+  /** Planned contract (API.md 5.2, R07). Sent only when the API accepts it. */
+  category_ratings?: CategoryRatings;
   consent_version: string;
 }
 

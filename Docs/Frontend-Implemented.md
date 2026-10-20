@@ -14,7 +14,7 @@
 |---|---|---|---|
 | F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Overdue.** Design tokens exist in `Docs/Design.md`; the component map and Bangla-default flow approval do not. |
 | R03 | Bilingual destination list and detail screens | 15 to 22 Oct | **Implemented** against the R02 API, with loading, error and empty states (section 2). |
-| R05 | Account, verification and session screens | 18 to 23 Oct | **Blocked** by R04 (no authentication API exists). |
+| R05 | Account, verification and session screens | 18 to 23 Oct | **Sign-in screen built, disabled** until R04 exists (section 3a). Registration, verification and session screens wait for R04. |
 | R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | Not started. No manifest, service worker or IndexedDB yet. |
 | R09 | Review form, list, filters, author controls | 20 to 27 Oct | **Guest path implemented** (section 3). Member path waits for R04 and R07; filters not started. |
 | R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | Not started. |
@@ -40,6 +40,55 @@ Behaviour:
 - Contacts are `tel:` links with 44 px targets and their source.
 - **Ratings follow Review.md 6.** Community Rating and Guest Feedback are separate pills, each with its count. Below five eligible Verified Member reviews the card says "Editorial seeded selection" instead of a score. The Bayesian formula (C = 3.5, m = 5) is applied only above that threshold.
 - No images. The R02 API has no licensed image field, and the previous hotlinked Unsplash photos were unlicensed and did not show the named places (PF 17, PF 16.3). Text-first also suits the asset budget.
+
+## 3a. Landing page and sign-in entry (20 October 2026)
+
+| Item | Location |
+|---|---|
+| Landing page at `/` | `frontend/src/pages/LandingPage.tsx` |
+| Sign-in screen at `/login` (R05) | `frontend/src/pages/SignInPage.tsx` |
+| Public shell (brand, preferences, footer; no sidebar) | `frontend/src/components/layout/PublicLayout.tsx` |
+| Shared language and theme switches | `frontend/src/components/layout/PreferenceToggles.tsx` (also used by `Navbar.tsx`) |
+| Routes | `frontend/src/App.tsx`: `/` landing, `/login` sign-in, the app from `/overview` |
+
+Behaviour:
+
+- Two paths: **Continue as guest** (to `/overview`) and **Sign in** (to `/login`). Each card lists what that path allows. Guest: guides, dated advisories, emergency numbers, text-only reviews. Member: account-owned reviews, Community Rating eligibility for Verified Members, photos for Verified Members. Member items are marked "Coming soon".
+- The landing page is an **entry, not a gate**. Every app route, including shared links such as `/destinations/<id>`, opens directly without choosing a path, because a Guest needs no registration (Execution.md rule 1).
+- When the API answers, the landing page links straight to each published destination. If it does not, that strip is omitted and the page still works.
+- **Sign-in is shown but disabled.** The form (email, password with correct `autocomplete`) sits in a disabled `fieldset` with a status notice. Nothing is sent, because the account service (R04) does not exist. It connects to `POST /api/v1/auth/login` with the CSRF flow of PF 16.2 when R04 lands.
+- The sidebar logo returns to the landing page, the Overview link moved to `/overview`, and a session card shows "Browsing as a guest" with a Sign in link.
+- Browser run (Edge, 20 Oct 2026): landing in Bangla and English, guest path to `/overview`, sidebar Sign in to `/login` with disabled inputs, logo back to `/`, `/destinations` opened directly, dark theme, no horizontal overflow at 390 px, no page errors. Build: initial JS 86.8 KB gzip.
+
+## 3b. Review form: category ratings, note and Verified Member photos (20 October 2026)
+
+Implements Review.md amendments A1 and A2 on the frontend.
+
+| Item | Location |
+|---|---|
+| Category ratings (7, optional, 1 to 5 or "Not applicable") with one-line prompts | `frontend/src/components/reviews/CategoryRatings.tsx`, labels in `reviewLabels.ts` |
+| Free-text note (the review body), required for Guests and Members | `frontend/src/components/reviews/GuestReviewForm.tsx` |
+| Photo section: locked notice for Guests; picker for Verified Members | `frontend/src/components/reviews/ReviewPhotos.tsx` |
+| Photo rules (JPEG/PNG/WebP, 8 MiB, 20 MP, five per review, alt text and ownership declaration) | `frontend/src/utils/reviewPhotos.ts` |
+| Request builder | `buildGuestReviewPayload`, `cleanCategoryRatings`, `REVIEW_CATEGORIES` in `frontend/src/api/reviews.ts` |
+| Who is using the app (guest only until R04) | `frontend/src/context/SessionContext.tsx`; the sidebar session card reads it |
+| Unit tests (Vitest, `npm test`) | `frontend/src/api/reviews.test.ts`, `frontend/src/utils/reviewPhotos.test.ts` |
+
+Behaviour:
+
+- **Category ratings are collected but not yet sent.** The API rejects unknown fields, so `category_ratings` is added to the request only when `VITE_REVIEW_CATEGORY_RATINGS=true`. Until the review service accepts it (R07), the form says so. Sending it early would break every submission.
+- **Guests are text-only.** They see "Photos are for Verified Members" with a sign-in link, and no file input exists for them.
+- **Verified Members get the photo picker**, which checks type, size, count and decoded resolution before anything is attached. These checks are only fast feedback; the server and media worker re-check everything (Security.md 8). Upload through media intents comes with R07 and the media pipeline.
+- `SessionContext` only shapes the interface. It cannot be set from the browser, and the API remains the authorization boundary.
+
+Evidence (20 Oct 2026):
+
+| Check | Result |
+|---|---|
+| `npm test` | 15 passed: receipt format and uniqueness; the seven categories; rating clean-up; payload mapping with NFC name and trimming; no `category_ratings` while disabled and exactly the 13 accepted fields; rated categories only when enabled; photo type, size, count, pixel limit and metadata |
+| `npm run build` | clean; initial JS 90.4 KB gzip (budget 200 KB) |
+| Browser run (Edge, local API on embedded PostgreSQL) | categories rated and one reset to "Not applicable"; Guest photo lock shown with no file input; submission returned "Review submitted"; the captured request had the 13 accepted fields and no `category_ratings` |
+| Not exercised in a browser | The Verified Member photo picker, because no session can be verified until R04; its rules are covered by unit tests |
 
 ## 3. R09 (Guest path): review submission, receipt, status and withdrawal
 
@@ -93,6 +142,9 @@ The Sajek advisory "Road blockade eased until 21 October" is time-bound and expi
 | D9 | Untyped, unused date helper. | `src/utils/formatDate.js` in a TypeScript project, imported nowhere. | Replaced by `src/utils/format.ts` (Asia/Dhaka dates, Bangla digits). | Build. |
 | D10 | System Status reported the Railway API as "Unreachable" although it was up. | `isAllowedBackendUrl` (`src/api/health.ts`) accepts only `localhost`, `api.abhijatri.example` or the `VITE_API_BASE_URL` host, so the Railway URL was refused before any request was sent. | Extra hosts can be allowed with `VITE_ALLOWED_BACKEND_HOSTS` (comma-separated hostnames; documented in `frontend/.env.example`). The allow-list itself is kept. | Browser run on 19 Oct 2026: `https://abhijatri-backend.up.railway.app/` showed "Live & Connected", database ready, 238 ms. |
 | D11 | Every non-OK health result showed the same "Unreachable" heading and hid the reason. | `HealthCheckPage` never rendered `healthResult.error`. | A refused URL now has status `blocked` ("URL not allowed (not tested)") with a bilingual explanation; other failures show their error text. | Browser run: `https://evil.example.com` showed the blocked message and sent no request. |
+| D12 | A review's declared `language` followed the interface language, not the text: a Bangla note written in the English interface was sent as `EN`, and vice versa. The note text itself was always sent verbatim (never translated). | `GuestReviewForm` set `language` once from the interface when the form opened. | `detectReviewLanguage` (`src/api/reviews.ts`) labels the title and note by script: mostly Bengali `BN`, mostly Latin `EN`, at least 20 % of each `MIXED`. The dropdown follows it with a "Detected from your writing" hint until the reviewer picks a value, which then sticks (Banglish in Latin letters needs that override). | 6 Vitest tests; browser run 20 Oct 2026: English interface with Bangla text sent `BN`, Bangla interface with English text sent `EN`, a manual `MIXED` stayed `MIXED`; the body matched the typed text in every case. |
+| D13 | After a failed submit the page stayed where the Submit button is, so errors higher up the long form went unseen. | No scroll or focus handling on failure. | Every failed submit (client checks or server response) scrolls the topmost error to the centre of the screen (instant when reduced motion is requested) and focuses its field; a star rating focuses its first star; a form-level error with no field focuses the message itself. | Browser run 20 Oct 2026, submitting from the bottom of the page: empty form focused Destination; missing rating focused "1 star"; server `409 RESERVED_DISPLAY_NAME` focused Display name; server `503 GUEST_WRITES_PAUSED` focused the alert. Each was in view below the header. |
+| D14 | Large cards (the review form, detail panels) jittered when the cursor rested near their edge. | `.tonal-card:hover` lifted every card by 2 px; the lift moved the edge out from under the cursor, hover ended, the card dropped back, and the cycle repeated. Found because the test could not click a "stable" Submit button. | The lift now applies only to cards that are links (`a.tonal-card`). | Two consecutive browser runs clicked Submit without instability. |
 
 ## 6. Defects found, reported to their owners, not fixed here
 
@@ -127,10 +179,11 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Cloudflare Turnstile widget. Production requires `turnstile_token`; local development has it disabled. | R09 follow-up. Needs the site key and the CSP entry in PF 16.3. |
 | Guest scope secret in IndexedDB. It is in `localStorage` until the draft store exists. | R15 |
 | Offline drafts, installable PWA, service worker, destination packs | R12, R13, R15 |
-| Member review path, account screens | R05, R07, R09 (after R04) |
+| Member review path; working sign-in, registration and verification screens | R05, R07, R09 (after R04) |
 | Review filters, edit-pending, appeals, reports | R09, R07, R11 |
 | Staff (admin) build | Gate A item "public and staff skeletons building in CI" |
 | Self-hosted fonts (CSP `style-src 'self'`, 40 KiB Bangla font budget) | F03 or R12 |
-| Frontend lint and unit tests in CI | PF 27 items 2 and 5 |
+| Frontend lint in CI (unit tests now run through `npm test`) | PF 27 item 2 |
+| Sending `category_ratings`; uploading photos through media intents | R07 and the media pipeline (Review.md A1, A2) |
 | Planner, offline packs and saved trips still use prototype data | E08, R13, E09 |
 | Public deployment. `frontend/vercel.json` is ready; deploying and adding the Vercel origin to the API's `CORS_ALLOWED_ORIGINS` is with Shahriar Islam (`Architecture.md` section 5). | Interim Vercel deploy |

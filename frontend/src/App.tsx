@@ -2,7 +2,11 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SessionProvider } from './context/SessionContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { PublicLayout } from './components/layout/PublicLayout';
+import { LandingPage } from './pages/LandingPage';
+import { SignInPage } from './pages/SignInPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DestinationsPage } from './pages/DestinationsPage';
 import { DestinationDetailPage } from './pages/DestinationDetailPage';
@@ -16,23 +20,31 @@ export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<AppLayout />}>
-              <Route index element={<OverviewPage />} />
-              <Route path="overview" element={<Navigate to="/" replace />} />
-              <Route path="destinations" element={<DestinationsPage />} />
-              <Route path="destinations/:id" element={<DestinationDetailPage />} />
-              <Route path="planner" element={<PlannerPage />} />
-              <Route path="offline-packs" element={<OfflinePacksPage />} />
-              <Route path="trips" element={<SavedTripsPage />} />
-              <Route path="reviews" element={<ReviewsPage />} />
-              <Route path="health" element={<HealthCheckPage />} />
-              {/* Fallback to home */}
+        <SessionProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public entry: choose guest or sign in. It is an entry point, never a gate:
+                  every app route below opens directly for guests (Execution.md rule 1). */}
+              <Route element={<PublicLayout />}>
+                <Route index element={<LandingPage />} />
+                <Route path="login" element={<SignInPage />} />
+              </Route>
+
+              <Route element={<AppLayout />}>
+                <Route path="overview" element={<OverviewPage />} />
+                <Route path="destinations" element={<DestinationsPage />} />
+                <Route path="destinations/:id" element={<DestinationDetailPage />} />
+                <Route path="planner" element={<PlannerPage />} />
+                <Route path="offline-packs" element={<OfflinePacksPage />} />
+                <Route path="trips" element={<SavedTripsPage />} />
+                <Route path="reviews" element={<ReviewsPage />} />
+                <Route path="health" element={<HealthCheckPage />} />
+              </Route>
+
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+            </Routes>
+          </BrowserRouter>
+        </SessionProvider>
       </LanguageProvider>
     </ThemeProvider>
   );

@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Send, ShieldCheck, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { ApiError } from '../../api/client';
-import { CONSENT_VERSION, generateReceipt, getGuestScopeSecret, submitGuestReview } from '../../api/reviews';
-import type { ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
+import {
+  CATEGORY_RATINGS_ENABLED,
+  buildGuestReviewPayload,
+  detectReviewLanguage,
+  generateReceipt,
+  getGuestScopeSecret,
+  submitGuestReview,
+} from '../../api/reviews';
+import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth, pick } from '../../utils/format';
 import { describeError } from '../common/StatusViews';
+import { CategoryRatings } from './CategoryRatings';
+import { ReviewPhotos, type ReviewPhoto } from './ReviewPhotos';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
 
 export interface SubmittedReview extends GuestReviewCreated {
@@ -38,19 +47,49 @@ export const GuestReviewForm: React.FC<{
     initialDestinationId && destinations.some((d) => d.id === initialDestinationId) ? initialDestinationId : '',
   );
   const [displayName, setDisplayName] = useState('');
-  const [reviewLanguage, setReviewLanguage] = useState<ReviewLanguage>(language === 'en' ? 'EN' : 'BN');
+  // null until the reviewer picks a language; until then it follows the script they write in.
+  const [chosenLanguage, setChosenLanguage] = useState<ReviewLanguage | null>(null);
   const [travellerType, setTravellerType] = useState<TravellerType>('SOLO');
   const [comfortTier, setComfortTier] = useState<ComfortTier>('STANDARD');
   const [visitMonth, setVisitMonth] = useState(maxMonth);
   const [rating, setRating] = useState(0);
+  const [categoryRatings, setCategoryRatings] = useState<Ratings>({});
+  const [photos, setPhotos] = useState<ReviewPhoto[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const detectedLanguage = detectReviewLanguage(`${title} ${body}`);
+  const reviewLanguage: ReviewLanguage = chosenLanguage ?? detectedLanguage ?? (language === 'en' ? 'EN' : 'BN');
   const [consent, setConsent] = useState(false);
   // One identity per draft: every retry reuses it so the server can recover a lost response.
   const [identity, setIdentity] = useState<DraftIdentity>(newIdentity);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // Bumped on every failed submit; the effect below then moves to the topmost error.
+  const [errorFocusRequest, setErrorFocusRequest] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (errorFocusRequest === 0 || !formRef.current) return;
+    // Error messages are `<p id="<field>-error">` or the form-level `role="alert"`;
+    // querySelector returns the first match in document order, i.e. the topmost one.
+    const message = formRef.current.querySelector<HTMLElement>('[id$="-error"], [role="alert"]');
+    if (!message) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    message.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    // Focus the control the message describes (a radio group focuses its first option).
+    const owner = message.id
+      ? formRef.current.querySelector<HTMLElement>(`[aria-describedby~="${message.id}"]`)
+      : null;
+    const target = owner?.getAttribute('role') === 'radiogroup' ? owner.querySelector<HTMLElement>('[role="radio"]') : owner;
+    if (target) {
+      target.focus({ preventScroll: true });
+    } else {
+      // A form-level error has no field: focus the message so keyboard users land on it.
+      message.tabIndex = -1;
+      message.focus({ preventScroll: true });
+    }
+  }, [errorFocusRequest]);
 
   const validate = (): Record<string, string> => {
     const errors: Record<string, string> = {};
@@ -73,30 +112,38 @@ export const GuestReviewForm: React.FC<{
     setFormError(null);
     const errors = validate();
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      setErrorFocusRequest((n) => n + 1);
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const created = await submitGuestReview({
-        destination_id: destinationId,
-        client_draft_id: identity.clientDraftId,
-        guest_scope_secret: getGuestScopeSecret(),
-        receipt_secret: identity.receipt,
-        guest_display_name: displayName.trim().normalize('NFC'),
-        language: reviewLanguage,
-        traveller_type: travellerType,
-        comfort_tier: comfortTier,
-        visit_month: `${visitMonth}-01`,
-        title: title.trim(),
-        body: body.trim(),
-        overall_rating: rating,
-        consent_version: CONSENT_VERSION,
-      });
+      const created = await submitGuestReview(
+        buildGuestReviewPayload({
+          destinationId,
+          clientDraftId: identity.clientDraftId,
+          receipt: identity.receipt,
+          guestScopeSecret: getGuestScopeSecret(),
+          displayName,
+          language: reviewLanguage,
+          travellerType,
+          comfortTier,
+          visitMonth,
+          title,
+          note: body,
+          overallRating: rating,
+          categoryRatings,
+        }),
+      );
       onSubmitted({ ...created, receipt: identity.receipt, destinationId });
       setIdentity(newIdentity());
       setTitle('');
       setBody('');
       setRating(0);
+      setCategoryRatings({});
+      setPhotos([]);
+      setChosenLanguage(null);
       setConsent(false);
     } catch (error: unknown) {
       if (error instanceof ApiError) {
@@ -115,6 +162,7 @@ export const GuestReviewForm: React.FC<{
         }
       }
       setFormError(describeError(error, t));
+      setErrorFocusRequest((n) => n + 1);
     } finally {
       setSubmitting(false);
     }
@@ -129,7 +177,7 @@ export const GuestReviewForm: React.FC<{
   const describedBy = (field: string) => (fieldErrors[field] ? `${field}-error` : undefined);
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="tonal-card p-6 flex flex-col gap-5">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="tonal-card p-6 flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="review-destination" className={labelClass}>
           {t('গন্তব্য', 'Destination')}
@@ -211,6 +259,8 @@ export const GuestReviewForm: React.FC<{
         {errorFor('overall_rating')}
       </fieldset>
 
+      <CategoryRatings value={categoryRatings} onChange={setCategoryRatings} pendingServerSupport={!CATEGORY_RATINGS_ENABLED} />
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="review-traveller" className={labelClass}>
@@ -240,13 +290,26 @@ export const GuestReviewForm: React.FC<{
           <label htmlFor="review-language" className={labelClass}>
             {t('রিভিউয়ের ভাষা', 'Review language')}
           </label>
-          <select id="review-language" value={reviewLanguage} onChange={(e) => setReviewLanguage(e.target.value as ReviewLanguage)} className={inputClass}>
+          <select
+            id="review-language"
+            value={reviewLanguage}
+            onChange={(e) => setChosenLanguage(e.target.value as ReviewLanguage)}
+            aria-describedby="review-language-hint"
+            className={inputClass}
+          >
             {REVIEW_LANGUAGES.map(([value, label]) => (
               <option key={value} value={value}>
                 {t(...label)}
               </option>
             ))}
           </select>
+          <p id="review-language-hint" className="text-[11px] text-on-surface-variant dark:text-on-dark-muted">
+            {chosenLanguage
+              ? t('আপনার বেছে নেওয়া ভাষা', 'Chosen by you')
+              : detectedLanguage
+                ? t('আপনার লেখা থেকে শনাক্ত করা', 'Detected from your writing')
+                : t('লেখা শুরু করলে শনাক্ত হবে', 'Detected once you start writing')}
+          </p>
         </div>
       </div>
 
@@ -268,7 +331,7 @@ export const GuestReviewForm: React.FC<{
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="review-body" className={labelClass}>
-          {t('আপনার অভিজ্ঞতা', 'Your experience')}
+          {t('আপনার নোট', 'Your note')}
         </label>
         <textarea
           id="review-body"
@@ -289,6 +352,8 @@ export const GuestReviewForm: React.FC<{
         </p>
         {errorFor('body')}
       </div>
+
+      <ReviewPhotos photos={photos} onChange={setPhotos} />
 
       <div className="p-4 rounded-xl bg-surface-container/60 dark:bg-dark-surface-2 flex flex-col gap-3 text-xs text-on-surface-variant dark:text-on-dark-muted">
         <p className="flex gap-2">
