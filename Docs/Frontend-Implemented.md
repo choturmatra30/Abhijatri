@@ -90,6 +90,34 @@ Evidence (20 Oct 2026):
 | Browser run (Edge, local API on embedded PostgreSQL) | categories rated and one reset to "Not applicable"; Guest photo lock shown with no file input; submission returned "Review submitted"; the captured request had the 13 accepted fields and no `category_ratings` |
 | Not exercised in a browser | The Verified Member photo picker, because no session can be verified until R04; its rules are covered by unit tests |
 
+## 3c. Guest entry and welcome; review form driven by the API; Turnstile (20 October 2026)
+
+| Item | Location |
+|---|---|
+| Guest entry page `/guest`. The guest enters a name, which stays on this device. The page shows "Welcome, <name>! You are Guest #N", with "Not you? Change name", then a guide to what a review asks for (from the API). The landing page's "Continue as guest" now opens it. It is an entry point, never a gate: every app route still opens directly. | `frontend/src/pages/GuestEntryPage.tsx`, route in `App.tsx`, link in `LandingPage.tsx` |
+| Guest name storage (`localStorage` `abhijatri_guest_name`, NFC, at most 80 code points, tolerant of blocked storage) and `POST /guest-visits`, which sends only the scope secret | `frontend/src/api/guests.ts` |
+| Session: the guest variant now carries `displayName` and `guestNumber`; `setGuestName` and `clearGuestName` | `frontend/src/context/SessionContext.tsx` |
+| Sidebar card: "Welcome, <name> · Guest #N" | `frontend/src/components/layout/Sidebar.tsx` |
+| The review form reads `GET /review-parameters`. It uses the category names and prompts and the note, title and name limits from the API, falling back to the local labels if the call fails. The note is marked **required**. The display name is pre-filled from the guest name. | `frontend/src/api/reviewParameters.ts`, `GuestReviewForm.tsx`, `CategoryRatings.tsx` |
+| **Cloudflare Turnstile** on Guest submission: explicit render, action `guest-review`, token sent as `turnstile_token`, and the widget is remounted after every attempt. Nothing renders when `VITE_TURNSTILE_SITE_KEY` is unset (local dev). This fixes the production `403 CHALLENGE_FAILED`. | `frontend/src/components/reviews/TurnstileWidget.tsx` |
+| Category averages (destination page: Community and Guest; review feed: Guest) and per-review category chips | `frontend/src/components/destination/CategoryAverages.tsx`, `DestinationDetailPage.tsx`, `ReviewFeedSection.tsx` |
+| Community Rating uses the API's `score` and `seeded_selection` (the local formula is only a fallback for older API builds) | `RatingSummary.tsx` |
+
+**Category ratings are now sent.** Set `VITE_REVIEW_CATEGORY_RATINGS=true`; `.env.example` now uses it.
+
+Evidence (20 Oct 2026):
+
+| Check | Result |
+|---|---|
+| `npm test` | 27 passed (15 existing + 6 photo + 6 new). The new guest tests cover NFC trimming, the 80-code-point cap in Bangla, the storage round trip, blocked storage, and that the request body has only `guest_scope_secret` and never the name. |
+| `tsc --noEmit`, `npm run build` | clean; JS 93.8 KB gzip |
+| Local end to end (API + PostgreSQL 17 + Vite) | Same device twice → Guest #1 both times. A `name` field gets 422. Parameters: 7 categories, note required, minimum 20. A short note gets 422. A review with 3 categories gets 201 and appears in the moderator queue with its categories; publishing it puts the category averages in the list, profile and feed. `guest_visits` holds no name. The pages `/`, `/guest`, `/reviews` and the destination page serve 200. |
+| Not run | A click-through in a real browser (the Chrome extension was not connected); a real Turnstile token (needs the production site key) |
+
+**Deployment settings:**
+- Vercel: `VITE_TURNSTILE_SITE_KEY` (the Cloudflare site key) and `VITE_REVIEW_CATEGORY_RATINGS=true`, then redeploy.
+- Railway: `TURNSTILE_HOSTNAME=abhijatri.vercel.app`.
+
 ## 3. R09 (Guest path): review submission, receipt, status and withdrawal
 
 | Item | Location |

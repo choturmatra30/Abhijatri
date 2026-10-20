@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app import review_parameters as rp
 from app.config import get_settings
 from app.models import (
     AdvisorySeverity,
@@ -22,7 +23,7 @@ class StrictRequestModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-CategoryScore = Annotated[int, Field(ge=1, le=5)]
+CategoryScore = Annotated[int, Field(ge=rp.RATING_MIN, le=rp.RATING_MAX)]
 
 
 class GuestReviewCreate(StrictRequestModel):
@@ -31,14 +32,15 @@ class GuestReviewCreate(StrictRequestModel):
     guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
     receipt_secret: str = Field(min_length=1, max_length=100, repr=False)
     turnstile_token: str | None = Field(default=None, max_length=2048, repr=False)
-    guest_display_name: str = Field(min_length=1, max_length=80)
+    guest_display_name: str = Field(min_length=1, max_length=rp.DISPLAY_NAME_MAX)
     language: ReviewLanguage
     traveller_type: TravellerType
     comfort_tier: ComfortTier
     visit_month: date
-    title: str = Field(min_length=3, max_length=160)
-    body: str = Field(min_length=20, max_length=6000)
-    overall_rating: int = Field(ge=1, le=5)
+    title: str = Field(min_length=rp.TITLE_MIN, max_length=rp.TITLE_MAX)
+    # The reviewer's free-text note: always required (Review.md 3.1, A2).
+    body: str = Field(min_length=rp.NOTE_MIN, max_length=rp.NOTE_MAX)
+    overall_rating: int = Field(ge=rp.RATING_MIN, le=rp.RATING_MAX)
     # Review.md 3.1, amendment A2: each category optional; a missing key means not applicable.
     category_ratings: dict[ReviewCategory, CategoryScore] | None = Field(default=None, max_length=7)
     consent_version: str = Field(min_length=1, max_length=40)
@@ -152,6 +154,62 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class LocalizedText(BaseModel):
+    bn: str
+    en: str
+
+
+class RatingParameter(BaseModel):
+    required: bool
+    min: int
+    max: int
+
+
+class CategoryParameter(BaseModel):
+    code: ReviewCategory
+    name: LocalizedText
+    prompt: LocalizedText
+    required: bool
+    min: int
+    max: int
+
+
+class TextParameter(BaseModel):
+    field: str
+    required: bool
+    min_length: int
+    max_length: int
+
+
+class ChoiceOption(BaseModel):
+    value: str
+    label: LocalizedText
+
+
+class RatingRules(BaseModel):
+    guest_feedback: str
+    community_rating: str
+    community_prior_mean: float
+    community_prior_weight: int
+    community_min_reviews: int
+    category_averages: str
+
+
+class ReviewParameters(BaseModel):
+    """Everything a client needs to render the review form and explain the scores."""
+
+    version: str
+    overall_rating: RatingParameter
+    categories: list[CategoryParameter]
+    note: TextParameter
+    title: TextParameter
+    display_name: TextParameter
+    traveller_types: list[ChoiceOption]
+    comfort_tiers: list[ChoiceOption]
+    languages: list[ChoiceOption]
+    rating_rules: RatingRules
+
+
 class GuestVisitRequest(StrictRequestModel):
     """Only the device's Guest scope secret. The guest's name never leaves the device."""
 
@@ -189,6 +247,9 @@ class CommunityRatingSummary(BaseModel):
     average: float | None
     count: int
     category_averages: list[CategoryAverage] = Field(default_factory=list)
+    # Bayesian score (Review.md 6.1); null until five eligible reviews (6.4).
+    score: float | None = None
+    seeded_selection: bool = True
 
 
 class GuestFeedbackSummary(BaseModel):

@@ -91,7 +91,7 @@ export const LandingPage: React.FC = () => {
           </div>
           <CapabilityList items={GUEST} />
           <Link
-            to="/overview"
+            to="/guest"
             className="mt-auto inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title hover:opacity-95"
           >
             {t('অতিথি হিসেবে চালিয়ে যান', 'Continue as guest')}

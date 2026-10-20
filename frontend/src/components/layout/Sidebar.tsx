@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
+import { formatNumber } from '../../utils/format';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -21,7 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const { session, isVerifiedMember } = useSession();
 
   const navItems = [
@@ -132,10 +133,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Session card: every visitor is a guest until member accounts exist (R04, R05). */}
         <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
-            <UserRound size={16} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
-            {session.kind === 'guest'
-              ? t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')
-              : `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`}
+            <UserRound size={16} className="text-forest-primary dark:text-neon-lime shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">
+              {session.kind === 'member'
+                ? `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`
+                : session.displayName
+                  ? t(
+                      `স্বাগতম, ${session.displayName}${session.guestNumber ? ` · অতিথি #${formatNumber(session.guestNumber, language)}` : ''}`,
+                      `Welcome, ${session.displayName}${session.guestNumber ? ` · Guest #${session.guestNumber}` : ''}`,
+                    )
+                  : t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
+            </span>
           </div>
           {session.kind === 'guest' && (
           <Link

@@ -98,6 +98,58 @@
         "title": "CategoryAverage",
         "type": "object"
       },
+      "CategoryParameter": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ReviewCategory"
+          },
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          },
+          "name": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "prompt",
+          "required",
+          "min",
+          "max"
+        ],
+        "title": "CategoryParameter",
+        "type": "object"
+      },
+      "ChoiceOption": {
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ChoiceOption",
+        "type": "object"
+      },
       "ComfortTier": {
         "enum": [
           "ECONOMY",
@@ -130,6 +182,22 @@
           "count": {
             "title": "Count",
             "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "seeded_selection": {
+            "default": true,
+            "title": "Seeded Selection",
+            "type": "boolean"
           }
         },
         "required": [
@@ -956,6 +1024,24 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "LocalizedText": {
+        "properties": {
+          "bn": {
+            "title": "Bn",
+            "type": "string"
+          },
+          "en": {
+            "title": "En",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bn",
+          "en"
+        ],
+        "title": "LocalizedText",
+        "type": "object"
+      },
       "ModerationQueueItem": {
         "description": "A queued review with the content a moderator has to read before deciding.",
         "properties": {
@@ -1236,6 +1322,67 @@
         "title": "PublicReview",
         "type": "object"
       },
+      "RatingParameter": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "required",
+          "min",
+          "max"
+        ],
+        "title": "RatingParameter",
+        "type": "object"
+      },
+      "RatingRules": {
+        "properties": {
+          "category_averages": {
+            "title": "Category Averages",
+            "type": "string"
+          },
+          "community_min_reviews": {
+            "title": "Community Min Reviews",
+            "type": "integer"
+          },
+          "community_prior_mean": {
+            "title": "Community Prior Mean",
+            "type": "number"
+          },
+          "community_prior_weight": {
+            "title": "Community Prior Weight",
+            "type": "integer"
+          },
+          "community_rating": {
+            "title": "Community Rating",
+            "type": "string"
+          },
+          "guest_feedback": {
+            "title": "Guest Feedback",
+            "type": "string"
+          }
+        },
+        "required": [
+          "guest_feedback",
+          "community_rating",
+          "community_prior_mean",
+          "community_prior_weight",
+          "community_min_reviews",
+          "category_averages"
+        ],
+        "title": "RatingRules",
+        "type": "object"
+      },
       "ReceiptStatus": {
         "properties": {
           "appeal_deadline": {
@@ -1394,6 +1541,72 @@
         "title": "ReviewLanguage",
         "type": "string"
       },
+      "ReviewParameters": {
+        "description": "Everything a client needs to render the review form and explain the scores.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryParameter"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "comfort_tiers": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "title": "Comfort Tiers",
+            "type": "array"
+          },
+          "display_name": {
+            "$ref": "#/components/schemas/TextParameter"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "note": {
+            "$ref": "#/components/schemas/TextParameter"
+          },
+          "overall_rating": {
+            "$ref": "#/components/schemas/RatingParameter"
+          },
+          "rating_rules": {
+            "$ref": "#/components/schemas/RatingRules"
+          },
+          "title": {
+            "$ref": "#/components/schemas/TextParameter"
+          },
+          "traveller_types": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "title": "Traveller Types",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "overall_rating",
+          "categories",
+          "note",
+          "title",
+          "display_name",
+          "traveller_types",
+          "comfort_tiers",
+          "languages",
+          "rating_rules"
+        ],
+        "title": "ReviewParameters",
+        "type": "object"
+      },
       "ReviewStatus": {
         "enum": [
           "PENDING",
@@ -1418,6 +1631,34 @@
         ],
         "title": "SourceType",
         "type": "string"
+      },
+      "TextParameter": {
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "max_length": {
+            "title": "Max Length",
+            "type": "integer"
+          },
+          "min_length": {
+            "title": "Min Length",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "field",
+          "required",
+          "min_length",
+          "max_length"
+        ],
+        "title": "TextParameter",
+        "type": "object"
       },
       "TravellerType": {
         "enum": [
@@ -1802,6 +2043,25 @@
           }
         },
         "summary": "Health Ready"
+      }
+    },
+    "/api/v1/review-parameters": {
+      "get": {
+        "description": "The review form and rating rules; `GuestReviewCreate` enforces the same limits.",
+        "operationId": "review_parameters_api_v1_review_parameters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewParameters"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Review Parameters"
       }
     },
     "/api/v1/review-receipts/status": {

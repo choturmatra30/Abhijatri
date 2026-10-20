@@ -483,3 +483,15 @@ RLS enabled, with grants revoked.
 | Unit tests (`pytest -m "not integration"`) | 195 passed |
 | Integration tests (`pytest -m integration`) | 63 passed, including `tests/test_category_ratings.py`, `tests/test_guest_visits.py`, the updated property test in `tests/test_review_postgres.py` and `tests/test_rls.py` over the new tables |
 | Frontend | No file changed. `npm test` was not run because `node_modules` is not installed in this checkout. |
+
+### 5.9 Review parameters and server-side Community score (20 October 2026)
+
+| Item | Detail |
+|---|---|
+| Single source | `backend/app/review_parameters.py`: the rating range, the seven categories with bilingual names and prompts, note/title/name limits, choice labels, and the Bayesian constants (C = 3.5, m = 5, threshold 5). `GuestReviewCreate` imports these limits. |
+| Route | `GET /api/v1/review-parameters` (API.md 5.15), public with a short TTL, `60/minute`. |
+| Community score | `community_rating.score` (Bayesian, `null` below five eligible reviews) and `seeded_selection` in the destination list and profile, computed in `destination_services._ratings` with no extra query. |
+| Tests | `tests/test_review_parameters.py`: category order and labels; note required with minimum 20; published limits equal to the validation schema (a parity test); the Bayesian score at counts 0, 4, 5 and 10. |
+| Run | ruff and mypy clean; 203 unit and 63 integration tests passed on PostgreSQL 17; OpenAPI regenerated. The local end-to-end run is recorded in `Docs/Frontend-Implemented.md` 3c. |
+
+Still blocked in production until Phase B (R04 with staff sign-in): **publishing reviews**, because moderation routes return `501` in production.

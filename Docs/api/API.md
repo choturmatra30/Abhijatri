@@ -143,6 +143,7 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 | `GET /destinations` | none | Public, short TTL | Implemented (R02) |
 | `GET /destinations/{destination_id}` | none | Public, short TTL | Implemented (R02) |
 | `GET /destinations/{destination_id}/pack/manifest` | none | Public, versioned | Planned (R14) |
+| `GET /review-parameters` | none | Public, short TTL | Implemented 20 Oct 2026 (section 5.15) |
 
 Public responses vary by `Accept-Language` and are purged on moderation or deletion (Security 7.1).
 
@@ -518,6 +519,10 @@ Rules:
 - `phone` matches `^\+?[0-9][0-9 -]{2,30}$` (for example `999`).
 - Both public destination routes send `Cache-Control: public, max-age=60` and a weak `ETag`; a matching `If-None-Match` returns `304` with no body. They are CORS simple requests (no custom headers, no credentials). Because the payload carries both languages, it does not vary by `Accept-Language`.
 - `category_averages` (in both rating objects, list and profile) has the same shape and rules as `guest_category_averages` in 5.8: only counted categories, Section 8 order, each with its count. Guest and Community category averages are never merged.
+- `community_rating` also carries `score` and `seeded_selection` (added 20 Oct 2026).
+  - `score` is the Bayesian Community Rating `(sum + 5 × 3.5) / (count + 5)` (RV 6.1). It is `null` until `count >= 5`.
+  - `seeded_selection` is `true` while the score is `null`. The client then shows "Seeded Destination Selection" instead of a score (RV 6.4).
+  - Clients display these values and never compute the rating themselves.
 
 ### 5.14 `POST /guest-visits` and `GET /guest-visits/stats`
 
@@ -552,6 +557,42 @@ Response `200`:
 3. The client calls `POST /guest-visits` with `getGuestScopeSecret()`.
 4. The client opens the welcome view with the name and `guest_number`.
 5. If the call fails, the welcome still shows the name, without a number.
+
+### 5.15 `GET /review-parameters`
+
+This route returns the review form and the rating rules, so the client renders them from the server and never hard-codes them. `POST /reviews/guest` validates against the same constants (`backend/app/review_parameters.py`). A test fails if the published limits and the validation schema ever disagree. The response is public, with a short TTL.
+
+```json
+{
+  "version": "2026-10-20",
+  "overall_rating": { "required": true, "min": 1, "max": 5 },
+  "categories": [
+    {
+      "code": "CLEANLINESS",
+      "name": { "bn": "পরিচ্ছন্নতা", "en": "Cleanliness" },
+      "prompt": { "bn": "...", "en": "How clean were the area, stay and toilets?" },
+      "required": false, "min": 1, "max": 5
+    }
+  ],
+  "note": { "field": "body", "required": true, "min_length": 20, "max_length": 6000 },
+  "title": { "field": "title", "required": true, "min_length": 3, "max_length": 160 },
+  "display_name": { "field": "guest_display_name", "required": true, "min_length": 1, "max_length": 80 },
+  "traveller_types": [{ "value": "SOLO", "label": { "bn": "একা", "en": "Solo" } }],
+  "comfort_tiers": [{ "value": "ECONOMY", "label": { "bn": "সাশ্রয়ী", "en": "Economy" } }],
+  "languages": [{ "value": "BN", "label": { "bn": "বাংলা", "en": "Bangla" } }],
+  "rating_rules": {
+    "guest_feedback": "...", "community_rating": "...", "category_averages": "...",
+    "community_prior_mean": 3.5, "community_prior_weight": 5, "community_min_reviews": 5
+  }
+}
+```
+
+**How the rating is calculated** (RV 3.1, A2 and 6):
+- A review has one required overall rating from 1 to 5, any of the seven optional category ratings (1 to 5; missing means not applicable), and a required note (`body`).
+- **Guest Feedback** is the mean overall rating of published Guest reviews.
+- **Community Rating** is the Bayesian `score` over eligible Verified Member reviews (5.12). It is shown only from five reviews.
+- **Category averages** are computed per audience and never merged.
+- The overall rating is never derived from the category ratings.
 
 ## 6. Changes required in the current code
 

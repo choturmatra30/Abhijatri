@@ -2,19 +2,28 @@ import React from 'react';
 import { Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { REVIEW_CATEGORIES } from '../../api/reviews';
-import type { CategoryRatings as Ratings, ReviewCategory } from '../../types';
+import type { CategoryRatings as Ratings, ReviewCategory, ReviewParameters } from '../../types';
 import { CATEGORY_LABEL } from './reviewLabels';
 
 /**
  * The seven Review.md 3.1 category ratings, each 1 to 5 or "not applicable". Optional: the
- * overall rating stays the single required score.
+ * overall rating stays the single required score. Names and prompts come from the API's
+ * `/review-parameters` when available, with the local labels as the offline fallback.
  */
 export const CategoryRatings: React.FC<{
   value: Ratings;
   onChange: (next: Ratings) => void;
   pendingServerSupport: boolean;
-}> = ({ value, onChange, pendingServerSupport }) => {
-  const { t } = useLanguage();
+  categories?: ReviewParameters['categories'];
+}> = ({ value, onChange, pendingServerSupport, categories }) => {
+  const { language, t } = useLanguage();
+  const rows = categories
+    ? categories.map((c) => ({ code: c.code, name: c.name[language], prompt: c.prompt[language] }))
+    : REVIEW_CATEGORIES.map((code) => ({
+        code,
+        name: t(...CATEGORY_LABEL[code].name),
+        prompt: t(...CATEGORY_LABEL[code].prompt),
+      }));
 
   const set = (category: ReviewCategory, rating: number | undefined) => {
     const next = { ...value };
@@ -44,17 +53,15 @@ export const CategoryRatings: React.FC<{
       )}
 
       <ul className="flex flex-col divide-y divide-surface-muted/30 dark:divide-dark-surface-2">
-        {REVIEW_CATEGORIES.map((category) => {
-          const label = CATEGORY_LABEL[category];
+        {rows.map(({ code: category, name, prompt }) => {
           const current = value[category];
-          const name = t(...label.name);
           return (
             <li key={category} className="py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
               <div className="flex flex-col">
                 <span id={`cat-${category}`} className="text-sm font-semibold text-on-surface dark:text-on-dark">
                   {name}
                 </span>
-                <span className="text-xs text-on-surface-variant dark:text-on-dark-muted">{t(...label.prompt)}</span>
+                <span className="text-xs text-on-surface-variant dark:text-on-dark-muted">{prompt}</span>
               </div>
               <div role="radiogroup" aria-labelledby={`cat-${category}`} className="flex items-center gap-0.5 shrink-0">
                 {[1, 2, 3, 4, 5].map((star) => (

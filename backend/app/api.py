@@ -1,6 +1,8 @@
 import base64
+import enum
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import NoReturn
 
@@ -9,6 +11,7 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from app import abuse
+from app import review_parameters as rp
 from app.abuse import CounterSessions
 from app.client_address import network_digest, trusted_client_address
 from app.config import get_settings
@@ -29,6 +32,8 @@ from app.models import (
     UserPlatformRole,
 )
 from app.schemas import (
+    CategoryParameter,
+    ChoiceOption,
     ConflictFlagRequest,
     GuestReviewCreate,
     GuestReviewCreated,
@@ -36,13 +41,18 @@ from app.schemas import (
     GuestVisitResponse,
     GuestVisitStats,
     HealthResponse,
+    LocalizedText,
     ModerationQueueItem,
     ModerationRequest,
     ModerationResult,
     PublicReview,
+    RatingParameter,
+    RatingRules,
     ReceiptStatus,
     ReceiptStatusRequest,
     ReviewFeed,
+    ReviewParameters,
+    TextParameter,
     WithdrawRequest,
 )
 from app.services import (
@@ -176,6 +186,59 @@ def create_guest_review(
         status=result.review.status,
         version=result.review.version,
         duplicate_recovered=result.duplicate_recovered,
+    )
+
+
+def _text(pair: tuple[str, str]) -> LocalizedText:
+    return LocalizedText(bn=pair[0], en=pair[1])
+
+
+def _choices[E: enum.Enum](labels: Mapping[E, tuple[str, str]]) -> list[ChoiceOption]:
+    return [ChoiceOption(value=str(member.value), label=_text(label)) for member, label in labels.items()]
+
+
+@router.get("/review-parameters", response_model=ReviewParameters)
+@limiter.limit("60/minute")
+def review_parameters(request: Request, response: Response) -> ReviewParameters:
+    """The review form and rating rules; `GuestReviewCreate` enforces the same limits."""
+    response.headers.update(public_cache_headers())
+    rating = RatingParameter(required=True, min=rp.RATING_MIN, max=rp.RATING_MAX)
+    return ReviewParameters(
+        version=rp.PARAMETERS_VERSION,
+        overall_rating=rating,
+        categories=[
+            CategoryParameter(
+                code=category,
+                name=_text(name),
+                prompt=_text(prompt),
+                required=False,
+                min=rp.RATING_MIN,
+                max=rp.RATING_MAX,
+            )
+            for category, (name, prompt) in rp.CATEGORY_LABELS.items()
+        ],
+        note=TextParameter(field="body", required=True, min_length=rp.NOTE_MIN, max_length=rp.NOTE_MAX),
+        title=TextParameter(field="title", required=True, min_length=rp.TITLE_MIN, max_length=rp.TITLE_MAX),
+        display_name=TextParameter(
+            field="guest_display_name", required=True, min_length=1, max_length=rp.DISPLAY_NAME_MAX
+        ),
+        traveller_types=_choices(rp.TRAVELLER_LABELS),
+        comfort_tiers=_choices(rp.COMFORT_LABELS),
+        languages=_choices(rp.LANGUAGE_LABELS),
+        rating_rules=RatingRules(
+            guest_feedback="Mean of the overall rating of published Guest reviews, shown with its count.",
+            community_rating=(
+                "Bayesian (sum + m * C) / (count + m) over eligible Verified Member reviews; "
+                "shown only from community_min_reviews, otherwise Seeded Destination Selection."
+            ),
+            community_prior_mean=rp.COMMUNITY_PRIOR_MEAN,
+            community_prior_weight=rp.COMMUNITY_PRIOR_WEIGHT,
+            community_min_reviews=rp.COMMUNITY_MIN_REVIEWS,
+            category_averages=(
+                "Mean of each rated category per audience (Guest or Community), never merged; "
+                "a category is left out until it has a rating."
+            ),
+        ),
     )
 
 
