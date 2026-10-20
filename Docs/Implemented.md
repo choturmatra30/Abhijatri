@@ -60,4 +60,6 @@ Full account: [`Docs/Frontend-Implemented.md`](Frontend-Implemented.md). Evidenc
 | System Status refused deployed API hosts and labelled them "Unreachable" without a reason | Fixed | `VITE_ALLOWED_BACKEND_HOSTS`; `Docs/Frontend-Implemented.md` D10, D11 |
 | Railway API deployment serves pre-merge code (no destinations API, old error shape, review feed `500`) | Open, backend owner | `Docs/Frontend-Implemented.md` B4 |
 | Landing page with guest and sign-in paths; sign-in screen shown but disabled until R04 | Implemented (20 Oct 2026) | `Docs/Frontend-Implemented.md` section 3a |
+| Review form: seven category ratings, free-text note, Guest photo lock and Verified Member photo picker (Review.md A1, A2) | Implemented in the frontend (20 Oct 2026); category ratings not sent and photo upload not wired until R07 and the media pipeline | `Docs/Frontend-Implemented.md` section 3b; 15 Vitest tests |
+| Backend for `category_ratings` and `POST /reviews/{id}/media-intents` | Not implemented | `Docs/api/API.md` 5.2 and section 6 |
 | Turnstile widget, member review path, review filters, offline drafts, PWA shell, staff build | Not implemented | `Docs/Frontend-Implemented.md` section 8 |

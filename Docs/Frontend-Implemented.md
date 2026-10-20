@@ -60,6 +60,36 @@ Behaviour:
 - The sidebar logo returns to the landing page, the Overview link moved to `/overview`, and a session card shows "Browsing as a guest" with a Sign in link.
 - Browser run (Edge, 20 Oct 2026): landing in Bangla and English, guest path to `/overview`, sidebar Sign in to `/login` with disabled inputs, logo back to `/`, `/destinations` opened directly, dark theme, no horizontal overflow at 390 px, no page errors. Build: initial JS 86.8 KB gzip.
 
+## 3b. Review form: category ratings, note and Verified Member photos (20 October 2026)
+
+Implements Review.md amendments A1 and A2 on the frontend.
+
+| Item | Location |
+|---|---|
+| Category ratings (7, optional, 1 to 5 or "Not applicable") with one-line prompts | `frontend/src/components/reviews/CategoryRatings.tsx`, labels in `reviewLabels.ts` |
+| Free-text note (the review body), required for Guests and Members | `frontend/src/components/reviews/GuestReviewForm.tsx` |
+| Photo section: locked notice for Guests; picker for Verified Members | `frontend/src/components/reviews/ReviewPhotos.tsx` |
+| Photo rules (JPEG/PNG/WebP, 8 MiB, 20 MP, five per review, alt text and ownership declaration) | `frontend/src/utils/reviewPhotos.ts` |
+| Request builder | `buildGuestReviewPayload`, `cleanCategoryRatings`, `REVIEW_CATEGORIES` in `frontend/src/api/reviews.ts` |
+| Who is using the app (guest only until R04) | `frontend/src/context/SessionContext.tsx`; the sidebar session card reads it |
+| Unit tests (Vitest, `npm test`) | `frontend/src/api/reviews.test.ts`, `frontend/src/utils/reviewPhotos.test.ts` |
+
+Behaviour:
+
+- **Category ratings are collected but not yet sent.** The API rejects unknown fields, so `category_ratings` is added to the request only when `VITE_REVIEW_CATEGORY_RATINGS=true`. Until the review service accepts it (R07), the form says so. Sending it early would break every submission.
+- **Guests are text-only.** They see "Photos are for Verified Members" with a sign-in link, and no file input exists for them.
+- **Verified Members get the photo picker**, which checks type, size, count and decoded resolution before anything is attached. These checks are only fast feedback; the server and media worker re-check everything (Security.md 8). Upload through media intents comes with R07 and the media pipeline.
+- `SessionContext` only shapes the interface. It cannot be set from the browser, and the API remains the authorization boundary.
+
+Evidence (20 Oct 2026):
+
+| Check | Result |
+|---|---|
+| `npm test` | 15 passed: receipt format and uniqueness; the seven categories; rating clean-up; payload mapping with NFC name and trimming; no `category_ratings` while disabled and exactly the 13 accepted fields; rated categories only when enabled; photo type, size, count, pixel limit and metadata |
+| `npm run build` | clean; initial JS 90.4 KB gzip (budget 200 KB) |
+| Browser run (Edge, local API on embedded PostgreSQL) | categories rated and one reset to "Not applicable"; Guest photo lock shown with no file input; submission returned "Review submitted"; the captured request had the 13 accepted fields and no `category_ratings` |
+| Not exercised in a browser | The Verified Member photo picker, because no session can be verified until R04; its rules are covered by unit tests |
+
 ## 3. R09 (Guest path): review submission, receipt, status and withdrawal
 
 | Item | Location |
@@ -150,6 +180,7 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Review filters, edit-pending, appeals, reports | R09, R07, R11 |
 | Staff (admin) build | Gate A item "public and staff skeletons building in CI" |
 | Self-hosted fonts (CSP `style-src 'self'`, 40 KiB Bangla font budget) | F03 or R12 |
-| Frontend lint and unit tests in CI | PF 27 items 2 and 5 |
+| Frontend lint in CI (unit tests now run through `npm test`) | PF 27 item 2 |
+| Sending `category_ratings`; uploading photos through media intents | R07 and the media pipeline (Review.md A1, A2) |
 | Planner, offline packs and saved trips still use prototype data | E08, R13, E09 |
 | Public deployment. `frontend/vercel.json` is ready; deploying and adding the Vercel origin to the API's `CORS_ALLOWED_ORIGINS` is with Shahriar Islam (`Architecture.md` section 5). | Interim Vercel deploy |

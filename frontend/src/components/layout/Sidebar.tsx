@@ -13,6 +13,7 @@ import {
   UserRound
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSession } from '../../context/SessionContext';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -21,6 +22,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { t } = useLanguage();
+  const { session, isVerifiedMember } = useSession();
 
   const navItems = [
     {
@@ -131,8 +133,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
             <UserRound size={16} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
-            {t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
+            {session.kind === 'guest'
+              ? t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')
+              : `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`}
           </div>
+          {session.kind === 'guest' && (
           <Link
             to="/login"
             onClick={onClose}
@@ -141,6 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <LogIn size={14} aria-hidden="true" />
             {t('সাইন ইন', 'Sign in')}
           </Link>
+          )}
         </div>
       </aside>
     </>

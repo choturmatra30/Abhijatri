@@ -6,15 +6,91 @@
  */
 
 import type {
+  CategoryRatings,
+  ComfortTier,
   GuestReviewCreate,
   GuestReviewCreated,
   ReceiptStatus,
+  ReviewCategory,
   ReviewFeed,
+  ReviewLanguage,
+  TravellerType,
 } from '../types';
 import { apiRequest } from './client';
 
 /** Consent text version shown with the submission notice (API.md 5.2). */
 export const CONSENT_VERSION = '2026-10-01';
+
+/** Review.md 3.1, in display order. */
+export const REVIEW_CATEGORIES: ReviewCategory[] = [
+  'CLEANLINESS',
+  'ACCESSIBILITY',
+  'HOSPITALITY',
+  'FOOD',
+  'TRANSPORT',
+  'SAFETY_PERCEPTION',
+  'VALUE',
+];
+
+/**
+ * The API rejects unknown fields (422 UNKNOWN_FIELD), so `category_ratings` is sent only once
+ * the review service accepts it (R07). Set VITE_REVIEW_CATEGORY_RATINGS=true at that point.
+ */
+export const CATEGORY_RATINGS_ENABLED = import.meta.env.VITE_REVIEW_CATEGORY_RATINGS === 'true';
+
+export interface GuestReviewDraft {
+  destinationId: string;
+  clientDraftId: string;
+  receipt: string;
+  guestScopeSecret: string;
+  displayName: string;
+  language: ReviewLanguage;
+  travellerType: TravellerType;
+  comfortTier: ComfortTier;
+  /** `YYYY-MM` */
+  visitMonth: string;
+  title: string;
+  note: string;
+  overallRating: number;
+  categoryRatings: CategoryRatings;
+}
+
+/** Only rated categories (integers 1 to 5) are kept; "not applicable" is simply absent. */
+export function cleanCategoryRatings(ratings: CategoryRatings): CategoryRatings {
+  const cleaned: CategoryRatings = {};
+  for (const category of REVIEW_CATEGORIES) {
+    const value = ratings[category];
+    if (Number.isInteger(value) && value! >= 1 && value! <= 5) cleaned[category] = value;
+  }
+  return cleaned;
+}
+
+/** Builds the POST /reviews/guest body (API.md 5.2) from the form state. Pure, for tests. */
+export function buildGuestReviewPayload(
+  draft: GuestReviewDraft,
+  options: { sendCategoryRatings?: boolean } = {},
+): GuestReviewCreate {
+  const payload: GuestReviewCreate = {
+    destination_id: draft.destinationId,
+    client_draft_id: draft.clientDraftId,
+    guest_scope_secret: draft.guestScopeSecret,
+    receipt_secret: draft.receipt,
+    guest_display_name: draft.displayName.trim().normalize('NFC'),
+    language: draft.language,
+    traveller_type: draft.travellerType,
+    comfort_tier: draft.comfortTier,
+    visit_month: `${draft.visitMonth}-01`,
+    title: draft.title.trim(),
+    body: draft.note.trim(),
+    overall_rating: draft.overallRating,
+    consent_version: CONSENT_VERSION,
+  };
+  const categories = cleanCategoryRatings(draft.categoryRatings);
+  if ((options.sendCategoryRatings ?? CATEGORY_RATINGS_ENABLED) && Object.keys(categories).length > 0) {
+    payload.category_ratings = categories;
+  }
+  return payload;
+}
 
 const RECEIPT_PATTERN = /^abr1_[A-Za-z0-9_-]{43}$/;
 const GUEST_SCOPE_KEY = 'abhijatri_guest_scope';

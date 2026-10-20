@@ -1,6 +1,38 @@
-import type { ComfortTier, ReviewLanguage, ReviewStatus, TravellerType } from '../../types';
+import type { ComfortTier, ReviewCategory, ReviewLanguage, ReviewStatus, TravellerType } from '../../types';
 
 type Pair = [bn: string, en: string];
+
+/** Review.md 3.1 categories with a one-line prompt so ratings mean the same thing to everyone. */
+export const CATEGORY_LABEL: Record<ReviewCategory, { name: Pair; prompt: Pair }> = {
+  CLEANLINESS: {
+    name: ['পরিচ্ছন্নতা', 'Cleanliness'],
+    prompt: ['এলাকা, থাকার জায়গা ও শৌচাগার কতটা পরিষ্কার ছিল?', 'How clean were the area, stay and toilets?'],
+  },
+  ACCESSIBILITY: {
+    name: ['প্রবেশযোগ্যতা', 'Accessibility'],
+    prompt: ['শিশু, বয়স্ক বা চলাচলে অসুবিধা আছে এমন মানুষের জন্য যাওয়া কতটা সহজ?', 'How easy is it for children, older people or people with limited mobility?'],
+  },
+  HOSPITALITY: {
+    name: ['আতিথেয়তা', 'Hospitality'],
+    prompt: ['স্থানীয় মানুষ ও সেবাদাতাদের আচরণ কেমন ছিল?', 'How were you treated by locals and service providers?'],
+  },
+  FOOD: {
+    name: ['খাবার', 'Food'],
+    prompt: ['খাবারের মান ও বিকল্প কেমন ছিল?', 'How good were the food quality and choices?'],
+  },
+  TRANSPORT: {
+    name: ['যাতায়াত', 'Transport'],
+    prompt: ['যাওয়া-আসা ও স্থানীয় যানবাহন কতটা সহজ ও নির্ভরযোগ্য?', 'How easy and reliable were getting there and getting around?'],
+  },
+  SAFETY_PERCEPTION: {
+    name: ['নিরাপত্তার অনুভূতি', 'Feeling of safety'],
+    prompt: ['সেখানে আপনি কতটা নিরাপদ বোধ করেছেন?', 'How safe did you feel there?'],
+  },
+  VALUE: {
+    name: ['খরচের মূল্য', 'Value for money'],
+    prompt: ['খরচের তুলনায় অভিজ্ঞতা কেমন ছিল?', 'Was the experience worth what you paid?'],
+  },
+};
 
 export const TRAVELLER_TYPES: [TravellerType, Pair][] = [
   ['SOLO', ['একা', 'Solo']],

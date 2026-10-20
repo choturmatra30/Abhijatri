@@ -2,10 +2,18 @@ import React, { useState } from 'react';
 import { Send, ShieldCheck, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { ApiError } from '../../api/client';
-import { CONSENT_VERSION, generateReceipt, getGuestScopeSecret, submitGuestReview } from '../../api/reviews';
-import type { ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
+import {
+  CATEGORY_RATINGS_ENABLED,
+  buildGuestReviewPayload,
+  generateReceipt,
+  getGuestScopeSecret,
+  submitGuestReview,
+} from '../../api/reviews';
+import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth, pick } from '../../utils/format';
 import { describeError } from '../common/StatusViews';
+import { CategoryRatings } from './CategoryRatings';
+import { ReviewPhotos, type ReviewPhoto } from './ReviewPhotos';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
 
 export interface SubmittedReview extends GuestReviewCreated {
@@ -43,6 +51,8 @@ export const GuestReviewForm: React.FC<{
   const [comfortTier, setComfortTier] = useState<ComfortTier>('STANDARD');
   const [visitMonth, setVisitMonth] = useState(maxMonth);
   const [rating, setRating] = useState(0);
+  const [categoryRatings, setCategoryRatings] = useState<Ratings>({});
+  const [photos, setPhotos] = useState<ReviewPhoto[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [consent, setConsent] = useState(false);
@@ -77,26 +87,30 @@ export const GuestReviewForm: React.FC<{
 
     setSubmitting(true);
     try {
-      const created = await submitGuestReview({
-        destination_id: destinationId,
-        client_draft_id: identity.clientDraftId,
-        guest_scope_secret: getGuestScopeSecret(),
-        receipt_secret: identity.receipt,
-        guest_display_name: displayName.trim().normalize('NFC'),
-        language: reviewLanguage,
-        traveller_type: travellerType,
-        comfort_tier: comfortTier,
-        visit_month: `${visitMonth}-01`,
-        title: title.trim(),
-        body: body.trim(),
-        overall_rating: rating,
-        consent_version: CONSENT_VERSION,
-      });
+      const created = await submitGuestReview(
+        buildGuestReviewPayload({
+          destinationId,
+          clientDraftId: identity.clientDraftId,
+          receipt: identity.receipt,
+          guestScopeSecret: getGuestScopeSecret(),
+          displayName,
+          language: reviewLanguage,
+          travellerType,
+          comfortTier,
+          visitMonth,
+          title,
+          note: body,
+          overallRating: rating,
+          categoryRatings,
+        }),
+      );
       onSubmitted({ ...created, receipt: identity.receipt, destinationId });
       setIdentity(newIdentity());
       setTitle('');
       setBody('');
       setRating(0);
+      setCategoryRatings({});
+      setPhotos([]);
       setConsent(false);
     } catch (error: unknown) {
       if (error instanceof ApiError) {
@@ -211,6 +225,8 @@ export const GuestReviewForm: React.FC<{
         {errorFor('overall_rating')}
       </fieldset>
 
+      <CategoryRatings value={categoryRatings} onChange={setCategoryRatings} pendingServerSupport={!CATEGORY_RATINGS_ENABLED} />
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="review-traveller" className={labelClass}>
@@ -268,7 +284,7 @@ export const GuestReviewForm: React.FC<{
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="review-body" className={labelClass}>
-          {t('আপনার অভিজ্ঞতা', 'Your experience')}
+          {t('আপনার নোট', 'Your note')}
         </label>
         <textarea
           id="review-body"
@@ -289,6 +305,8 @@ export const GuestReviewForm: React.FC<{
         </p>
         {errorFor('body')}
       </div>
+
+      <ReviewPhotos photos={photos} onChange={setPhotos} />
 
       <div className="p-4 rounded-xl bg-surface-container/60 dark:bg-dark-surface-2 flex flex-col gap-3 text-xs text-on-surface-variant dark:text-on-dark-muted">
         <p className="flex gap-2">
