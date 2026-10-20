@@ -15,11 +15,13 @@ from app.config import get_settings
 from app.db import get_session
 from app.destination_api import public_cache_headers
 from app.errors import ApiError
-from app.limits import guest_submit_limit, limiter, receipt_limit
+from app.guest_services import guest_visit_stats, register_guest_visit
+from app.limits import guest_submit_limit, guest_visit_limit, limiter, receipt_limit
 from app.models import (
     DestinationRatingStats,
     ModerationDecision,
     PlatformRole,
+    RatingAudience,
     Review,
     ReviewRevision,
     ReviewStatus,
@@ -30,7 +32,11 @@ from app.schemas import (
     ConflictFlagRequest,
     GuestReviewCreate,
     GuestReviewCreated,
+    GuestVisitRequest,
+    GuestVisitResponse,
+    GuestVisitStats,
     HealthResponse,
+    ModerationQueueItem,
     ModerationRequest,
     ModerationResult,
     PublicReview,
@@ -41,10 +47,12 @@ from app.schemas import (
 )
 from app.services import (
     ReviewError,
+    category_averages,
     encode_cursor,
     find_recoverable_draft,
     moderate_review,
     rejection_details,
+    revision_category_ratings,
     set_review_conflict,
     submit_guest_review,
     verify_receipt,
@@ -171,26 +179,62 @@ def create_guest_review(
     )
 
 
-@router.get("/staff/moderation/reviews", response_model=list[ModerationResult])
+@router.post("/guest-visits", response_model=GuestVisitResponse)
+@limiter.limit(guest_visit_limit)
+def create_guest_visit(
+    request: Request,
+    payload: GuestVisitRequest,
+    sessions: CounterSessions,
+    session: Session = Depends(get_session),
+) -> GuestVisitResponse:
+    """Stable "Guest #N" for this device. The guest's name never reaches the server."""
+    abuse.enforce(sessions, abuse.guest_visit_checks(get_settings(), network_digest(request)))
+    guest_number, total = register_guest_visit(session, payload.guest_scope_secret)
+    session.commit()
+    return GuestVisitResponse(guest_number=guest_number, total_guests=total)
+
+
+@router.get("/guest-visits/stats", response_model=GuestVisitStats)
+@limiter.limit("60/minute")
+def guest_visits_stats(
+    request: Request,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> GuestVisitStats:
+    total, today = guest_visit_stats(session)
+    response.headers.update(public_cache_headers())
+    return GuestVisitStats(total_guests=total, guests_today=today)
+
+
+@router.get("/staff/moderation/reviews", response_model=list[ModerationQueueItem])
 def moderation_queue(
     staff: User = Depends(require_staff),
     session: Session = Depends(get_session),
-) -> list[ModerationResult]:
+) -> list[ModerationQueueItem]:
     del staff
-    reviews = session.scalars(
-        select(Review)
+    rows = session.execute(
+        select(Review, ReviewRevision)
+        .join(ReviewRevision, ReviewRevision.id == Review.current_revision_id)
         .where(Review.status.in_([ReviewStatus.PENDING, ReviewStatus.UNDER_REVIEW]))
         .order_by(Review.created_at.asc(), Review.id.asc())
         .limit(100)
     ).all()
+    categories = revision_category_ratings(session, [revision.id for _, revision in rows])
     return [
-        ModerationResult(
+        ModerationQueueItem(
             review_id=review.id,
             status=review.status,
             version=review.version,
             counted_rating=review.counted_rating,
+            destination_id=review.destination_id,
+            guest_display_name=review.guest_display_name,
+            overall_rating=review.overall_rating,
+            title=revision.title,
+            body=revision.body,
+            category_ratings=categories[revision.id],
+            created_at=review.created_at,
         )
-        for review in reviews
+        for review, revision in rows
     ]
 
 
@@ -304,6 +348,7 @@ def public_reviews(
     rows = session.execute(statement).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
+    categories = revision_category_ratings(session, [revision.id for _, revision in rows])
     items = [
         PublicReview(
             id=review.id,
@@ -313,6 +358,7 @@ def public_reviews(
             published_at=review.published_at,
             title=revision.title,
             body=revision.body,
+            category_ratings=categories[revision.id],
         )
         for review, revision in rows
         if review.published_at is not None
@@ -333,6 +379,9 @@ def public_reviews(
         next_cursor=next_cursor,
         guest_rating_average=guest_average,
         guest_rating_count=guest_count,
+        guest_category_averages=category_averages(session, [destination_id]).get(
+            (destination_id, RatingAudience.GUEST), []
+        ),
     )
 
 

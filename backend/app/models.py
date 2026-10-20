@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     LargeBinary,
@@ -87,6 +88,25 @@ class ComfortTier(str, enum.Enum):
     ECONOMY = "ECONOMY"
     STANDARD = "STANDARD"
     PREMIUM = "PREMIUM"
+
+
+class ReviewCategory(str, enum.Enum):
+    """Review.md 3.1 and amendment A2: the seven frozen rating categories, in display order."""
+
+    CLEANLINESS = "CLEANLINESS"
+    ACCESSIBILITY = "ACCESSIBILITY"
+    HOSPITALITY = "HOSPITALITY"
+    FOOD = "FOOD"
+    TRANSPORT = "TRANSPORT"
+    SAFETY_PERCEPTION = "SAFETY_PERCEPTION"
+    VALUE = "VALUE"
+
+
+class RatingAudience(str, enum.Enum):
+    """Which aggregate a counted rating belongs to (Review.md 6.1, 6.2); never merged."""
+
+    GUEST = "GUEST"
+    COMMUNITY = "COMMUNITY"
 
 
 class ModerationDecision(str, enum.Enum):
@@ -431,6 +451,21 @@ class ReviewRevision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
+class ReviewCategoryRating(Base):
+    """One optional category score of a revision; an absent row means not applicable."""
+
+    __tablename__ = "review_category_ratings"
+    __table_args__ = (CheckConstraint("rating BETWEEN 1 AND 5", name="ck_category_rating_range"),)
+
+    revision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("review_revisions.id", ondelete="CASCADE"), primary_key=True
+    )
+    category: Mapped[ReviewCategory] = mapped_column(
+        Enum(ReviewCategory, name="review_category"), primary_key=True
+    )
+    rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+
 class ReviewReceipt(Base):
     """Keyed digest of a client-generated receipt. The raw receipt is never stored."""
 
@@ -464,6 +499,29 @@ class DestinationRatingStats(Base):
     guest_rating_sum: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     guest_rating_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class DestinationCategoryStats(Base):
+    """O(1) per-category sum and count, moved in the same transaction as the overall aggregate."""
+
+    __tablename__ = "destination_category_stats"
+    __table_args__ = (
+        CheckConstraint("rating_sum >= 0", name="ck_category_stats_sum_nonnegative"),
+        CheckConstraint("rating_count >= 0", name="ck_category_stats_count_nonnegative"),
+    )
+
+    destination_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("destinations.id", ondelete="CASCADE"), primary_key=True
+    )
+    category: Mapped[ReviewCategory] = mapped_column(
+        Enum(ReviewCategory, name="review_category"), primary_key=True
+    )
+    audience: Mapped[RatingAudience] = mapped_column(
+        Enum(RatingAudience, name="rating_audience"), primary_key=True
+    )
+    rating_sum: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rating_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
@@ -513,3 +571,21 @@ class RateLimitBucket(Base):
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class GuestVisit(Base):
+    """One row per guest device, keyed by a digest of its Guest scope secret.
+
+    The guest's name never reaches the server: it stays on the device (Review.md 3.2 step 1).
+    There is no name, address or user reference here, only a number to say "Guest #N".
+    """
+
+    __tablename__ = "guest_visits"
+
+    scope_hash: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    key_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    guest_number: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=True), unique=True, nullable=False
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)

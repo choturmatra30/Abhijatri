@@ -180,6 +180,12 @@ def receipt_op_checks(settings: Settings, receipt: bytes, network: bytes) -> lis
     ]
 
 
+def guest_visit_checks(settings: Settings, network: bytes) -> list[tuple[Rule, bytes]]:
+    return [
+        (Rule("guest_visit:network:1h", HOUR, settings.guest_visits_per_network_per_hour), network),
+    ]
+
+
 def receipt_failure_rules(settings: Settings) -> list[Rule]:
     return [
         Rule("receipt_fail:15m", QUARTER_HOUR, settings.receipt_failures_short_limit),

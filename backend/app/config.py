@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     rate_limit_storage_uri: str = Field(default="memory://", min_length=1)
     rate_limit_guest_submit: str = "5/minute"  # in-memory burst pre-filter only (PF 14.5)
     rate_limit_receipt: str = "10/minute"  # in-memory burst pre-filter only (PF 14.5)
+    rate_limit_guest_visit: str = "20/minute"  # in-memory burst pre-filter only (PF 14.5)
 
     # Trusted client address (PF 14.2): the one provider-appended header entry, never a guess.
     client_address_header: str | None = None
@@ -65,6 +66,7 @@ class Settings(BaseSettings):
     guest_submit_per_network_per_day: int = Field(default=100, ge=1)
     receipt_ops_per_receipt_per_hour: int = Field(default=20, ge=1)
     receipt_ops_per_network_per_hour: int = Field(default=100, ge=1)
+    guest_visits_per_network_per_hour: int = Field(default=60, ge=1)
     receipt_failures_short_limit: int = Field(default=5, ge=1)  # per 15 minutes
     receipt_failures_long_limit: int = Field(default=20, ge=1)  # per 24 hours
     guest_pending_per_destination: int = Field(default=50, ge=1)

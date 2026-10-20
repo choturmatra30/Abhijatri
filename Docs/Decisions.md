@@ -2,6 +2,18 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-20 (Backend: category ratings and guest welcome counter)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Category ratings storage | One `review_category_ratings` row per rated category per revision; "not applicable" is an absent row, never a zero. `{}` is treated as omitted. | Review.md 3.1 and A2; an absent row cannot be mistaken for a score. |
+| Category aggregates | `destination_category_stats` per destination, category and audience (`GUEST` or `COMMUNITY`). It moves only inside `_remove_counted_rating` and `_add_published_rating`, so it always changes together with the overall rating and in the same transaction. Rows are locked in category order after the destination aggregate. | Review.md 6.1 to 6.3 (O(1) deltas, Guest and Community never merged); one code path means the two aggregates cannot drift. A property test compares both with a full recompute after random transitions. |
+| Category averages in responses | Added as new fields (`category_ratings`, `category_averages`, `guest_category_averages`); no existing field changed. Only categories with a counted rating appear, in the Review.md order. | The current frontend keeps working unchanged; empty categories carry no claim. |
+| Guest name | The name a guest types on the landing page stays on the device. `POST /guest-visits` accepts only the Guest scope secret and rejects any other field. | Review.md 1.1 (a Guest has no account) and 3.2 step 1 (a local welcome message); no personal data on the server. |
+| Guest counter digest | `guest_visits.scope_hash` uses its own HMAC label `abhijatri:guest-visit:v1`, not the review scope label. | A visit row cannot be linked to the Guest's reviews. |
+| Guest counter limits | In-memory burst `20/minute` plus a durable 60 per network per hour. The number is stable per device, so repeated calls are harmless. | PF 14.3 and 14.5 pattern for unauthenticated writes. |
+| Frontend unchanged | This change touches no frontend file. `VITE_REVIEW_CATEGORY_RATINGS` remains the frontend's switch (and kill switch) for sending categories. | Requested by the project owner; the frontend owner wires the welcome view and category display. |
+
 ## 2026-10-20 (Landing page and sign-in entry)
 
 | Decision | Rule | Reason |

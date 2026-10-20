@@ -20,6 +20,8 @@ erDiagram
     reviews ||--|{ review_revisions : "versions"
     reviews ||--o| review_revisions : "current_revision_id"
     reviews ||--o{ review_receipts : "Guest receipt"
+    review_revisions ||--o{ review_category_ratings : "category scores"
+    destinations ||--o{ destination_category_stats : "category aggregates"
     reviews ||--o{ moderation_actions : "decided by"
     users ||--o{ moderation_actions : "actor"
     outbox_events }o..o{ reviews : "aggregate_id (logical)"
@@ -153,6 +155,25 @@ erDiagram
         int guest_rating_count
         int version
     }
+    review_category_ratings {
+        uuid revision_id PK
+        enum category PK
+        smallint rating
+    }
+    destination_category_stats {
+        uuid destination_id PK
+        enum category PK
+        enum audience PK
+        int rating_sum
+        int rating_count
+    }
+    guest_visits {
+        bytea scope_hash PK
+        string key_id
+        bigint guest_number
+        timestamptz first_seen_at
+        timestamptz last_seen_at
+    }
     moderation_actions {
         uuid id PK
         uuid review_id FK
@@ -190,6 +211,9 @@ erDiagram
 | `review_revisions` | Append-only submitted versions; body tombstoned only by retention. | Unique `(review_id, sequence)`; `ck_revision_rating_range`. | Private until published |
 | `review_receipts` | Keyed digest of the client-generated Guest receipt (HMAC-SHA-256, label `abhijatri:review-receipt:v1`, versioned key); never the raw receipt. | `key_id`, `digest`; unique `uq_review_receipt_key_digest (key_id, digest)`; `revoked_at`. Rows from the old server-issued scheme are revoked and marked `legacy`. | Secret-derived |
 | `destination_rating_stats` | O(1) Community and Guest sum/count aggregates, updated under row lock. | Non-negative `CHECK`s; `version`. | Public aggregate |
+| `review_category_ratings` | Optional per-category score (1 to 5) for a revision; one row per rated `review_category`, absent when not applicable (Review.md 3.1, amendment A2). Migration `0006`. | Composite PK `(revision_id, category)`; FK `revision_id` `CASCADE`; `ck_category_rating_range`. | Private until published |
+| `destination_category_stats` | O(1) per-category sum/count for each destination and audience (`GUEST` or `COMMUNITY`), moved in the same transaction and lock order as `destination_rating_stats`. Migration `0006`. | Composite PK `(destination_id, category, audience)`; FK `CASCADE`; `ck_category_stats_sum_nonnegative`, `ck_category_stats_count_nonnegative`. | Public aggregate |
+| `guest_visits` | Anonymous guest counter for the landing-page welcome: one row per guest device. Stores the HMAC digest of the Guest scope secret under its own label `abhijatri:guest-visit:v1`, plus key id, a stable `guest_number` and first/last visit time. **No name, address or user reference.** Migration `0007`. | PK `scope_hash`; `guest_number` identity, unique. | Internal, no raw identifiers |
 | `destination_guide_items` | Bilingual attraction, accommodation, food, transport and local-practice entries with provenance. | FK `destination_id` `CASCADE`; enum `guide_category`; index `ix_guide_items_destination_category`; shown only when `is_published`. | Public when published |
 | `destination_advisories` | Dated bilingual advisories: `effective_on`, `valid_until` (Asia/Dhaka dates), `verified_on`, source and licence. | FK `CASCADE`; enum `advisory_severity`; `ck_advisory_validity_window` (`valid_until >= effective_on`); index `ix_advisories_destination_valid_until`. State (`CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE`) is derived at read time, never stored. | Public when published |
 | `destination_contacts` | Public institution and emergency contacts with coordinates and provenance. No personal contacts. | FK `CASCADE`; enum `contact_kind`; `ck_contact_phone_format`, `ck_contact_latitude_range`, `ck_contact_longitude_range`, `ck_contact_coordinates_pair`; index `ix_contacts_destination_kind`. | Public when published |
@@ -197,7 +221,7 @@ erDiagram
 | `moderation_actions` | Append-only record of each moderation transition. | FK `RESTRICT` to review and actor. | Internal audit |
 | `outbox_events` | Transactional follow-up events (cache, search, media). | `processed_at` null means pending. | Internal |
 
-Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity`, `contact_kind`, `review_status`, `rating_eligibility`, `revision_status`, `review_language`, `traveller_type`, `comfort_tier`, `moderation_decision`, `moderation_previous_status`, `moderation_new_status`.
+Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity`, `contact_kind`, `review_status`, `rating_eligibility`, `revision_status`, `review_language`, `traveller_type`, `comfort_tier`, `moderation_decision`, `moderation_previous_status`, `moderation_new_status`, `review_category`, `rating_audience`.
 
 ## 3. Planned tables (not yet migrated)
 
@@ -205,7 +229,6 @@ Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity
 |---|---|---|
 | `auth_identities` | R04 | Password hash (Argon2id), email-verification and reset token digests with expiry. |
 | `user_sessions` | R04 | Server-side session id digest, created/expires/revoked, separate staff and member scopes. |
-| `review_category_ratings` | R07 | Per-category scores (1 to 5) for a revision; one row per rated `ReviewCategory`, absent when not applicable (Review.md amendment A2). |
 | `review_reports`, `moderation_cases` | R11 | Duplicate-open-report control; queue priority and escalation. |
 | `audit_events` | R11, Security 4.4 | Append-only privileged activity; `UPDATE`/`DELETE` revoked from the app role. `moderation_actions` may be folded in. |
 | `idempotency_keys` | R16 | Unique `(scope, key)`, request hash, stored response, expiry. |

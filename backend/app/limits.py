@@ -19,3 +19,7 @@ def guest_submit_limit() -> str:
 
 def receipt_limit() -> str:
     return get_settings().rate_limit_receipt
+
+
+def guest_visit_limit() -> str:
+    return get_settings().rate_limit_guest_visit

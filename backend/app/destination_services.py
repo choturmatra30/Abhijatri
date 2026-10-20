@@ -21,10 +21,12 @@ from app.models import (
     DestinationGuideItem,
     DestinationRatingStats,
     DestinationStatus,
+    RatingAudience,
 )
 from app.schemas import (
     Advisory,
     AdvisoryState,
+    CategoryAverage,
     CommunityRatingSummary,
     Contact,
     DestinationList,
@@ -34,6 +36,7 @@ from app.schemas import (
     GuideItem,
     Provenance,
 )
+from app.services import category_averages
 
 
 class DestinationNotFound(Exception):
@@ -85,18 +88,32 @@ def _provenance(row: DestinationGuideItem | DestinationAdvisory | DestinationCon
     return Provenance.model_validate(row)
 
 
-def _ratings(stats: DestinationRatingStats | None) -> tuple[CommunityRatingSummary, GuestFeedbackSummary]:
+CategoryAverages = dict[tuple[uuid.UUID, RatingAudience], list[CategoryAverage]]
+
+
+def _ratings(
+    destination_id: uuid.UUID,
+    stats: DestinationRatingStats | None,
+    categories: CategoryAverages,
+) -> tuple[CommunityRatingSummary, GuestFeedbackSummary]:
+    community_categories = categories.get((destination_id, RatingAudience.COMMUNITY), [])
+    guest_categories = categories.get((destination_id, RatingAudience.GUEST), [])
     if stats is None:
-        return CommunityRatingSummary(average=None, count=0), GuestFeedbackSummary(average=None, count=0)
+        return (
+            CommunityRatingSummary(average=None, count=0, category_averages=community_categories),
+            GuestFeedbackSummary(average=None, count=0, category_averages=guest_categories),
+        )
     community = CommunityRatingSummary(
         average=stats.community_rating_sum / stats.community_rating_count
         if stats.community_rating_count
         else None,
         count=stats.community_rating_count,
+        category_averages=community_categories,
     )
     guest = GuestFeedbackSummary(
         average=stats.guest_rating_sum / stats.guest_rating_count if stats.guest_rating_count else None,
         count=stats.guest_rating_count,
+        category_averages=guest_categories,
     )
     return community, guest
 
@@ -224,9 +241,10 @@ def list_published_destinations(
             .group_by(DestinationAdvisory.destination_id)
         )
     }
+    categories = category_averages(session, ids)
     items = []
     for destination in destinations:
-        community, guest = _ratings(stats.get(destination.id))
+        community, guest = _ratings(destination.id, stats.get(destination.id), categories)
         items.append(
             DestinationSummary(
                 id=destination.id,
@@ -276,7 +294,11 @@ def get_destination_profile(
     ).all()
     advisory_rows = _advisory_rows(session, destination_id, today=today, include_expired=include_expired)
     contact_rows = _contact_rows(session, destination_id)
-    community, guest = _ratings(session.get(DestinationRatingStats, destination_id))
+    community, guest = _ratings(
+        destination_id,
+        session.get(DestinationRatingStats, destination_id),
+        category_averages(session, [destination_id]),
+    )
     last_updated = max(
         [
             destination.updated_at,

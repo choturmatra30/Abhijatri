@@ -16,11 +16,13 @@ from app.main import create_app
 from app.models import (
     ComfortTier,
     Destination,
+    DestinationCategoryStats,
     DestinationRatingStats,
     DestinationStatus,
     ModerationDecision,
     RatingEligibility,
     Review,
+    ReviewCategory,
     ReviewLanguage,
     ReviewRevision,
     ReviewStatus,
@@ -32,6 +34,7 @@ from app.models import (
 from app.schemas import GuestReviewCreate
 from app.services import (
     ReviewConflict,
+    full_guest_category_recompute,
     full_guest_recompute,
     moderate_review,
     set_review_conflict,
@@ -160,7 +163,10 @@ def test_concurrent_publish_counts_once(postgres_session) -> None:
 )
 def test_random_rating_transitions_equal_full_recompute(postgres_session, actions) -> None:
     destination, moderator = _seed(postgres_session)
-    created = submit_guest_review(postgres_session, _payload(destination.id))
+    payload = _payload(destination.id).model_copy(
+        update={"category_ratings": {ReviewCategory.FOOD: 4, ReviewCategory.VALUE: 2}}
+    )
+    created = submit_guest_review(postgres_session, payload)
     postgres_session.commit()
 
     for action in actions:
@@ -205,6 +211,15 @@ def test_random_rating_transitions_equal_full_recompute(postgres_session, action
         assert (stats.guest_rating_sum, stats.guest_rating_count) == full_guest_recompute(
             postgres_session, destination.id
         )
+        category_rows = postgres_session.scalars(
+            select(DestinationCategoryStats).where(
+                DestinationCategoryStats.destination_id == destination.id,
+                DestinationCategoryStats.rating_count > 0,
+            )
+        )
+        assert {
+            row.category: (row.rating_sum, row.rating_count) for row in category_rows
+        } == full_guest_category_recompute(postgres_session, destination.id)
 
 
 def test_conflict_flag_uses_locked_rating_delta(postgres_session) -> None:
