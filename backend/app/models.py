@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -574,18 +575,17 @@ class RateLimitBucket(Base):
 
 
 class GuestVisit(Base):
-    """One row per guest device, keyed by a digest of its Guest scope secret.
+    """The guest footprint: one row per guest per day, holding only a number and a time.
 
-    The guest's name never reaches the server: it stays on the device (Review.md 3.2 step 1).
-    There is no name, address or user reference here, only a number to say "Guest #N".
+    Who a guest is does not matter, only how many come each day (scope owner, 20 Oct 2026).
+    Nothing else about a guest is stored: no name, device id, hash, address or user reference.
+    The guest's name stays on their device (Review.md 3.2 step 1).
     """
 
     __tablename__ = "guest_visits"
+    __table_args__ = (Index("ix_guest_visits_visited_at", "visited_at"),)
 
-    scope_hash: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
-    key_id: Mapped[str] = mapped_column(String(16), nullable=False)
-    guest_number: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), unique=True, nullable=False
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    visited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
     )
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)

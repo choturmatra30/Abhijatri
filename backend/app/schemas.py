@@ -211,19 +211,23 @@ class ReviewParameters(BaseModel):
 
 
 class GuestVisitRequest(StrictRequestModel):
-    """Only the device's Guest scope secret. The guest's name never leaves the device."""
-
-    guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
+    """Deliberately empty: nothing about the guest is sent or stored, not even a device id."""
 
 
 class GuestVisitResponse(BaseModel):
-    guest_number: int
-    total_guests: int
+    visit_number: int
+    visits_today: int
+
+
+class DailyGuestVisits(BaseModel):
+    date: date
+    visits: int
 
 
 class GuestVisitStats(BaseModel):
-    total_guests: int
-    guests_today: int
+    total_visits: int
+    visits_today: int
+    daily: list[DailyGuestVisits]
 
 
 AdvisoryState = Literal["NOT_YET_EFFECTIVE", "CURRENT", "STALE", "EXPIRED"]

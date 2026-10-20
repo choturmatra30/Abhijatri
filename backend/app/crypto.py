@@ -16,8 +16,6 @@ from app.config import get_settings
 RECEIPT_LABEL = "abhijatri:review-receipt:v1"
 GUEST_SCOPE_LABEL = "abhijatri:guest-scope:v1"
 NETWORK_LABEL = "abhijatri:network:v1"
-# Its own label so a guest-visit digest can never be matched against a review's scope digest.
-GUEST_VISIT_LABEL = "abhijatri:guest-visit:v1"
 LEGACY_KEY_ID = "legacy"
 
 RECEIPT_PREFIX = "abr1_"

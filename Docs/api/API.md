@@ -116,7 +116,7 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 | `GET /health` (also `HEAD`) | none | no-store | Implemented |
 | `GET /health/ready` (also `HEAD`) | none | no-store | Change required |
 | `GET /auth/csrf` | member or staff session | no-store | Planned (R04) |
-| `POST /guest-visits` | guest scope (no cookie, no name) | no-store | Implemented 20 Oct 2026 (section 5.14) |
+| `POST /guest-visits` | none (empty body, no cookie, no name) | no-store | Implemented 20 Oct 2026; count-only since migration 0008 (section 5.14) |
 | `GET /guest-visits/stats` | none | Public, short TTL | Implemented 20 Oct 2026 (section 5.14) |
 
 `/health` returns `{ "status": "ok" }`. `/health/ready` checks the database and returns `503 SERVICE_UNAVAILABLE` if it is down. It must also report the deployed build and the database migration revision, because the deploy workflow polls it for both (PF 22.1):
@@ -526,37 +526,45 @@ Rules:
 
 ### 5.14 `POST /guest-visits` and `GET /guest-visits/stats`
 
-These routes support the landing-page welcome for guests: "Welcome, <name> · Guest #N" (Review.md 3.2 step 1). **The guest's name never reaches the server.** The client keeps it on the device. The server only gives each guest device a stable number.
+This is the **guest footprint**: how many guests come to the site each day, **never who** (scope owner, 20 Oct 2026). The guest's name stays on their device for the welcome "Welcome, <name> · Guest #N" (Review.md 3.2 step 1).
 
 ```http
 POST /api/v1/guest-visits
 Content-Type: application/json
-```
 
-```json
-{ "guest_scope_secret": "<the same 43 to 200 character secret used for Guest reviews>" }
+{}
 ```
 
 Response `200`:
 
 ```json
-{ "guest_number": 128, "total_guests": 128 }
+{ "visit_number": 128, "visits_today": 9 }
 ```
 
-- **Strict body.** Any other field, including `name`, returns `422 UNKNOWN_FIELD`.
-- **Stable number.** The same secret always returns the same `guest_number`; a new device gets the next number. Calling it on every app start is safe.
-- **What is stored.** The server stores only an HMAC digest of the secret, under the key ring with its own label `abhijatri:guest-visit:v1`, so it cannot be linked to a review's scope digest. It also stores the key id, the number, and the first and last visit times. No name, address or user row is stored.
-- **Limits.** The in-memory burst limit `RATE_LIMIT_GUEST_VISIT` (default `20/minute`) applies first, then a durable `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default 60), which returns `429 RATE_LIMITED` with `Retry-After`.
-- **Caching.** `Cache-Control: no-store`. No cookie or CSRF token is used.
+- **The body is always empty.** Any field (a `name`, the old `guest_scope_secret`, a device id) returns `422 UNKNOWN_FIELD`.
+- **What is stored:** exactly one row in `guest_visits` with two columns, `id` (the running number) and `visited_at`. Nothing else: no name, device id, hash, address or user reference.
+- **One visit per guest per day.** The client calls this at most once per Asia/Dhaka calendar day per browser (it remembers the date locally). It keeps the `visit_number` of its first visit as "Guest #N" and reuses it on later days. A new browser, an incognito window or cleared storage counts as a new guest.
+- **Limits.** The in-memory burst limit `RATE_LIMIT_GUEST_VISIT` (default `20/minute`) applies, then a durable `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default 60), which returns `429 RATE_LIMITED` with `Retry-After`. Those counters live in `rate_limit_buckets`, the platform's general abuse control keyed by a network digest and purged within 2 days. They are not guest data.
+- **Caching:** `Cache-Control: no-store`. No cookie or CSRF token is used.
 
-`GET /api/v1/guest-visits/stats` returns `{ "total_guests": 128, "guests_today": 9 }`. `guests_today` counts first visits since midnight on the display-time-zone date. The response is public, with a short TTL (Security 7.1).
+`GET /api/v1/guest-visits/stats?days=30` (`days` 1 to 90) returns the daily footprint:
 
-**Intended client flow (frontend not yet changed):**
-1. The guest enters a name on the landing page.
-2. The client saves the name locally.
-3. The client calls `POST /guest-visits` with `getGuestScopeSecret()`.
-4. The client opens the welcome view with the name and `guest_number`.
-5. If the call fails, the welcome still shows the name, without a number.
+```json
+{
+  "total_visits": 128,
+  "visits_today": 9,
+  "daily": [{ "date": "2026-10-19", "visits": 14 }, { "date": "2026-10-20", "visits": 9 }]
+}
+```
+
+`daily` lists the last `days` Asia/Dhaka days, oldest first, with days that had no visits shown as 0. The response is public with a short TTL (Security 7.1).
+
+**Client flow** (`frontend/src/api/guests.ts`, `recordDailyVisit`):
+1. The guest enters a name on `/guest`, and it is saved locally.
+2. If this browser has not been counted today, it calls `POST /guest-visits` with `{}`.
+3. It stores today's date and, on the first visit only, the `visit_number`.
+4. It shows "Welcome, <name> · Guest #N".
+5. If the call fails, the welcome still shows the name with any number already stored.
 
 ### 5.15 `GET /review-parameters`
 

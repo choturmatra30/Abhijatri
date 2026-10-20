@@ -168,11 +168,8 @@ erDiagram
         int rating_count
     }
     guest_visits {
-        bytea scope_hash PK
-        string key_id
-        bigint guest_number
-        timestamptz first_seen_at
-        timestamptz last_seen_at
+        bigint id PK
+        timestamptz visited_at
     }
     moderation_actions {
         uuid id PK
@@ -213,7 +210,7 @@ erDiagram
 | `destination_rating_stats` | O(1) Community and Guest sum/count aggregates, updated under row lock. | Non-negative `CHECK`s; `version`. | Public aggregate |
 | `review_category_ratings` | Optional per-category score (1 to 5) for a revision; one row per rated `review_category`, absent when not applicable (Review.md 3.1, amendment A2). Migration `0006`. | Composite PK `(revision_id, category)`; FK `revision_id` `CASCADE`; `ck_category_rating_range`. | Private until published |
 | `destination_category_stats` | O(1) per-category sum/count for each destination and audience (`GUEST` or `COMMUNITY`), moved in the same transaction and lock order as `destination_rating_stats`. Migration `0006`. | Composite PK `(destination_id, category, audience)`; FK `CASCADE`; `ck_category_stats_sum_nonnegative`, `ck_category_stats_count_nonnegative`. | Public aggregate |
-| `guest_visits` | Anonymous guest counter for the landing-page welcome: one row per guest device. Stores the HMAC digest of the Guest scope secret under its own label `abhijatri:guest-visit:v1`, plus key id, a stable `guest_number` and first/last visit time. **No name, address or user reference.** Migration `0007`. | PK `scope_hash`; `guest_number` identity, unique. | Internal, no raw identifiers |
+| `guest_visits` | Guest footprint: one row per guest per Asia/Dhaka day, holding **only** a running number (`id`) and `visited_at`. It answers "how many guests came each day", never "who". **No other guest data is stored anywhere**: no name, device id, hash, address or user reference (scope owner, 20 Oct 2026). Migration `0008` replaced the `0007` per-device digest table. | PK `id` (identity); index `ix_guest_visits_visited_at`. | Aggregate count, no identifiers |
 | `destination_guide_items` | Bilingual attraction, accommodation, food, transport and local-practice entries with provenance. | FK `destination_id` `CASCADE`; enum `guide_category`; index `ix_guide_items_destination_category`; shown only when `is_published`. | Public when published |
 | `destination_advisories` | Dated bilingual advisories: `effective_on`, `valid_until` (Asia/Dhaka dates), `verified_on`, source and licence. | FK `CASCADE`; enum `advisory_severity`; `ck_advisory_validity_window` (`valid_until >= effective_on`); index `ix_advisories_destination_valid_until`. State (`CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE`) is derived at read time, never stored. | Public when published |
 | `destination_contacts` | Public institution and emergency contacts with coordinates and provenance. No personal contacts. | FK `CASCADE`; enum `contact_kind`; `ck_contact_phone_format`, `ck_contact_latitude_range`, `ck_contact_longitude_range`, `ck_contact_coordinates_pair`; index `ix_contacts_destination_kind`. | Public when published |

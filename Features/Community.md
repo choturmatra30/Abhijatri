@@ -6,6 +6,8 @@
 
 ## 1. Purpose
 
+**Unlike guests, Community members are identified.** Guests are only counted per day (`guest_visits`: a number and a time). Community participation requires a signed-in account with Verified Member status, so the platform knows who is in each community (scope owner, 20 Oct 2026).
+
 Verified Members can discuss destinations and travel topics in moderated, public-to-members spaces. The Community is a place for trustworthy follow-up questions ("Is the Bandarban road open after rain?"). It is not a social network: there are no followers, no direct messages, no feeds ranked by engagement and no likes in the MVP.
 
 ## 2. Actors and authority

@@ -2,6 +2,17 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-20 (Guest footprint is a count only)
+
+Scope owner (Shahriar Islam), 20 Oct 2026: "Guest er shudhu count rakhlei hobe … daily kotojon ashe. Ke ashe jana lagbe na." Only the number of guests per day is needed, not who they are. Community members, by contrast, must be identified (`Features/Community.md`).
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Guest storage | `guest_visits` holds only `id` (a running number) and `visited_at`. `POST /guest-visits` takes an empty body. No name, device id, hash, address or user reference is stored. Migration `0008` dropped the per-device digest table (and its single test row). | The scope owner's rule above. It **supersedes** the earlier "Guest counter digest" decision and the choice to keep one anonymous row per device. |
+| Daily counting | Each browser reports at most one visit per Asia/Dhaka day and remembers the date locally. Stats group `visited_at` by Dhaka date. | "How many come each day" without identifying anyone. |
+| Guest #N | The number of the browser's first visit, kept on the device and reused. A new browser, incognito window or cleared storage is a new guest. | A friendly welcome with no server-side identity. |
+| Abuse control | Per-network durable limit (60 per hour) and burst limit stay. The counters in `rate_limit_buckets` are keyed by a network digest and purged within 2 days; they are not guest data. | PF 14.5; stops scripts from inflating the count. |
+
 ## 2026-10-20 (Guest entry page, server-defined review parameters, Turnstile on the client)
 
 | Decision | Rule | Reason |
@@ -20,8 +31,8 @@ This log records build-time decisions without reopening the frozen Review specif
 | Category ratings storage | One `review_category_ratings` row per rated category per revision; "not applicable" is an absent row, never a zero. `{}` is treated as omitted. | Review.md 3.1 and A2; an absent row cannot be mistaken for a score. |
 | Category aggregates | `destination_category_stats` per destination, category and audience (`GUEST` or `COMMUNITY`). It moves only inside `_remove_counted_rating` and `_add_published_rating`, so it always changes together with the overall rating and in the same transaction. Rows are locked in category order after the destination aggregate. | Review.md 6.1 to 6.3 (O(1) deltas, Guest and Community never merged); one code path means the two aggregates cannot drift. A property test compares both with a full recompute after random transitions. |
 | Category averages in responses | Added as new fields (`category_ratings`, `category_averages`, `guest_category_averages`); no existing field changed. Only categories with a counted rating appear, in the Review.md order. | The current frontend keeps working unchanged; empty categories carry no claim. |
-| Guest name | The name a guest types on the landing page stays on the device. `POST /guest-visits` accepts only the Guest scope secret and rejects any other field. | Review.md 1.1 (a Guest has no account) and 3.2 step 1 (a local welcome message); no personal data on the server. |
-| Guest counter digest | `guest_visits.scope_hash` uses its own HMAC label `abhijatri:guest-visit:v1`, not the review scope label. | A visit row cannot be linked to the Guest's reviews. |
+| Guest name | The name a guest types on the landing page stays on the device. `POST /guest-visits` now takes an empty body (see "Guest footprint is a count only"). | Review.md 1.1 (a Guest has no account) and 3.2 step 1 (a local welcome message); no personal data on the server. |
+| Guest counter digest | ~~`guest_visits.scope_hash` uses its own HMAC label `abhijatri:guest-visit:v1`, not the review scope label.~~ **Superseded the same day** by "Guest footprint is a count only": no digest is stored any more. | A visit row cannot be linked to the Guest's reviews. |
 | Guest counter limits | In-memory burst `20/minute` plus a durable 60 per network per hour. The number is stable per device, so repeated calls are harmless. | PF 14.3 and 14.5 pattern for unauthenticated writes. |
 | Frontend unchanged | This change touches no frontend file. `VITE_REVIEW_CATEGORY_RATINGS` remains the frontend's switch (and kill switch) for sending categories. | Requested by the project owner; the frontend owner wires the welcome view and category display. |
 

@@ -95,7 +95,7 @@ Evidence (20 Oct 2026):
 | Item | Location |
 |---|---|
 | Guest entry page `/guest`. The guest enters a name, which stays on this device. The page shows "Welcome, <name>! You are Guest #N", with "Not you? Change name", then a guide to what a review asks for (from the API). The landing page's "Continue as guest" now opens it. It is an entry point, never a gate: every app route still opens directly. | `frontend/src/pages/GuestEntryPage.tsx`, route in `App.tsx`, link in `LandingPage.tsx` |
-| Guest name storage (`localStorage` `abhijatri_guest_name`, NFC, at most 80 code points, tolerant of blocked storage) and `POST /guest-visits`, which sends only the scope secret | `frontend/src/api/guests.ts` |
+| Guest name storage (`localStorage` `abhijatri_guest_name`, NFC, at most 80 code points, tolerant of blocked storage). Guest footprint: `recordDailyVisit()` posts `{}` at most once per Dhaka day per browser and keeps the first `visit_number` as "Guest #N". Nothing about the guest is sent (updated 20 Oct, count-only rule). | `frontend/src/api/guests.ts` |
 | Session: the guest variant now carries `displayName` and `guestNumber`; `setGuestName` and `clearGuestName` | `frontend/src/context/SessionContext.tsx` |
 | Sidebar card: "Welcome, <name> · Guest #N" | `frontend/src/components/layout/Sidebar.tsx` |
 | The review form reads `GET /review-parameters`. It uses the category names and prompts and the note, title and name limits from the API, falling back to the local labels if the call fails. The note is marked **required**. The display name is pre-filled from the guest name. | `frontend/src/api/reviewParameters.ts`, `GuestReviewForm.tsx`, `CategoryRatings.tsx` |
