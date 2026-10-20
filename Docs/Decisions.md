@@ -9,12 +9,23 @@ This log records build-time decisions without reopening the frozen Review specif
 | Landing page | `/` is a public landing page offering "Continue as guest" and "Sign in"; the app starts at `/overview`. It never gates app routes: deep links open directly. | A Guest browses without registration (Execution.md rule 1); shared destination links must keep working. |
 | Sign-in before R04 | The sign-in form is shown disabled with a notice; nothing is submitted and no session is faked. | No account service exists; a working-looking login would be a false claim. |
 
-**Open, needs the scope owner (Shahriar Islam), requested by the frontend owner on 20 Oct 2026.** These conflict with frozen documents and can be adopted only by a dated amendment (PF 2):
+**Scope requests raised on 20 Oct 2026, resolved the same day by the scope owner (Shahriar Islam).** Applied as dated amendments in `Features/Review.md` section 13.
 
-| Request | Conflicts with |
-|---|---|
-| Verified Member status through NID or birth-registration number, ideally checked against a national verification API. | Review.md 2.3 ("Real NID verification is outside the semester MVP"), PF 8.2 (NID verification deferred), Gantt F07 ("No raw NID in M1"), Security.md data minimisation. |
-| Reviews answer 15 fixed rated questions (for the Bayesian average) plus a free-text note; photos for Verified Members only. | Review.md 3.1 freezes 7 category ratings (cleanliness, accessibility, hospitality, food, transport, safety perception, value) plus the overall rating; the API currently accepts only `overall_rating`. Guest text-only and Verified-only photos already match Review.md 1 and 8. |
+| Request | Decision | Amendment |
+|---|---|---|
+| Verified Member status through NID or birth-registration number, ideally checked against a national verification API. | **Not adopted.** Verified Member stays a manually approved verification record; no NID, birth-registration number or national API is collected or called. | Review.md A3 (2.3 confirmed) |
+| Reviews answer 15 fixed rated questions plus a free-text note. | **Replaced** by the seven frozen category ratings (each optional, 1 to 5) plus the required overall rating and a free-text note, for Guests and Members. The frontend builds it now; the backend adds `category_ratings` (API.md 5.2) with R07. | Review.md A2 (3.1) |
+| Photos for Verified Members only, in semester scope. | **Adopted.** Verified Member image upload moves from conditional post-core into the mandatory release, with the section 8 limits unchanged. Guests remain text-only. | Review.md A1 (1, 2.1, 8, 12.1, 12.3); Security.md 8; Schema.md `review_media`; API.md media intents |
+
+## 2026-10-20 (Review form: categories, note, photos)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Category ratings in the form | The form shows the seven categories with a one-line prompt each; "Not applicable" is the default. The overall rating stays the only required score. | Review.md 3.1 and A2. Prompts make a rating mean the same thing to every reviewer. |
+| Sending category ratings | `category_ratings` is sent only when `VITE_REVIEW_CATEGORY_RATINGS=true`. Until then the form says the server does not store them yet. | The API forbids unknown fields; sending early would make every submission fail with `422 UNKNOWN_FIELD`. |
+| Photos in the form | Guests see a locked notice and no file input. Verified Members get a picker (JPEG/PNG/WebP, 8 MiB, 20 MP, five photos, alt text and ownership declaration required). Upload uses media intents once they exist. | Review.md 8 and A1; PF 20 alternatives for images. |
+| Session state | `SessionContext` says who is using the app. It is guest-only until R04 and can only be filled from the server. It shapes the interface and is never an authorization boundary. | Review.md 1.1 ("every page and API requires server-side authorisation"). |
+| Frontend unit tests | Vitest runs with `npm test`; CI already runs it when the script exists. | PF 27 item 5. |
 
 ## 2026-10-19 (Frontend integration: R03, R09 Guest path, R01 seed content)
 
