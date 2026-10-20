@@ -14,13 +14,17 @@ from sqlalchemy.orm import Session
 from app import crypto
 from app.models import (
     Destination,
+    DestinationCategoryStats,
     DestinationRatingStats,
     DestinationStatus,
     ModerationActionRecord,
     ModerationDecision,
     OutboxEvent,
+    RatingAudience,
     RatingEligibility,
     Review,
+    ReviewCategory,
+    ReviewCategoryRating,
     ReviewReceipt,
     ReviewRevision,
     ReviewStatus,
@@ -28,7 +32,7 @@ from app.models import (
     User,
     Verification,
 )
-from app.schemas import GuestReviewCreate
+from app.schemas import CategoryAverage, GuestReviewCreate
 
 
 class ReviewError(Exception):
@@ -212,6 +216,8 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
     session.add(revision)
     session.flush()
     review.current_revision_id = revision.id
+    for category, rating in (payload.category_ratings or {}).items():
+        session.add(ReviewCategoryRating(revision_id=revision.id, category=category, rating=rating))
 
     session.execute(
         insert(DestinationRatingStats)
@@ -299,9 +305,101 @@ def _lock_stats(session: Session, destination_id: uuid.UUID) -> DestinationRatin
     return stats
 
 
-def _remove_counted_rating(review: Review, stats: DestinationRatingStats) -> None:
+def revision_category_ratings(
+    session: Session, revision_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, dict[ReviewCategory, int]]:
+    """Category scores of several revisions in one query, keyed by revision id."""
+    ratings: dict[uuid.UUID, dict[ReviewCategory, int]] = {revision_id: {} for revision_id in revision_ids}
+    if not revision_ids:
+        return ratings
+    rows = session.scalars(
+        select(ReviewCategoryRating).where(ReviewCategoryRating.revision_id.in_(revision_ids))
+    )
+    for row in rows:
+        ratings[row.revision_id][row.category] = row.rating
+    return ratings
+
+
+def _audience(review: Review) -> RatingAudience:
+    return RatingAudience.GUEST if review.author_user_id is None else RatingAudience.COMMUNITY
+
+
+def _apply_category_delta(session: Session, review: Review, sign: int) -> None:
+    """Add (+1) or remove (-1) the current revision's category scores, in the caller's transaction.
+
+    Called exactly where the overall rating is counted or uncounted, so both aggregates move
+    together. Published revisions are not editable in the MVP, so the rows being removed are the
+    rows that were added. Rows are locked in category order to keep a fixed lock order.
+    """
+    if review.current_revision_id is None:
+        return
+    scores = revision_category_ratings(session, [review.current_revision_id])[review.current_revision_id]
+    if not scores:
+        return
+    audience = _audience(review)
+    categories = sorted(scores, key=lambda category: category.value)
+    session.execute(
+        insert(DestinationCategoryStats)
+        .values(
+            [
+                {
+                    "destination_id": review.destination_id,
+                    "category": category,
+                    "audience": audience,
+                    "rating_sum": 0,
+                    "rating_count": 0,
+                    "updated_at": now_utc(),
+                }
+                for category in categories
+            ]
+        )
+        .on_conflict_do_nothing()
+    )
+    rows = session.scalars(
+        select(DestinationCategoryStats)
+        .where(
+            DestinationCategoryStats.destination_id == review.destination_id,
+            DestinationCategoryStats.audience == audience,
+            DestinationCategoryStats.category.in_(categories),
+        )
+        .order_by(DestinationCategoryStats.category)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        row.rating_sum += sign * scores[row.category]
+        row.rating_count += sign
+        row.updated_at = now_utc()
+
+
+def category_averages(
+    session: Session, destination_ids: list[uuid.UUID]
+) -> dict[tuple[uuid.UUID, RatingAudience], list[CategoryAverage]]:
+    """Per-category averages for several destinations in one query; empty categories are left out."""
+    averages: dict[tuple[uuid.UUID, RatingAudience], list[CategoryAverage]] = {}
+    if not destination_ids:
+        return averages
+    rows = session.scalars(
+        select(DestinationCategoryStats).where(
+            DestinationCategoryStats.destination_id.in_(destination_ids),
+            DestinationCategoryStats.rating_count > 0,
+        )
+    ).all()
+    order = list(ReviewCategory)
+    for row in sorted(rows, key=lambda row: order.index(row.category)):
+        averages.setdefault((row.destination_id, row.audience), []).append(
+            CategoryAverage(
+                category=row.category,
+                average=row.rating_sum / row.rating_count,
+                count=row.rating_count,
+            )
+        )
+    return averages
+
+
+def _remove_counted_rating(session: Session, review: Review, stats: DestinationRatingStats) -> None:
     if review.counted_rating is None:
         return
+    _apply_category_delta(session, review, -1)
     if review.author_user_id is None:
         stats.guest_rating_sum -= review.counted_rating
         stats.guest_rating_count -= 1
@@ -355,6 +453,7 @@ def _add_published_rating(
         review.rating_eligibility = RatingEligibility.INELIGIBLE_UNVERIFIED
         review.counted_rating = None
         return
+    _apply_category_delta(session, review, +1)
     review.counted_rating = review.overall_rating
     stats.version += 1
     stats.updated_at = now_utc()
@@ -389,7 +488,7 @@ def moderate_review(
     if decision == ModerationDecision.PUBLISH:
         if review.status not in {ReviewStatus.PENDING, ReviewStatus.UNDER_REVIEW}:
             raise ReviewConflict("review cannot be published from its current state")
-        _remove_counted_rating(review, stats)
+        _remove_counted_rating(session, review, stats)
         review.status = ReviewStatus.PUBLISHED
         review.published_at = now_utc()
         revision.status = RevisionStatus.PUBLISHED
@@ -397,20 +496,20 @@ def moderate_review(
     elif decision == ModerationDecision.REJECT:
         if review.status not in {ReviewStatus.PENDING, ReviewStatus.UNDER_REVIEW}:
             raise ReviewConflict("review cannot be rejected from its current state")
-        _remove_counted_rating(review, stats)
+        _remove_counted_rating(session, review, stats)
         review.status = ReviewStatus.REJECTED
         review.rating_eligibility = RatingEligibility.INELIGIBLE_REMOVED
         revision.status = RevisionStatus.REJECTED
     elif decision == ModerationDecision.HIDE:
         if review.status != ReviewStatus.PUBLISHED:
             raise ReviewConflict("only a published review can be hidden")
-        _remove_counted_rating(review, stats)
+        _remove_counted_rating(session, review, stats)
         review.status = ReviewStatus.HIDDEN
         review.rating_eligibility = RatingEligibility.INELIGIBLE_REPORTED
     elif decision == ModerationDecision.RESTORE:
         if review.status != ReviewStatus.HIDDEN:
             raise ReviewConflict("only a hidden review can be restored")
-        _remove_counted_rating(review, stats)
+        _remove_counted_rating(session, review, stats)
         review.status = ReviewStatus.PUBLISHED
         _add_published_rating(session, review, stats)
     else:
@@ -466,7 +565,7 @@ def set_review_conflict(
 
     stats = _lock_stats(session, review.destination_id)
     previous_status = review.status
-    _remove_counted_rating(review, stats)
+    _remove_counted_rating(session, review, stats)
     review.conflict_declared = conflict_declared
     if review.status == ReviewStatus.PUBLISHED:
         _add_published_rating(session, review, stats)
@@ -513,7 +612,7 @@ def withdraw_review(session: Session, review_id: uuid.UUID, expected_version: in
     if review.version != expected_version:
         raise ReviewConflict("review version changed", "REVIEW_VERSION_CONFLICT")
     stats = _lock_stats(session, review.destination_id)
-    _remove_counted_rating(review, stats)
+    _remove_counted_rating(session, review, stats)
     review.status = ReviewStatus.WITHDRAWN
     review.rating_eligibility = RatingEligibility.INELIGIBLE_REMOVED
     review.withdrawn_at = now_utc()
@@ -539,6 +638,28 @@ def full_guest_recompute(session: Session, destination_id: uuid.UUID) -> tuple[i
         )
     ).one()
     return int(result[0] or 0), int(result[1])
+
+
+def full_guest_category_recompute(
+    session: Session, destination_id: uuid.UUID
+) -> dict[ReviewCategory, tuple[int, int]]:
+    """Expected Guest category (sum, count) from published source rows, for reconciliation (6.3)."""
+    rows = session.execute(
+        select(
+            ReviewCategoryRating.category,
+            func.sum(ReviewCategoryRating.rating),
+            func.count(ReviewCategoryRating.rating),
+        )
+        .join(Review, Review.current_revision_id == ReviewCategoryRating.revision_id)
+        .where(
+            Review.destination_id == destination_id,
+            Review.author_user_id.is_(None),
+            Review.status == ReviewStatus.PUBLISHED,
+            Review.counted_rating.is_not(None),
+        )
+        .group_by(ReviewCategoryRating.category)
+    ).all()
+    return {category: (int(total), int(count)) for category, total, count in rows}
 
 
 def encode_cursor(published_at: datetime, review_id: uuid.UUID) -> str:

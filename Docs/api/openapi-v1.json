@@ -76,6 +76,28 @@
         "title": "AdvisorySeverity",
         "type": "string"
       },
+      "CategoryAverage": {
+        "properties": {
+          "average": {
+            "title": "Average",
+            "type": "number"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ReviewCategory"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "average",
+          "count"
+        ],
+        "title": "CategoryAverage",
+        "type": "object"
+      },
       "ComfortTier": {
         "enum": [
           "ECONOMY",
@@ -97,6 +119,13 @@
               }
             ],
             "title": "Average"
+          },
+          "category_averages": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryAverage"
+            },
+            "title": "Category Averages",
+            "type": "array"
           },
           "count": {
             "title": "Count",
@@ -623,6 +652,13 @@
             ],
             "title": "Average"
           },
+          "category_averages": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryAverage"
+            },
+            "title": "Category Averages",
+            "type": "array"
+          },
           "count": {
             "title": "Count",
             "type": "integer"
@@ -643,6 +679,26 @@
             "minLength": 20,
             "title": "Body",
             "type": "string"
+          },
+          "category_ratings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maximum": 5.0,
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "maxProperties": 7,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/ReviewCategory"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ratings"
           },
           "client_draft_id": {
             "format": "uuid",
@@ -763,6 +819,59 @@
         "title": "GuestReviewCreated",
         "type": "object"
       },
+      "GuestVisitRequest": {
+        "additionalProperties": false,
+        "description": "Only the device's Guest scope secret. The guest's name never leaves the device.",
+        "properties": {
+          "guest_scope_secret": {
+            "maxLength": 200,
+            "minLength": 43,
+            "title": "Guest Scope Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "guest_scope_secret"
+        ],
+        "title": "GuestVisitRequest",
+        "type": "object"
+      },
+      "GuestVisitResponse": {
+        "properties": {
+          "guest_number": {
+            "title": "Guest Number",
+            "type": "integer"
+          },
+          "total_guests": {
+            "title": "Total Guests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "guest_number",
+          "total_guests"
+        ],
+        "title": "GuestVisitResponse",
+        "type": "object"
+      },
+      "GuestVisitStats": {
+        "properties": {
+          "guests_today": {
+            "title": "Guests Today",
+            "type": "integer"
+          },
+          "total_guests": {
+            "title": "Total Guests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_guests",
+          "guests_today"
+        ],
+        "title": "GuestVisitStats",
+        "type": "object"
+      },
       "GuideCategory": {
         "enum": [
           "ATTRACTION",
@@ -845,6 +954,92 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ModerationQueueItem": {
+        "description": "A queued review with the content a moderator has to read before deciding.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "category_ratings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ReviewCategory"
+            },
+            "title": "Category Ratings",
+            "type": "object"
+          },
+          "counted_rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counted Rating"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "destination_id": {
+            "format": "uuid",
+            "title": "Destination Id",
+            "type": "string"
+          },
+          "guest_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Display Name"
+          },
+          "overall_rating": {
+            "title": "Overall Rating",
+            "type": "integer"
+          },
+          "review_id": {
+            "format": "uuid",
+            "title": "Review Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "review_id",
+          "status",
+          "version",
+          "counted_rating",
+          "destination_id",
+          "guest_display_name",
+          "overall_rating",
+          "title",
+          "body",
+          "category_ratings",
+          "created_at"
+        ],
+        "title": "ModerationQueueItem",
         "type": "object"
       },
       "ModerationRequest": {
@@ -986,6 +1181,16 @@
             "title": "Body",
             "type": "string"
           },
+          "category_ratings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ReviewCategory"
+            },
+            "title": "Category Ratings",
+            "type": "object"
+          },
           "guest_display_name": {
             "anyOf": [
               {
@@ -1114,8 +1319,29 @@
         "title": "ReceiptStatusRequest",
         "type": "object"
       },
+      "ReviewCategory": {
+        "description": "Review.md 3.1 and amendment A2: the seven frozen rating categories, in display order.",
+        "enum": [
+          "CLEANLINESS",
+          "ACCESSIBILITY",
+          "HOSPITALITY",
+          "FOOD",
+          "TRANSPORT",
+          "SAFETY_PERCEPTION",
+          "VALUE"
+        ],
+        "title": "ReviewCategory",
+        "type": "string"
+      },
       "ReviewFeed": {
         "properties": {
+          "guest_category_averages": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryAverage"
+            },
+            "title": "Guest Category Averages",
+            "type": "array"
+          },
           "guest_rating_average": {
             "anyOf": [
               {
@@ -1453,6 +1679,63 @@
         "summary": "Public Reviews"
       }
     },
+    "/api/v1/guest-visits": {
+      "post": {
+        "description": "Stable \"Guest #N\" for this device. The guest's name never reaches the server.",
+        "operationId": "create_guest_visit_api_v1_guest_visits_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestVisitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestVisitResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Guest Visit"
+      }
+    },
+    "/api/v1/guest-visits/stats": {
+      "get": {
+        "operationId": "guest_visits_stats_api_v1_guest_visits_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestVisitStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Guest Visits Stats"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_get",
@@ -1675,7 +1958,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/ModerationResult"
+                    "$ref": "#/components/schemas/ModerationQueueItem"
                   },
                   "title": "Response Moderation Queue Api V1 Staff Moderation Reviews Get",
                   "type": "array"

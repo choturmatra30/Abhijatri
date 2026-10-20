@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -10,6 +10,7 @@ from app.models import (
     ComfortTier,
     ContactKind,
     GuideCategory,
+    ReviewCategory,
     ReviewLanguage,
     ReviewStatus,
     SourceType,
@@ -19,6 +20,9 @@ from app.models import (
 
 class StrictRequestModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+CategoryScore = Annotated[int, Field(ge=1, le=5)]
 
 
 class GuestReviewCreate(StrictRequestModel):
@@ -35,7 +39,16 @@ class GuestReviewCreate(StrictRequestModel):
     title: str = Field(min_length=3, max_length=160)
     body: str = Field(min_length=20, max_length=6000)
     overall_rating: int = Field(ge=1, le=5)
+    # Review.md 3.1, amendment A2: each category optional; a missing key means not applicable.
+    category_ratings: dict[ReviewCategory, CategoryScore] | None = Field(default=None, max_length=7)
     consent_version: str = Field(min_length=1, max_length=40)
+
+    @field_validator("category_ratings")
+    @classmethod
+    def empty_ratings_are_absent(
+        cls, value: dict[ReviewCategory, int] | None
+    ) -> dict[ReviewCategory, int] | None:
+        return value or None
 
     @field_validator("visit_month")
     @classmethod
@@ -68,6 +81,18 @@ class ModerationResult(BaseModel):
     status: ReviewStatus
     version: int
     counted_rating: int | None
+
+
+class ModerationQueueItem(ModerationResult):
+    """A queued review with the content a moderator has to read before deciding."""
+
+    destination_id: uuid.UUID
+    guest_display_name: str | None
+    overall_rating: int
+    title: str
+    body: str
+    category_ratings: dict[ReviewCategory, int]
+    created_at: datetime
 
 
 class ConflictFlagRequest(StrictRequestModel):
@@ -106,6 +131,13 @@ class PublicReview(BaseModel):
     published_at: datetime
     title: str
     body: str
+    category_ratings: dict[ReviewCategory, int] = Field(default_factory=dict)
+
+
+class CategoryAverage(BaseModel):
+    category: ReviewCategory
+    average: float
+    count: int
 
 
 class ReviewFeed(BaseModel):
@@ -113,11 +145,27 @@ class ReviewFeed(BaseModel):
     next_cursor: str | None
     guest_rating_average: float | None
     guest_rating_count: int
+    guest_category_averages: list[CategoryAverage] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):
     status: str
 
+
+class GuestVisitRequest(StrictRequestModel):
+    """Only the device's Guest scope secret. The guest's name never leaves the device."""
+
+    guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
+
+
+class GuestVisitResponse(BaseModel):
+    guest_number: int
+    total_guests: int
+
+
+class GuestVisitStats(BaseModel):
+    total_guests: int
+    guests_today: int
 
 
 AdvisoryState = Literal["NOT_YET_EFFECTIVE", "CURRENT", "STALE", "EXPIRED"]
@@ -140,11 +188,13 @@ class Provenance(BaseModel):
 class CommunityRatingSummary(BaseModel):
     average: float | None
     count: int
+    category_averages: list[CategoryAverage] = Field(default_factory=list)
 
 
 class GuestFeedbackSummary(BaseModel):
     average: float | None
     count: int
+    category_averages: list[CategoryAverage] = Field(default_factory=list)
 
 
 class DestinationSummary(BaseModel):

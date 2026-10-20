@@ -1,6 +1,6 @@
 # Backend Implementation Record
 
-**Status:** Current as of 19 October 2026.
+**Status:** Current as of 20 October 2026 (category ratings and the guest welcome counter added; section 5).
 **Scope of this file:** what the backend actually does today, how it was built, and the evidence for each claim. The headline section is **R02**, the destination, advisory and contact data services. The sections after it record the shared backend work that was built alongside R02 because the approved API contract (`Docs/api/API.md`) required it.
 **Rule:** this file claims only what the repository contains and a test or migration check demonstrates. Anything not yet built is listed under "Not implemented" and in `Docs/Implemented.md`.
 **Related documents:** `Docs/api/API.md` (contract), `Docs/Schema.md` (tables), `Docs/Architecture.md` (environment variables), `Docs/Decisions.md` (decisions and reasons), `Docs/Implemented.md` (project-wide status).
@@ -307,3 +307,179 @@ Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` secti
 | Live Turnstile key | Tests use a mocked Cloudflare endpoint. |
 | First green CI run on the pull request | All results above are from a local run. |
 | Docker image build of the changed `Dockerfile` | Not confirmed locally. |
+
+---
+
+## 5. Backend work required after the 20 October 2026 frontend release
+
+**Status:** 5.2 (category ratings) and 5.3 (guest welcome counter) **were implemented on 20 October 2026**; evidence is in 5.8. Everything in 5.4 and 5.5 is still planned and not built. This section was written on 20 October 2026 after PR #14 (commits `abfd084` to `a989755`).
+**Why:** that release changed only the frontend and the docs. Review.md amendments A1 to A3 (section 13) and the new landing page needed backend support. **No frontend file was changed by this backend work.** Every response change only adds fields, so the current frontend keeps working. The frontend owner switches on `VITE_REVIEW_CATEGORY_RATINGS=true` and builds the welcome view.
+
+### 5.1 What the frontend already sends or expects
+
+| Frontend feature | File | Backend dependency | Backend state today |
+|---|---|---|---|
+| Seven category ratings (each 1 to 5 or not applicable) | `frontend/src/components/reviews/CategoryRatings.tsx`, `src/api/reviews.ts` (`REVIEW_CATEGORIES`, `cleanCategoryRatings`) | `category_ratings` in `POST /reviews/guest` (API.md 5.2) | **Implemented 20 Oct** (5.2); the frontend flag can now be turned on |
+| Overall rating (required), title, note (`body`) | `GuestReviewForm.tsx` | Existing fields | Done |
+| Review language detected from the script | `src/api/reviews.ts:detectReviewLanguage` | Existing `language` field | Done |
+| Photo picker for Verified Members; guests locked | `ReviewPhotos.tsx`, `src/utils/reviewPhotos.ts` | `POST /reviews/{id}/media-intents` (amendment A1) | Absent |
+| Session card and photo lock | `src/context/SessionContext.tsx` | `GET /auth/session` | Absent; every visitor is a guest |
+| Sign-in page (R05) | `src/pages/SignInPage.tsx` | `POST /auth/login` and the other R04 routes | Absent |
+| Landing page "Continue as guest" | `src/pages/LandingPage.tsx` | Guest welcome and counter (5.3) | **Backend implemented 20 Oct** (5.3); the frontend has no name input or welcome view yet |
+
+### 5.2 Category ratings: the seven fixed questions (priority 1) — implemented 20 Oct 2026
+
+Source: Review.md 3.1 and amendment A2; API.md 5.2 and section 6 ("Rejects `category_ratings`").
+
+**Categories (enum `review_category`, display order):** `CLEANLINESS`, `ACCESSIBILITY`, `HOSPITALITY`, `FOOD`, `TRANSPORT`, `SAFETY_PERCEPTION`, `VALUE`. Each one is optional. A missing key means not applicable. `overall_rating` stays the only required score.
+
+**Migration `0006_review_category_ratings`**
+
+| Object | Definition |
+|---|---|
+| Enum | `review_category` with the seven values |
+| Table `review_category_ratings` | `revision_id uuid` FK `review_revisions.id ON DELETE CASCADE`; `category review_category`; `rating smallint`; primary key `(revision_id, category)`; check `ck_category_rating_range` (`rating BETWEEN 1 AND 5`) |
+| Table `destination_category_stats` | `destination_id` FK `destinations.id ON DELETE CASCADE`; `category`; `audience` (`GUEST` or `COMMUNITY`); `rating_sum int`, `rating_count int` (both non-negative checks); primary key `(destination_id, category, audience)` |
+| RLS | Enable on both new tables and revoke the `anon` and `authenticated` grants, the same pattern as `0003` (`tests/test_rls.py`) |
+| Downgrade | Drop tables, then enum |
+
+**Code changes**
+
+| File | Change |
+|---|---|
+| `app/models.py` | `ReviewCategory` enum, `ReviewCategoryRating` and `DestinationCategoryStats` models |
+| `app/schemas.py` | `GuestReviewCreate.category_ratings: dict[ReviewCategory, int] \| None = None`, each value 1 to 5, at most 7 keys; an unknown key returns `422 INVALID_VALUE` on `category_ratings.<key>`. Add `category_ratings` to `PublicReview`, and `category_averages: list[{category, average, count}]` to `GuestFeedbackSummary` and `CommunityRatingSummary` |
+| `app/services.py` `submit_guest_review` | Insert one `review_category_ratings` row per rated category for the new revision, in the same transaction as the review |
+| `app/services.py` `moderate_review`, `withdraw_review`, `set_review_conflict` | Lock the `destination_category_stats` rows with the existing aggregate (`SELECT ... FOR UPDATE`) and apply the per-category deltas in the same transaction as the overall delta: Guest reviews go to `GUEST`, eligible Verified Member reviews to `COMMUNITY` (Review.md 6.1 to 6.3) |
+| `app/api.py` `public_reviews` | Return each review's `category_ratings` (one extra query per page, not one per row) |
+| `app/destination_services.py` | Add `category_averages` to list and profile rating summaries (one grouped query per page) |
+| `scripts/export_openapi.py` | Regenerate `Docs/api/openapi-v1.json` |
+
+**Endpoints affected**
+
+| Endpoint | Change |
+|---|---|
+| `POST /api/v1/reviews/guest` | Accept and store `category_ratings` |
+| `GET /api/v1/destinations/{id}/reviews` | Each item gains `category_ratings` |
+| `GET /api/v1/destinations` and `GET /api/v1/destinations/{id}` | `guest_feedback.category_averages` (and `community_rating.category_averages`) |
+| `GET /api/v1/staff/moderation/reviews` | Show title, body and category ratings so moderators see the full review (also part of API.md 5.9) |
+| `PATCH /api/v1/reviews/{id}/pending` (R07) | A new revision carries its own category rows |
+
+**Tests to add:** schema unit tests (range, unknown key, empty object, 7-key limit); PostgreSQL tests for rows per revision, deltas on publish, hide and withdraw, and no change for pending reviews; an HTTP test that `category_ratings` is accepted; the OpenAPI contract test.
+**Frontend switch afterwards:** `VITE_REVIEW_CATEGORY_RATINGS=true` in `frontend/.env` and on Vercel.
+
+### 5.3 Guest welcome and anonymous guest counter (new) — backend implemented 20 Oct 2026
+
+**Rule:** a Guest has no account (Review.md 1.1). The name the Guest types on the landing page stays in the browser (`localStorage` key `abhijatri_guest_name`) and is used for the welcome message and to pre-fill the review display name. **The server never receives or stores it.** The server counts distinct guest devices by the keyed digest of the existing `guest_scope_secret` (`src/api/reviews.ts:getGuestScopeSecret`), so a reload keeps the same number and no personal data is stored.
+
+**Migration `0007_guest_visits`**
+
+| Column | Type | Notes |
+|---|---|---|
+| `scope_hash` | `bytea(32)` primary key | HMAC under the existing keyring with the guest-scope label (`app/crypto.py`, `abuse.scope_key`) |
+| `key_id` | `varchar(16)` | Keyring version |
+| `guest_number` | `bigint` identity, unique | Shown as "Guest #N" |
+| `first_seen_at`, `last_seen_at` | `timestamptz` | For counts per day; no address stored |
+
+RLS enabled, with grants revoked.
+
+**Endpoints**
+
+| Method and path | Request | Response | Credential | Cache | Limits |
+|---|---|---|---|---|---|
+| `POST /api/v1/guest-visits` | `{ "guest_scope_secret": "<43 to 200 chars>" }` (strict model, no name field) | `200 { "guest_number": 128, "total_guests": 128 }`. It is an upsert: an existing digest returns its old number and updates `last_seen_at` | none (no cookie, no CSRF) | `no-store` | `limiter` plus a durable per-network counter (`abuse.enforce`), e.g. 10 per minute |
+| `GET /api/v1/guest-visits/stats` | none | `{ "total_guests": 128, "guests_today": 9 }` | none | `public_cache_headers()` | `60/minute` |
+
+**Frontend afterwards:** a name input on `LandingPage.tsx`; a new `src/api/guests.ts`; `SessionContext` guest variant `{ kind: 'guest'; displayName?: string; guestNumber?: number }`; the sidebar shows "Welcome, <name>, Guest #N"; `GuestReviewForm` pre-fills the display name.
+**Docs afterwards:** API.md 4.1 rows and a shape section; Schema.md `guest_visits`; Decisions.md ("guest name local-only; server counts scope digests").
+**Tests:** the same secret twice returns the same number; two secrets give consecutive numbers; the request rejects a `name` field (`422 UNKNOWN_FIELD`); the stats route has the public TTL; RLS.
+
+### 5.4 Remaining endpoints from the contract (not built)
+
+| Milestone | Method and path | Purpose | Contract |
+|---|---|---|---|
+| R04 | `POST /auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm` | Member accounts; needs `auth_identities`, password hashing and a secure HttpOnly session cookie | 4.5 |
+| R04 | `GET /auth/session` | Fills `SessionContext` (`member`, `verifiedMember`, `displayName`) | used by the frontend; add to 4.5 |
+| R04 | `GET /auth/csrf` | Synchronizer token for cookie writes | 1.2, 4.1 |
+| R04 | `POST /verifications` | Member requests Verified Member status; manual approval only, no NID (amendment A3) | 4.5 |
+| R07 | `POST /reviews/member` | Account-owned review with the same body plus `category_ratings` | 4.5 |
+| R07 | `GET /reviews/{review_id}` | Owner or staff view | 4.5 |
+| R07 | `PATCH /reviews/{review_id}/pending` | Edit while `PENDING` or `CHANGES_REQUESTED`; new revision | 4.2, 5.5 |
+| R07 | `POST /review-receipts/appeals` | Appeal a rejection within 30 days | 4.2, 5.6 |
+| R07 + A1 | `POST /reviews/{review_id}/media-intents` | Verified Member photo upload: presigned POST into quarantine, at most 5 images, JPEG/PNG/WebP, 8 MiB, 20 MP, re-encode, EXIF removed, moderator approval | 4.6 note, Review.md 8 |
+| R11 | `POST /reviews/{review_id}/reports`, `POST /public/review-reports`, `POST /public/removal-requests` | Reports and lost-receipt removal | 4.4, 5.7 |
+| R11 | `GET /staff/verifications`, `POST /staff/verifications/{id}/decisions` | Verified Member approval queue | 4.6 |
+| R11 | `POST /staff/users/{user_id}/roles` | Role assignment (super administrator, recent reauthentication) | 4.6 |
+| R14 | `GET /destinations/{id}/pack/manifest` | Offline pack | 4.3 |
+
+### 5.5 Existing endpoints that still need updates (API.md section 6)
+
+| Endpoint | Required change |
+|---|---|
+| All writes | `Idempotency-Key` replay (WP4, order-of-checks step 3) |
+| `GET /health/ready` | Add `build` and `db_revision` |
+| `GET /staff/moderation/reviews` | Full 5.9 shape and pagination, not a bare list capped at 100 |
+| CORS | `allow_credentials=true`, `X-CSRF-Token` and `Accept-Language` headers (with R04) |
+| Staff authentication | Replace the `X-Test-Staff-Id` development header (`app/api.py:require_staff`) with real sessions and MFA (R04, R11) |
+
+### 5.6 Recommended order
+
+1. 5.2 category ratings: unblocks the form the frontend already ships.
+2. 5.3 guest welcome and counter: small and independent.
+3. R04 authentication and `GET /auth/session`: unblocks sign-in, Member reviews and Verified Members.
+4. R07 Member reviews, pending edits, appeals and media intents.
+5. R11 reports, verification and roles; R14 pack manifest; the 5.5 updates alongside.
+
+### 5.7 Verification for each step
+
+- `uv run alembic upgrade head`, `alembic check`, then downgrade and upgrade again.
+- `uv run ruff check .`, `uv run mypy app`, and `uv run pytest -q` with `TEST_DATABASE_URL` set to a `_test` database.
+- `uv run python scripts/export_openapi.py`; `tests/test_openapi_contract.py` passes.
+- Frontend: `npm test` and `npm run build`. Then a manual flow:
+  - Enable the flag and submit a guest review with three categories (expect `201`).
+  - Publish it through the staff route; the destination page shows the category averages.
+  - Enter a name on `/`; the sidebar shows the welcome and the guest number, and a reload keeps the same number.
+  - Confirm `guest_visits` contains no name.
+
+### 5.8 What was built on 20 October 2026 (5.2 and 5.3)
+
+**Files**
+
+| Area | Files |
+|---|---|
+| Models | `backend/app/models.py`: `ReviewCategory`, `RatingAudience`, `ReviewCategoryRating`, `DestinationCategoryStats`, `GuestVisit` |
+| Migrations | `0006_review_category_ratings` (two enums, two tables, RLS, grants revoked); `0007_guest_visits` (table, identity `guest_number`, RLS, grants revoked) |
+| Schemas | `backend/app/schemas.py`: `GuestReviewCreate.category_ratings` (enum keys, 1 to 5, at most 7, `{}` is the same as omitted); `CategoryAverage`; `category_averages` on both rating summaries; `PublicReview.category_ratings`; `ReviewFeed.guest_category_averages`; `ModerationQueueItem`; `GuestVisitRequest`, `GuestVisitResponse`, `GuestVisitStats` |
+| Review services | `backend/app/services.py`: rows written in `submit_guest_review`. `_apply_category_delta` runs inside `_remove_counted_rating` and `_add_published_rating`, so publish, reject, hide, restore, withdraw and the conflict flag all move the category aggregate exactly when they move the overall rating. Also `revision_category_ratings`, `category_averages` (one grouped query) and `full_guest_category_recompute` (reconciliation) |
+| Guest counter | `backend/app/guest_services.py` (`register_guest_visit`, `guest_visit_stats`); `crypto.GUEST_VISIT_LABEL`; `abuse.guest_visit_checks`; `limits.guest_visit_limit` |
+| Routes | `backend/app/api.py`: `POST /guest-visits`, `GET /guest-visits/stats`; the review feed and staff queue return category data. `backend/app/destination_services.py`: list and profile return `category_averages` |
+| Configuration | `RATE_LIMIT_GUEST_VISIT` (default `20/minute`), `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default `60`); both in `backend/.env.example` |
+| Contract and schema docs | `Docs/api/API.md` 4.1, 5.2, 5.8, 5.9, 5.12, 5.13, new 5.14, sections 6 and 8; `Docs/api/openapi-v1.json` regenerated; `Docs/Schema.md`; `Docs/Decisions.md`; `Docs/Implemented.md` |
+
+**Design points**
+
+- The category aggregate has no code path of its own. It is updated only where the overall rating is counted or uncounted, under the same transaction, with the lock order review → destination aggregate → category rows (sorted). The two aggregates therefore cannot drift.
+- Guest and Community category averages are separate (`audience`), as the overall ratings are (Review.md 6.1, 6.2).
+- Pending, rejected, hidden and withdrawn reviews contribute nothing.
+- The guest's name never reaches the server; `POST /guest-visits` rejects any field except `guest_scope_secret`. The visit digest uses its own HMAC label, so it cannot be linked to the Guest's reviews.
+
+**Frontend handoff (not done here; the frontend was deliberately left unchanged)**
+
+1. Set `VITE_REVIEW_CATEGORY_RATINGS=true` locally and on Vercel.
+2. Optionally show `guest_feedback.category_averages`, `guest_category_averages` and each review's `category_ratings`.
+3. Welcome flow:
+   - The guest enters a name on the landing page and it is saved locally.
+   - Call `POST /api/v1/guest-visits` with `getGuestScopeSecret()`.
+   - Open the welcome view "Welcome, <name> · Guest #N".
+   - On failure, show the name without a number.
+
+**Verification run on 20 October 2026** (PostgreSQL 17 in a throwaway container, CI environment variables)
+
+| Check | Result |
+|---|---|
+| `ruff check .` | clean |
+| `mypy` (strict) | clean |
+| `alembic upgrade head`, `alembic check`, `downgrade -2`, `upgrade head`, `downgrade base` | clean; "No new upgrade operations detected" |
+| Unit tests (`pytest -m "not integration"`) | 195 passed |
+| Integration tests (`pytest -m integration`) | 63 passed, including `tests/test_category_ratings.py`, `tests/test_guest_visits.py`, the updated property test in `tests/test_review_postgres.py` and `tests/test_rls.py` over the new tables |
+| Frontend | No file changed. `npm test` was not run because `node_modules` is not installed in this checkout. |

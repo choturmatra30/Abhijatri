@@ -116,6 +116,8 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 | `GET /health` (also `HEAD`) | none | no-store | Implemented |
 | `GET /health/ready` (also `HEAD`) | none | no-store | Change required |
 | `GET /auth/csrf` | member or staff session | no-store | Planned (R04) |
+| `POST /guest-visits` | guest scope (no cookie, no name) | no-store | Implemented 20 Oct 2026 (section 5.14) |
+| `GET /guest-visits/stats` | none | Public, short TTL | Implemented 20 Oct 2026 (section 5.14) |
 
 `/health` returns `{ "status": "ok" }`. `/health/ready` checks the database and returns `503 SERVICE_UNAVAILABLE` if it is down. It must also report the deployed build and the database migration revision, because the deploy workflow polls it for both (PF 22.1):
 
@@ -213,13 +215,14 @@ Idempotency-Key: 4a7e0b52-3f6d-4c1a-9a2e-6c1f0d7b8e21
   "title": "Good family trip",
   "body": "At least twenty characters of plain text, up to 6000.",
   "overall_rating": 4,
+  "category_ratings": { "FOOD": 4, "SAFETY_PERCEPTION": 5 },
   "consent_version": "2026-10-01"
 }
 ```
 
 Field rules: `guest_display_name` 1 to 80 characters; `title` 3 to 160; `body` 20 to 6000, plain text; `overall_rating` 1 to 5; `visit_month` is the first day of a month and not in the future in the display time zone. Unknown fields return 422.
 
-**Planned addition (R07, Review.md amendment A2, change required):** optional `category_ratings`, an object whose keys are the `ReviewCategory` values (Section 8) and whose values are integers 1 to 5; a missing key means not applicable. Example: `"category_ratings": { "FOOD": 4, "SAFETY_PERCEPTION": 5 }`. Ratings are stored per revision in `review_category_ratings`. Until the server accepts the field, the client does not send it (`VITE_REVIEW_CATEGORY_RATINGS`). `body` is the reviewer's free-text note. A Guest submission never carries images.
+**`category_ratings` (implemented 20 Oct 2026, Review.md amendment A2):** optional object whose keys are the `ReviewCategory` values (Section 8) and whose values are integers 1 to 5; at most seven keys. A missing key means not applicable; an empty object is the same as omitting the field. An unknown key or a value outside 1 to 5 returns `422 VALIDATION_FAILED` with a field error under `category_ratings`. Ratings are stored per revision in `review_category_ratings`. On publication they move the per-category Guest Feedback (or, for an eligible Verified Member, Community) aggregate in the same transaction as the overall rating, and leave it on hide, withdrawal or conflict. The client sends the field when `VITE_REVIEW_CATEGORY_RATINGS=true`. `body` is the reviewer's free-text note. A Guest submission never carries images.
 
 Response `201`:
 
@@ -337,14 +340,21 @@ Query: `after` (optional cursor, at most 200 characters), `limit` (1 to 50, defa
       "overall_rating": 4,
       "published_at": "2026-10-15T08:30:00Z",
       "title": "Good family trip",
-      "body": "..."
+      "body": "...",
+      "category_ratings": { "FOOD": 4, "SAFETY_PERCEPTION": 5 }
     }
   ],
   "next_cursor": "MjAyNi0xMC0xNVQwODozMDowMCswMDowMHwuLi4",
   "guest_rating_average": 4.0,
-  "guest_rating_count": 1
+  "guest_rating_count": 1,
+  "guest_category_averages": [
+    { "category": "FOOD", "average": 4.0, "count": 1 },
+    { "category": "SAFETY_PERCEPTION", "average": 5.0, "count": 1 }
+  ]
 }
 ```
+
+`category_ratings` is `{}` when the reviewer rated no category. `guest_category_averages` lists only categories with at least one counted rating, in the Section 8 order, each with its own count.
 
 Only `PUBLISHED` reviews appear. Guest ratings feed Guest Feedback only, never Community Rating (RV 6.2). The response carries a short public `Cache-Control` TTL (Security 7.1), not `no-store`.
 
@@ -376,6 +386,8 @@ Query: `after` (cursor over submission time and id, ascending), `limit` (1 to 50
 ```
 
 Moderators need the content to decide, so the queue returns it. The response is `no-store`.
+
+**Current code (20 Oct 2026):** a bare list (at most 100, oldest first) of `review_id`, `status`, `version`, `counted_rating`, `destination_id`, `guest_display_name`, `overall_rating`, `title`, `body`, `category_ratings` and `created_at`. Paging and the remaining fields above are still a change required (Section 6).
 
 ### 5.10 `POST /staff/moderation/reviews/{review_id}/decisions`
 
@@ -420,8 +432,11 @@ Query: `after` (optional cursor, at most 300 characters), `limit` (1 to 50, defa
       "summary_en": "...",
       "latitude": 21.4272,
       "longitude": 92.0058,
-      "community_rating": { "average": null, "count": 0 },
-      "guest_feedback": { "average": 4.5, "count": 2 },
+      "community_rating": { "average": null, "count": 0, "category_averages": [] },
+      "guest_feedback": {
+        "average": 4.5, "count": 2,
+        "category_averages": [{ "category": "FOOD", "average": 4.5, "count": 2 }]
+      },
       "active_advisory_count": 1,
       "last_updated": "2026-10-19T06:00:00Z"
     }
@@ -445,8 +460,8 @@ Query: `include_expired` (boolean, default `false`). Returns one `PUBLISHED` des
   "seasonality_bn": "...", "seasonality_en": "...",
   "restrictions_bn": "...", "restrictions_en": "...",
   "latitude": 21.4272, "longitude": 92.0058,
-  "community_rating": { "average": null, "count": 0 },
-  "guest_feedback": { "average": null, "count": 0 },
+  "community_rating": { "average": null, "count": 0, "category_averages": [] },
+  "guest_feedback": { "average": null, "count": 0, "category_averages": [] },
   "guide_items": [
     {
       "id": "...", "category": "ATTRACTION", "sort_order": 0,
@@ -502,6 +517,41 @@ Rules:
 - Contacts are public institution and emergency numbers only; no personal contacts are stored.
 - `phone` matches `^\+?[0-9][0-9 -]{2,30}$` (for example `999`).
 - Both public destination routes send `Cache-Control: public, max-age=60` and a weak `ETag`; a matching `If-None-Match` returns `304` with no body. They are CORS simple requests (no custom headers, no credentials). Because the payload carries both languages, it does not vary by `Accept-Language`.
+- `category_averages` (in both rating objects, list and profile) has the same shape and rules as `guest_category_averages` in 5.8: only counted categories, Section 8 order, each with its count. Guest and Community category averages are never merged.
+
+### 5.14 `POST /guest-visits` and `GET /guest-visits/stats`
+
+These routes support the landing-page welcome for guests: "Welcome, <name> · Guest #N" (Review.md 3.2 step 1). **The guest's name never reaches the server.** The client keeps it on the device. The server only gives each guest device a stable number.
+
+```http
+POST /api/v1/guest-visits
+Content-Type: application/json
+```
+
+```json
+{ "guest_scope_secret": "<the same 43 to 200 character secret used for Guest reviews>" }
+```
+
+Response `200`:
+
+```json
+{ "guest_number": 128, "total_guests": 128 }
+```
+
+- **Strict body.** Any other field, including `name`, returns `422 UNKNOWN_FIELD`.
+- **Stable number.** The same secret always returns the same `guest_number`; a new device gets the next number. Calling it on every app start is safe.
+- **What is stored.** The server stores only an HMAC digest of the secret, under the key ring with its own label `abhijatri:guest-visit:v1`, so it cannot be linked to a review's scope digest. It also stores the key id, the number, and the first and last visit times. No name, address or user row is stored.
+- **Limits.** The in-memory burst limit `RATE_LIMIT_GUEST_VISIT` (default `20/minute`) applies first, then a durable `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default 60), which returns `429 RATE_LIMITED` with `Retry-After`.
+- **Caching.** `Cache-Control: no-store`. No cookie or CSRF token is used.
+
+`GET /api/v1/guest-visits/stats` returns `{ "total_guests": 128, "guests_today": 9 }`. `guests_today` counts first visits since midnight on the display-time-zone date. The response is public, with a short TTL (Security 7.1).
+
+**Intended client flow (frontend not yet changed):**
+1. The guest enters a name on the landing page.
+2. The client saves the name locally.
+3. The client calls `POST /guest-visits` with `getGuestScopeSecret()`.
+4. The client opens the welcome view with the name and `guest_number`.
+5. If the call fails, the welcome still shows the name, without a number.
 
 ## 6. Changes required in the current code
 
@@ -517,9 +567,9 @@ The routes marked "Change required" in Section 4 differ from this contract as fo
 | `POST /review-receipts/exchange` | ~~Legacy name; returns no reason or deadline~~ Removed 19 Oct (WP3); `POST /review-receipts/status` (5.3) added | Remove; add `POST /review-receipts/status` (5.3) | PF Annex A.7, RV 4.2 |
 | `POST /reviews/{review_id}/withdraw` | ~~Checks `expected_version` before the already-withdrawn check, so a retry returns 409~~ Done 19 Oct (WP3) | 5.4 | PF 12.4 |
 | `GET /destinations/{destination_id}/reviews` | ~~Middleware sets `no-store`~~ Done 19 Oct: `Cache-Control: public, max-age=60` | Short public TTL | Security 7.1 |
-| `POST /reviews/guest` | Rejects `category_ratings` as an unknown field | Accept and store the optional `category_ratings` (5.2) | RV 3.1, amendment A2 |
+| `POST /reviews/guest` | ~~Rejects `category_ratings` as an unknown field~~ Done 20 Oct: accepted, stored per revision, counted on publish, returned in 5.8, 5.12, 5.13 | Accept and store the optional `category_ratings` (5.2) | RV 3.1, amendment A2 |
 | `POST /reviews/{review_id}/media-intents` | Absent | Verified Member image upload intent | RV 8, amendment A1 |
-| `GET /staff/moderation/reviews` | Returns only id, status, version, rating; bare list capped at 100 | 5.9 | RV 9.3 |
+| `GET /staff/moderation/reviews` | Returns content (title, body, display name, overall and category ratings) since 20 Oct, but still a bare list capped at 100 without cursor | 5.9 | RV 9.3 |
 | `GET /health/ready` | Returns `status` only | Add `build` and `db_revision` | PF 22.1 |
 | CORS | `allow_credentials=false`; no `X-CSRF-Token` or `Accept-Language` header | Section 1.2, with the R04 authentication milestone | PF 16.1 |
 | Client address | ~~Uvicorn runs with `--proxy-headers` and `FORWARDED_ALLOW_IPS` defaulting to `*`~~ Done 19 Oct (WP5): `--no-proxy-headers`; `app/client_address.py` reads only the configured provider-appended entry; the forged-header test on staging is still outstanding (Gate A) | Provider-appended address only | PF 14.2 |
@@ -547,7 +597,7 @@ The client address is the provider-appended entry only (PF 14.2). IPv6 is trunca
 | `ReviewLanguage` | `BN`, `EN`, `MIXED` |
 | `TravellerType` | `SOLO`, `STUDENT`, `COUPLE`, `FAMILY`, `GROUP` |
 | `ComfortTier` | `ECONOMY`, `STANDARD`, `PREMIUM` |
-| `ReviewCategory` | `CLEANLINESS`, `ACCESSIBILITY`, `HOSPITALITY`, `FOOD`, `TRANSPORT`, `SAFETY_PERCEPTION`, `VALUE` (planned with R07) |
+| `ReviewCategory` | `CLEANLINESS`, `ACCESSIBILITY`, `HOSPITALITY`, `FOOD`, `TRANSPORT`, `SAFETY_PERCEPTION`, `VALUE` (implemented 20 Oct 2026; also the display order of category averages) |
 | `GuideCategory` | `ATTRACTION`, `ACCOMMODATION`, `FOOD`, `TRANSPORT`, `LOCAL_PRACTICE` |
 | `AdvisorySeverity` | `INFO`, `CAUTION`, `WARNING`, `CRITICAL` |
 | `AdvisoryState` | `CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE` (Section 5.13) |

@@ -152,8 +152,8 @@ def test_list_item_is_bilingual_and_summarises_ratings_and_active_advisories(
     assert item["name_bn"] == "Sajek (bn)"
     assert item["region_bn"] == "রাঙ্গামাটি"
     assert item["latitude"] == pytest.approx(23.3814)
-    assert item["guest_feedback"] == {"average": 4.5, "count": 2}
-    assert item["community_rating"] == {"average": None, "count": 0}
+    assert item["guest_feedback"] == {"average": 4.5, "count": 2, "category_averages": []}
+    assert item["community_rating"] == {"average": None, "count": 0, "category_averages": []}
     assert item["active_advisory_count"] == 1
 
 
