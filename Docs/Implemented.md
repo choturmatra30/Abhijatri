@@ -59,4 +59,5 @@ Full account: [`Docs/Frontend-Implemented.md`](Frontend-Implemented.md). Evidenc
 | False offline claims and invented ratings removed from the interface | Fixed | `Docs/Frontend-Implemented.md` section 5 |
 | System Status refused deployed API hosts and labelled them "Unreachable" without a reason | Fixed | `VITE_ALLOWED_BACKEND_HOSTS`; `Docs/Frontend-Implemented.md` D10, D11 |
 | Railway API deployment serves pre-merge code (no destinations API, old error shape, review feed `500`) | Open, backend owner | `Docs/Frontend-Implemented.md` B4 |
+| Landing page with guest and sign-in paths; sign-in screen shown but disabled until R04 | Implemented (20 Oct 2026) | `Docs/Frontend-Implemented.md` section 3a |
 | Turnstile widget, member review path, review filters, offline drafts, PWA shell, staff build | Not implemented | `Docs/Frontend-Implemented.md` section 8 |

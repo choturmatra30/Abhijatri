@@ -14,7 +14,7 @@
 |---|---|---|---|
 | F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Overdue.** Design tokens exist in `Docs/Design.md`; the component map and Bangla-default flow approval do not. |
 | R03 | Bilingual destination list and detail screens | 15 to 22 Oct | **Implemented** against the R02 API, with loading, error and empty states (section 2). |
-| R05 | Account, verification and session screens | 18 to 23 Oct | **Blocked** by R04 (no authentication API exists). |
+| R05 | Account, verification and session screens | 18 to 23 Oct | **Sign-in screen built, disabled** until R04 exists (section 3a). Registration, verification and session screens wait for R04. |
 | R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | Not started. No manifest, service worker or IndexedDB yet. |
 | R09 | Review form, list, filters, author controls | 20 to 27 Oct | **Guest path implemented** (section 3). Member path waits for R04 and R07; filters not started. |
 | R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | Not started. |
@@ -40,6 +40,25 @@ Behaviour:
 - Contacts are `tel:` links with 44 px targets and their source.
 - **Ratings follow Review.md 6.** Community Rating and Guest Feedback are separate pills, each with its count. Below five eligible Verified Member reviews the card says "Editorial seeded selection" instead of a score. The Bayesian formula (C = 3.5, m = 5) is applied only above that threshold.
 - No images. The R02 API has no licensed image field, and the previous hotlinked Unsplash photos were unlicensed and did not show the named places (PF 17, PF 16.3). Text-first also suits the asset budget.
+
+## 3a. Landing page and sign-in entry (20 October 2026)
+
+| Item | Location |
+|---|---|
+| Landing page at `/` | `frontend/src/pages/LandingPage.tsx` |
+| Sign-in screen at `/login` (R05) | `frontend/src/pages/SignInPage.tsx` |
+| Public shell (brand, preferences, footer; no sidebar) | `frontend/src/components/layout/PublicLayout.tsx` |
+| Shared language and theme switches | `frontend/src/components/layout/PreferenceToggles.tsx` (also used by `Navbar.tsx`) |
+| Routes | `frontend/src/App.tsx`: `/` landing, `/login` sign-in, the app from `/overview` |
+
+Behaviour:
+
+- Two paths: **Continue as guest** (to `/overview`) and **Sign in** (to `/login`). Each card lists what that path allows. Guest: guides, dated advisories, emergency numbers, text-only reviews. Member: account-owned reviews, Community Rating eligibility for Verified Members, photos for Verified Members. Member items are marked "Coming soon".
+- The landing page is an **entry, not a gate**. Every app route, including shared links such as `/destinations/<id>`, opens directly without choosing a path, because a Guest needs no registration (Execution.md rule 1).
+- When the API answers, the landing page links straight to each published destination. If it does not, that strip is omitted and the page still works.
+- **Sign-in is shown but disabled.** The form (email, password with correct `autocomplete`) sits in a disabled `fieldset` with a status notice. Nothing is sent, because the account service (R04) does not exist. It connects to `POST /api/v1/auth/login` with the CSRF flow of PF 16.2 when R04 lands.
+- The sidebar logo returns to the landing page, the Overview link moved to `/overview`, and a session card shows "Browsing as a guest" with a Sign in link.
+- Browser run (Edge, 20 Oct 2026): landing in Bangla and English, guest path to `/overview`, sidebar Sign in to `/login` with disabled inputs, logo back to `/`, `/destinations` opened directly, dark theme, no horizontal overflow at 390 px, no page errors. Build: initial JS 86.8 KB gzip.
 
 ## 3. R09 (Guest path): review submission, receipt, status and withdrawal
 
@@ -127,7 +146,7 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Cloudflare Turnstile widget. Production requires `turnstile_token`; local development has it disabled. | R09 follow-up. Needs the site key and the CSP entry in PF 16.3. |
 | Guest scope secret in IndexedDB. It is in `localStorage` until the draft store exists. | R15 |
 | Offline drafts, installable PWA, service worker, destination packs | R12, R13, R15 |
-| Member review path, account screens | R05, R07, R09 (after R04) |
+| Member review path; working sign-in, registration and verification screens | R05, R07, R09 (after R04) |
 | Review filters, edit-pending, appeals, reports | R09, R07, R11 |
 | Staff (admin) build | Gate A item "public and staff skeletons building in CI" |
 | Self-hosted fonts (CSP `style-src 'self'`, 40 KiB Bangla font budget) | F03 or R12 |

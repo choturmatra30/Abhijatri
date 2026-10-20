@@ -201,7 +201,9 @@ Browser (Vite + React 18 + TypeScript)
 
 | Route | Component | Role | Traces to Requirement |
 |---|---|---|---|
-| `/` or `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
+| `/` | `LandingPage` (public shell) | Entry: continue as guest or sign in; links to published destinations. Not a gate | Use case: Guest and Member entry |
+| `/login` | `SignInPage` (public shell) | Member sign-in (R05); disabled until the R04 account service exists | FR03, R05 |
+| `/overview` | `OverviewPage` | Live counts (destinations, advisories in effect, published Guest reviews) and destinations with advisories, from `GET /destinations` | Proposal Section 1 |
 | `/destinations` | `DestinationsPage` | Published destinations from `GET /destinations`, bilingual text filter, loading/error/empty states | O2, FR01, R03 |
 | `/destinations/:id` | `DestinationDetailPage` | Profile from `GET /destinations/{id}`: advisories with state and source, seasonality, guide items, restrictions, contacts, published review feed | FR01, FR15, R03 |
 | `/planner` | `PlannerPage` | **Prototype** (E08): prototype destination list; calls a planned estimate endpoint | O3, FR08, FR09 |

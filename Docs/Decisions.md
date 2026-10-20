@@ -2,6 +2,20 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-20 (Landing page and sign-in entry)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Landing page | `/` is a public landing page offering "Continue as guest" and "Sign in"; the app starts at `/overview`. It never gates app routes: deep links open directly. | A Guest browses without registration (Execution.md rule 1); shared destination links must keep working. |
+| Sign-in before R04 | The sign-in form is shown disabled with a notice; nothing is submitted and no session is faked. | No account service exists; a working-looking login would be a false claim. |
+
+**Open, needs the scope owner (Shahriar Islam), requested by the frontend owner on 20 Oct 2026.** These conflict with frozen documents and can be adopted only by a dated amendment (PF 2):
+
+| Request | Conflicts with |
+|---|---|
+| Verified Member status through NID or birth-registration number, ideally checked against a national verification API. | Review.md 2.3 ("Real NID verification is outside the semester MVP"), PF 8.2 (NID verification deferred), Gantt F07 ("No raw NID in M1"), Security.md data minimisation. |
+| Reviews answer 15 fixed rated questions (for the Bayesian average) plus a free-text note; photos for Verified Members only. | Review.md 3.1 freezes 7 category ratings (cleanliness, accessibility, hospitality, food, transport, safety perception, value) plus the overall rating; the API currently accepts only `overall_rating`. Guest text-only and Verified-only photos already match Review.md 1 and 8. |
+
 ## 2026-10-19 (Frontend integration: R03, R09 Guest path, R01 seed content)
 
 | Decision | Rule | Reason |

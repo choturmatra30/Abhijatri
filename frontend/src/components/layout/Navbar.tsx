@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Search, 
-
-  Sun, 
-  Moon, 
-  Activity, 
-  Languages, 
-  Menu, 
-  X,
-  Compass
-} from 'lucide-react';
+import { Search, Activity, Menu, X, Compass } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { useTheme } from '../../context/ThemeContext';
 import { checkBackendHealth } from '../../api/health';
+import { PreferenceToggles } from './PreferenceToggles';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -21,8 +11,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isSidebarOpen }) => {
-  const { language, toggleLanguage, t } = useLanguage();
-  const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const location = useLocation();
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
@@ -94,25 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isSidebarOpen }
             </span>
           </Link>
 
-          {/* Language Switcher (Bangla Default) */}
-          <button
-            onClick={toggleLanguage}
-            className="flex items-center gap-1 px-3 py-1 rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime text-xs font-semibold hover:bg-surface-container dark:hover:bg-dark-surface-2 transition-colors"
-            title={t('ইংরেজি ভাষায় দেখুন', 'Switch to Bangla')}
-          >
-            <Languages size={14} />
-            <span className="font-en tracking-tight">{language === 'bn' ? 'English' : 'বাংলা'}</span>
-          </button>
-
-          {/* Theme Toggle (Sage Light / Neon Dark) */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime hover:bg-surface-container dark:hover:bg-dark-surface-2 transition-all"
-            aria-label="Toggle Theme"
-            title={theme === 'light' ? t('নিয়ন ডার্ক মোড', 'Switch to Neon Night') : t('সেজ লাইট মোড', 'Switch to Sage Light')}
-          >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
+          <PreferenceToggles />
         </div>
       </div>
     </header>

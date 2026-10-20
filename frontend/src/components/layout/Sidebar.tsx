@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   MapPin, 
@@ -8,7 +8,9 @@ import {
   Bookmark, 
   MessageSquareText, 
   HeartPulse, 
-  Compass
+  Compass,
+  LogIn,
+  UserRound
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -22,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const navItems = [
     {
-      to: '/',
+      to: '/overview',
       labelBn: 'সারসংক্ষেপ',
       labelEn: 'Overview',
       icon: LayoutDashboard,
@@ -83,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       >
         <div className="flex flex-col gap-6">
           {/* Logo Brand Header */}
-          <div className="flex items-center gap-3 px-3 py-1">
+          <Link to="/" onClick={onClose} className="flex items-center gap-3 px-3 py-1 rounded-xl" aria-label="অভিযাত্রী / Abhijatri home">
             <div className="w-10 h-10 rounded-2xl bg-forest-primary dark:bg-neon-lime flex items-center justify-center text-white dark:text-dark-bg-base shadow-sm">
               <Compass size={24} />
             </div>
@@ -95,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 Abhijatri Companion
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Navigation Menu */}
           <nav className="flex flex-col gap-1.5">
@@ -105,7 +107,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={item.to === '/'}
                   onClick={onClose}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${
@@ -126,6 +127,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Offline status card returns with the PWA and IndexedDB work (R12, R13); no claim until then. */}
+        {/* Session card: every visitor is a guest until member accounts exist (R04, R05). */}
+        <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
+            <UserRound size={16} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
+            {t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
+          </div>
+          <Link
+            to="/login"
+            onClick={onClose}
+            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+          >
+            <LogIn size={14} aria-hidden="true" />
+            {t('সাইন ইন', 'Sign in')}
+          </Link>
+        </div>
       </aside>
     </>
   );
