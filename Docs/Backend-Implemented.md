@@ -308,6 +308,16 @@ Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` secti
 | First green CI run on the pull request | All results above are from a local run. |
 | Docker image build of the changed `Dockerfile` | Not confirmed locally. |
 
+### 4.1 Incident, 20 October 2026: production tables deleted in Supabase
+
+| Item | Detail |
+|---|---|
+| What happened | 14 tables were dropped by hand in the Supabase dashboard (guide items, advisories, contacts, rating and category stats, category ratings, receipts, rate-limit buckets, moderation actions, outbox, platform roles, user roles, verifications and `alembic_version`). Left behind: `destinations`, `users`, `reviews`, `review_revisions`, an old-format `guest_visits`, and 16 enum types. |
+| Effect | `GET /destinations` returned `503 SERVICE_UNAVAILABLE`, so the review page showed "The service is temporarily unavailable". The PR #17 deploy crash-looped: without `alembic_version`, `alembic upgrade head` restarted at 0001 and failed on the leftover `destination_status` type. |
+| Recovery | (1) A one-off script run through `railway run` with the service's own `DATABASE_URL` dropped every remaining table and enum in `public`; the schema itself was kept, so Supabase grants and extensions stayed. (2) Railway redeploy, so `alembic upgrade head` rebuilt 0001→0008. (3) `scripts/seed_destinations.py --force` restored the 5 destinations with their guides, advisories and contacts. |
+| Data lost | Test data only: 3 pending guest reviews (their receipts table was already gone) and 3 old-format guest-visit rows. No users existed and no review had been published. |
+| Prevention | `Docs/Decisions.md`, "Production schema changes only through Alembic". |
+
 ---
 
 ## 5. Backend work required after the 20 October 2026 frontend release

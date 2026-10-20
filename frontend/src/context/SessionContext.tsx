@@ -1,5 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { loadGuestName, loadGuestNumber, normalizeGuestName, recordDailyVisit, saveGuestName } from '../api/guests';
+import {
+  loadGuestName,
+  loadGuestNumber,
+  normalizeGuestName,
+  recordDailyVisit,
+  saveGuestName,
+  signOutGuest,
+} from '../api/guests';
 
 /**
  * Who is using the app. The interface adapts to it (for example, photo upload is offered only to
@@ -23,6 +30,12 @@ interface SessionContextValue {
   setGuestName: (name: string) => Promise<void>;
   /** Forgets the stored name ("Not you?"); the device keeps its guest number. */
   clearGuestName: () => void;
+  /**
+   * Signs out. A guest has no server session, so this forgets the name on this device and keeps
+   * the device's guest number. When member accounts land (R04) a member sign-out will also post
+   * `/auth/logout`.
+   */
+  signOut: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue>({
@@ -30,6 +43,7 @@ const SessionContext = createContext<SessionContextValue>({
   isVerifiedMember: false,
   setGuestName: async () => undefined,
   clearGuestName: () => undefined,
+  signOut: () => undefined,
 });
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -68,14 +82,20 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDisplayName(null);
   }, []);
 
+  const signOut = useCallback(() => {
+    signOutGuest();
+    setDisplayName(null);
+  }, []);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       session: { kind: 'guest', displayName, guestNumber },
       isVerifiedMember: false,
       setGuestName,
       clearGuestName,
+      signOut,
     }),
-    [displayName, guestNumber, setGuestName, clearGuestName],
+    [displayName, guestNumber, setGuestName, clearGuestName, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
