@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { Loader2, MessageSquarePlus, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { getReviewFeed } from '../../api/reviews';
-import type { PublicReview } from '../../types';
+import type { CategoryAverage, PublicReview } from '../../types';
 import { formatNumber, formatTimestamp } from '../../utils/format';
 import { describeError, EmptyState, ErrorState, LoadingState } from '../common/StatusViews';
+import { CategoryAverages, CategoryChips } from '../destination/CategoryAverages';
 
 const PAGE_SIZE = 10;
 
@@ -15,6 +16,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
   const [items, setItems] = useState<PublicReview[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [guest, setGuest] = useState<{ average: number | null; count: number }>({ average: null, count: 0 });
+  const [guestCategories, setGuestCategories] = useState<CategoryAverage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -30,6 +32,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
         setItems(feed.items);
         setCursor(feed.next_cursor);
         setGuest({ average: feed.guest_rating_average, count: feed.guest_rating_count });
+        setGuestCategories(feed.guest_category_averages ?? []);
       })
       .catch((err: unknown) => {
         if (!controller.signal.aborted) setError(err);
@@ -82,6 +85,13 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
         </Link>
       </div>
 
+      {!loading && !error && (
+        <CategoryAverages
+          averages={guestCategories}
+          title={t('অতিথি মতামত: বিষয়ভিত্তিক', 'Guest Feedback by category')}
+        />
+      )}
+
       {loading && <LoadingState label={t('রিভিউ লোড হচ্ছে…', 'Loading reviews…')} />}
       {!loading && error !== null && <ErrorState error={error} onRetry={() => setAttempt((n) => n + 1)} />}
       {!loading && !error && items.length === 0 && (
@@ -117,6 +127,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
               {/* Plain text only: React escapes it, and user HTML is never rendered (Review.md 10). */}
               <h3 className="text-base font-bold font-title text-on-surface dark:text-on-dark">{review.title}</h3>
               <p className="text-sm font-body leading-relaxed text-on-surface dark:text-on-dark whitespace-pre-line">{review.body}</p>
+              <CategoryChips ratings={review.category_ratings} />
             </li>
           ))}
         </ul>

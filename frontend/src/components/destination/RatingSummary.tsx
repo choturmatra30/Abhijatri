@@ -26,7 +26,13 @@ export const RatingSummary: React.FC<{ community: Rating; guest: Rating; compact
   compact = false,
 }) => {
   const { language, t } = useLanguage();
-  const score = community.count >= COMMUNITY_RATING_THRESHOLD ? bayesianScore(community) : null;
+  // The API computes the score (API.md 5.12); the local formula covers older API builds only.
+  const score =
+    community.score !== undefined
+      ? community.score
+      : community.count >= COMMUNITY_RATING_THRESHOLD
+        ? bayesianScore(community)
+        : null;
   const pill = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold';
 
   return (

@@ -23,6 +23,7 @@ from app.models import (
     DestinationStatus,
     RatingAudience,
 )
+from app.review_parameters import community_score
 from app.schemas import (
     Advisory,
     AdvisoryState,
@@ -103,12 +104,15 @@ def _ratings(
             CommunityRatingSummary(average=None, count=0, category_averages=community_categories),
             GuestFeedbackSummary(average=None, count=0, category_averages=guest_categories),
         )
+    score = community_score(stats.community_rating_sum, stats.community_rating_count)
     community = CommunityRatingSummary(
         average=stats.community_rating_sum / stats.community_rating_count
         if stats.community_rating_count
         else None,
         count=stats.community_rating_count,
         category_averages=community_categories,
+        score=score,
+        seeded_selection=score is None,
     )
     guest = GuestFeedbackSummary(
         average=stats.guest_rating_sum / stats.guest_rating_count if stats.guest_rating_count else None,

@@ -18,6 +18,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/common/Statu
 import { AdvisoryCard } from '../components/destination/AdvisoryCard';
 import { ProvenanceNote } from '../components/destination/ProvenanceNote';
 import { RatingSummary } from '../components/destination/RatingSummary';
+import { CategoryAverages } from '../components/destination/CategoryAverages';
 import { ReviewFeedSection } from '../components/reviews/ReviewFeedSection';
 import type { GuideCategory, GuideItem } from '../types';
 import { formatCalendarDate, formatNumber, pick } from '../utils/format';
@@ -112,6 +113,14 @@ export const DestinationDetailPage: React.FC = () => {
           {pick(language, destination.summary_bn, destination.summary_en)}
         </p>
         <RatingSummary community={destination.community_rating} guest={destination.guest_feedback} />
+        <CategoryAverages
+          averages={destination.community_rating.category_averages}
+          title={t('কমিউনিটি রেটিং: বিষয়ভিত্তিক', 'Community Rating by category')}
+        />
+        <CategoryAverages
+          averages={destination.guest_feedback.category_averages}
+          title={t('অতিথি মতামত: বিষয়ভিত্তিক', 'Guest Feedback by category')}
+        />
         {destination.content_verified_on && (
           <p className="text-[11px] text-on-surface-variant dark:text-on-dark-muted">
             {t('কনটেন্ট যাচাই', 'Content verified')}: {formatCalendarDate(destination.content_verified_on, language)}

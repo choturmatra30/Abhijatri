@@ -2,6 +2,17 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-20 (Guest entry page, server-defined review parameters, Turnstile on the client)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Guest entry | `/guest` asks for a name, which stays in `localStorage` only, then welcomes the guest by name with the server's `Guest #N`. It is an entry point, never a gate; deep links still open directly. | Owner request; Execution.md rule 1; Review.md 3.2 step 1 ("local welcome message"). |
+| Review parameters from the server | `backend/app/review_parameters.py` is the single source. `GuestReviewCreate` imports its limits and `GET /review-parameters` publishes them. A parity test fails if the two drift. The client renders from the API and falls back to its local labels offline. | The owner wants the parameters and rating rules in the backend; the frontend cannot drift from the validation. |
+| Rating calculation | Unchanged from A2: an overall rating (required) plus the seven optional categories and a required note. The overall rating is never derived from the categories. The Community Rating Bayesian score (C = 3.5, m = 5, shown from 5 reviews) is now computed by the API (`community_rating.score`, `seeded_selection`). | Review.md 3.1, A2, 6.1 and 6.4; one implementation instead of one per client. |
+| Turnstile on the client | The Guest review form renders Cloudflare Turnstile (action `guest-review`) when `VITE_TURNSTILE_SITE_KEY` is set, and remounts it after every attempt. | Production requires Turnstile (PF 14.1), and the live site was failing every submission with `403 CHALLENGE_FAILED`. |
+| Video | Not built. Proposed amendment A4 (deferred) is recorded in `Features/Review.md` 13 for the scope owner's decision. | Review.md 12.4 excludes video from the MVP. |
+| Community | Design only: `Features/Community.md`. | Owner request: design now, so the build is faster later. |
+
 ## 2026-10-20 (Backend: category ratings and guest welcome counter)
 
 | Decision | Rule | Reason |

@@ -504,3 +504,11 @@ Approved by Shahriar Islam (scope owner) on 20 October 2026, requested by the fr
 | A1 | Verified Member image upload moves from a conditional post-core extension into the mandatory release. Limits in section 8 are unchanged (five images, JPEG/PNG/WebP, 8 MiB, 20 megapixels, quarantine, re-encode, moderation). Guests remain text-only. | 1, 2.1, 8, 12.1 step 10, 12.3 |
 | A2 | The review form is the seven section 3.1 category ratings (each optional, 1 to 5) plus the required overall rating and a free-text note (the body), for Guests and Members. No other question set is used. The request field is `category_ratings` (`Docs/api/API.md` 5.2). | 3.1 |
 | A3 | Verified Member status stays a manually approved verification record (section 2.3). No NID, birth-registration number or national verification API is used; section 12.4 still excludes real NID verification. | 2.3 (confirmed, unchanged) |
+
+### 13.1 Proposed amendment (not approved; nothing is built from it)
+
+Requested by the project owner on 20 October 2026. It waits for the scope owner's decision. Until it is approved, section 12.4 ("The Review MVP does not include video") stands.
+
+| ID | Proposed change | Sections |
+|---|---|---|
+| A4 (proposed, deferred) | **Verified Member video, after the image pipeline (section 8) is live.** Verified Members only; at most one video per review. MP4 (H.264/AAC) only, at most 60 seconds and 50 MiB. Upload uses the same presigned quarantine flow as images. A worker validates the container, strips metadata, transcodes to one low-bitrate rendition, and creates a poster image. Moderators approve before publication. Video never autoplays. In low-data mode the card shows the title, duration and size with an explicit "Load video" action (section 7.4). Video is never included in offline packs. Guests remain text-only. | 1, 8, 7.4, 12.1, 12.3, 12.4 |

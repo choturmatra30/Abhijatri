@@ -44,9 +44,21 @@ export interface Provenance {
   licence: string;
 }
 
+/** Mean of one category's ratings for one audience (API.md 5.8, 5.12). */
+export interface CategoryAverage {
+  category: ReviewCategory;
+  average: number;
+  count: number;
+}
+
 export interface RatingSummary {
   average: number | null;
   count: number;
+  /** Counted categories only, in Review.md order. Absent from older API builds. */
+  category_averages?: CategoryAverage[];
+  /** Community Rating only: server Bayesian score, null below five reviews (Review.md 6.1, 6.4). */
+  score?: number | null;
+  seeded_selection?: boolean;
 }
 
 export interface DestinationSummary {
@@ -165,6 +177,7 @@ export interface PublicReview {
   published_at: string;
   title: string;
   body: string;
+  category_ratings?: CategoryRatings;
 }
 
 export interface ReviewFeed {
@@ -172,6 +185,58 @@ export interface ReviewFeed {
   next_cursor: string | null;
   guest_rating_average: number | null;
   guest_rating_count: number;
+  guest_category_averages?: CategoryAverage[];
+}
+
+export interface LocalizedText {
+  bn: string;
+  en: string;
+}
+
+export interface TextParameter {
+  field: string;
+  required: boolean;
+  min_length: number;
+  max_length: number;
+}
+
+/** `GET /review-parameters` (API.md 5.15): the form and rating rules, defined by the server. */
+export interface ReviewParameters {
+  version: string;
+  overall_rating: { required: boolean; min: number; max: number };
+  categories: {
+    code: ReviewCategory;
+    name: LocalizedText;
+    prompt: LocalizedText;
+    required: boolean;
+    min: number;
+    max: number;
+  }[];
+  note: TextParameter;
+  title: TextParameter;
+  display_name: TextParameter;
+  traveller_types: { value: TravellerType; label: LocalizedText }[];
+  comfort_tiers: { value: ComfortTier; label: LocalizedText }[];
+  languages: { value: ReviewLanguage; label: LocalizedText }[];
+  rating_rules: {
+    guest_feedback: string;
+    community_rating: string;
+    category_averages: string;
+    community_prior_mean: number;
+    community_prior_weight: number;
+    community_min_reviews: number;
+  };
+}
+
+/** `POST /guest-visits` (API.md 5.14). The guest's name never leaves the device. */
+export interface GuestVisit {
+  guest_number: number;
+  total_guests: number;
+}
+
+export interface GuestVisitStats {
+  total_guests: number;
+  guests_today: number;
 }
 
 export interface GuestReviewCreate {
@@ -188,7 +253,7 @@ export interface GuestReviewCreate {
   title: string;
   body: string;
   overall_rating: number;
-  /** Planned contract (API.md 5.2, R07). Sent only when the API accepts it. */
+  /** API.md 5.2: optional; sent when VITE_REVIEW_CATEGORY_RATINGS is true. */
   category_ratings?: CategoryRatings;
   consent_version: string;
 }

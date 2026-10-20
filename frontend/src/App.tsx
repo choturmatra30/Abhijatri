@@ -7,6 +7,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { LandingPage } from './pages/LandingPage';
 import { SignInPage } from './pages/SignInPage';
+import { GuestEntryPage } from './pages/GuestEntryPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DestinationsPage } from './pages/DestinationsPage';
 import { DestinationDetailPage } from './pages/DestinationDetailPage';
@@ -27,6 +28,7 @@ export const App: React.FC = () => {
                   every app route below opens directly for guests (Execution.md rule 1). */}
               <Route element={<PublicLayout />}>
                 <Route index element={<LandingPage />} />
+                <Route path="guest" element={<GuestEntryPage />} />
                 <Route path="login" element={<SignInPage />} />
               </Route>
 

@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, ShieldCheck, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSession } from '../../context/SessionContext';
 import { ApiError } from '../../api/client';
+import { getReviewParameters } from '../../api/reviewParameters';
+import { useApiResource } from '../../hooks/useApiResource';
 import {
   CATEGORY_RATINGS_ENABLED,
   buildGuestReviewPayload,
@@ -15,6 +18,10 @@ import { currentDisplayMonth, pick } from '../../utils/format';
 import { describeError } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { ReviewPhotos, type ReviewPhoto } from './ReviewPhotos';
+import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
+
+/** Must match the API's expected Turnstile action (backend app/turnstile.py). */
+const TURNSTILE_ACTION = 'guest-review';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
 
 export interface SubmittedReview extends GuestReviewCreated {
@@ -41,12 +48,24 @@ export const GuestReviewForm: React.FC<{
   onSubmitted: (review: SubmittedReview) => void;
 }> = ({ destinations, initialDestinationId, onSubmitted }) => {
   const { language, t } = useLanguage();
+  const { session } = useSession();
   const maxMonth = currentDisplayMonth();
+  // Limits and category prompts come from the API (API.md 5.15); local values are the fallback.
+  const { data: parameters } = useApiResource(() => getReviewParameters(), []);
+  const noteMin = parameters?.note.min_length ?? 20;
+  const noteMax = parameters?.note.max_length ?? 6000;
+  const titleMin = parameters?.title.min_length ?? 3;
+  const titleMax = parameters?.title.max_length ?? 160;
+  const nameMax = parameters?.display_name.max_length ?? 80;
 
   const [destinationId, setDestinationId] = useState(
     initialDestinationId && destinations.some((d) => d.id === initialDestinationId) ? initialDestinationId : '',
   );
-  const [displayName, setDisplayName] = useState('');
+  // The name a guest gave on /guest pre-fills the public display name; it stays editable.
+  const [displayName, setDisplayName] = useState(session.displayName ?? '');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // A Turnstile token is single use: remount the widget after every attempt.
+  const [turnstileKey, setTurnstileKey] = useState(0);
   // null until the reviewer picks a language; until then it follows the script they write in.
   const [chosenLanguage, setChosenLanguage] = useState<ReviewLanguage | null>(null);
   const [travellerType, setTravellerType] = useState<TravellerType>('SOLO');
@@ -94,16 +113,27 @@ export const GuestReviewForm: React.FC<{
   const validate = (): Record<string, string> => {
     const errors: Record<string, string> = {};
     if (!destinationId) errors.destination_id = t('একটি গন্তব্য বেছে নিন।', 'Choose a destination.');
-    if (length(displayName) < 1 || length(displayName) > 80)
-      errors.guest_display_name = t('প্রদর্শন নাম ১ থেকে ৮০ অক্ষরের হতে হবে।', 'Display name must be 1 to 80 characters.');
+    if (length(displayName) < 1 || length(displayName) > nameMax)
+      errors.guest_display_name = t(
+        `প্রদর্শন নাম ১ থেকে ${nameMax} অক্ষরের হতে হবে।`,
+        `Display name must be 1 to ${nameMax} characters.`,
+      );
     if (rating < 1) errors.overall_rating = t('১ থেকে ৫ তারকা দিন।', 'Give a rating from 1 to 5 stars.');
     if (!/^\d{4}-\d{2}$/.test(visitMonth) || visitMonth > maxMonth)
       errors.visit_month = t('ভ্রমণের মাস ভবিষ্যতের হতে পারবে না।', 'The visit month cannot be in the future.');
-    if (length(title) < 3 || length(title) > 160)
-      errors.title = t('শিরোনাম ৩ থেকে ১৬০ অক্ষরের হতে হবে।', 'Title must be 3 to 160 characters.');
-    if (length(body) < 20 || length(body) > 6000)
-      errors.body = t('রিভিউ ২০ থেকে ৬০০০ অক্ষরের হতে হবে।', 'Review must be 20 to 6000 characters.');
+    if (length(title) < titleMin || length(title) > titleMax)
+      errors.title = t(
+        `শিরোনাম ${titleMin} থেকে ${titleMax} অক্ষরের হতে হবে।`,
+        `Title must be ${titleMin} to ${titleMax} characters.`,
+      );
+    if (length(body) < noteMin || length(body) > noteMax)
+      errors.body = t(
+        `নোট আবশ্যক: ${noteMin} থেকে ${noteMax} অক্ষর লিখুন।`,
+        `A note is required: write ${noteMin} to ${noteMax} characters.`,
+      );
     if (!consent) errors.consent = t('জমা দেওয়ার আগে নোটিশে সম্মতি দিন।', 'Agree to the notice before submitting.');
+    if (TURNSTILE_SITE_KEY && !turnstileToken)
+      errors.turnstile = t('নিরাপত্তা যাচাইটি সম্পন্ন করুন।', 'Complete the security check.');
     return errors;
   };
 
@@ -119,8 +149,8 @@ export const GuestReviewForm: React.FC<{
 
     setSubmitting(true);
     try {
-      const created = await submitGuestReview(
-        buildGuestReviewPayload({
+      const created = await submitGuestReview({
+        ...buildGuestReviewPayload({
           destinationId,
           clientDraftId: identity.clientDraftId,
           receipt: identity.receipt,
@@ -135,7 +165,8 @@ export const GuestReviewForm: React.FC<{
           overallRating: rating,
           categoryRatings,
         }),
-      );
+        ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
+      });
       onSubmitted({ ...created, receipt: identity.receipt, destinationId });
       setIdentity(newIdentity());
       setTitle('');
@@ -165,6 +196,7 @@ export const GuestReviewForm: React.FC<{
       setErrorFocusRequest((n) => n + 1);
     } finally {
       setSubmitting(false);
+      setTurnstileKey((n) => n + 1);
     }
   };
 
@@ -209,7 +241,7 @@ export const GuestReviewForm: React.FC<{
             id="review-name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            maxLength={80}
+            maxLength={nameMax}
             autoComplete="nickname"
             aria-invalid={Boolean(fieldErrors.guest_display_name)}
             aria-describedby={describedBy('guest_display_name')}
@@ -259,7 +291,12 @@ export const GuestReviewForm: React.FC<{
         {errorFor('overall_rating')}
       </fieldset>
 
-      <CategoryRatings value={categoryRatings} onChange={setCategoryRatings} pendingServerSupport={!CATEGORY_RATINGS_ENABLED} />
+      <CategoryRatings
+        value={categoryRatings}
+        onChange={setCategoryRatings}
+        pendingServerSupport={!CATEGORY_RATINGS_ENABLED}
+        categories={parameters?.categories}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
@@ -321,7 +358,7 @@ export const GuestReviewForm: React.FC<{
           id="review-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          maxLength={160}
+          maxLength={titleMax}
           aria-invalid={Boolean(fieldErrors.title)}
           aria-describedby={describedBy('title')}
           className={inputClass}
@@ -331,14 +368,16 @@ export const GuestReviewForm: React.FC<{
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="review-body" className={labelClass}>
-          {t('আপনার নোট', 'Your note')}
+          {t('আপনার নোট (আবশ্যক)', 'Your note (required)')}
         </label>
         <textarea
           id="review-body"
           rows={6}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          maxLength={6000}
+          maxLength={noteMax}
+          required
+          aria-required="true"
           placeholder={t(
             'যাতায়াত, থাকা, খাবার, খরচ ও সতর্কতা নিয়ে লিখুন। ফোন নম্বর বা অন্যের ব্যক্তিগত তথ্য দেবেন না।',
             'Write about transport, stay, food, costs and cautions. Do not include phone numbers or anyone’s personal details.',
@@ -348,7 +387,8 @@ export const GuestReviewForm: React.FC<{
           className={`${inputClass} py-3 font-body`}
         />
         <p id="body-count" className="text-[11px] text-on-surface-variant dark:text-on-dark-muted font-en">
-          {length(body)} / 6000 {length(body) < 20 && t('(কমপক্ষে ২০)', '(at least 20)')}
+          {length(body)} / {noteMax}{' '}
+          {length(body) < noteMin && t(`(কমপক্ষে ${noteMin})`, `(at least ${noteMin})`)}
         </p>
         {errorFor('body')}
       </div>
@@ -377,6 +417,13 @@ export const GuestReviewForm: React.FC<{
         </label>
         {errorFor('consent')}
       </div>
+
+      {TURNSTILE_SITE_KEY && (
+        <div aria-describedby={describedBy('turnstile')}>
+          <TurnstileWidget key={turnstileKey} action={TURNSTILE_ACTION} onToken={setTurnstileToken} />
+          {errorFor('turnstile')}
+        </div>
+      )}
 
       {formError && (
         <p role="alert" className="p-3 rounded-xl bg-error-container text-sm text-red-900 dark:bg-red-950/40 dark:text-red-200">
