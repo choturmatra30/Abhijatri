@@ -495,3 +495,16 @@ RLS enabled, with grants revoked.
 | Run | ruff and mypy clean; 203 unit and 63 integration tests passed on PostgreSQL 17; OpenAPI regenerated. The local end-to-end run is recorded in `Docs/Frontend-Implemented.md` 3c. |
 
 Still blocked in production until Phase B (R04 with staff sign-in): **publishing reviews**, because moderation routes return `501` in production.
+
+### 5.10 Guest footprint reduced to a count (20 October 2026; supersedes the storage design in 5.3)
+
+The scope owner ruled that only the number of guests per day is needed, never who they are (`Docs/Decisions.md`, "Guest footprint is a count only").
+
+| Item | Detail |
+|---|---|
+| Migration `0008_guest_visits_count_only` | Drops the `0007` table (per-device HMAC digest, key id, number, first/last seen; it held 1 test row) and recreates `guest_visits` with **only** `id` (identity) and `visited_at`, plus index `ix_guest_visits_visited_at`, RLS and revoked grants. The downgrade restores the `0007` shape. |
+| `app/guest_services.py` | `record_guest_visit` inserts one row and returns its number. `guest_visit_stats(days)` returns the total, today's count and the per-day series on Asia/Dhaka dates (one grouped query, zero days filled). No hashing, lookups or updates. |
+| API | `POST /guest-visits` takes `{}` (any field gives 422) and returns `{visit_number, visits_today}`. `GET /guest-visits/stats?days=1..90` returns `{total_visits, visits_today, daily}`. The burst and durable per-network limits are unchanged. `crypto.GUEST_VISIT_LABEL` was removed. |
+| Frontend | `recordDailyVisit()` reports at most once per Dhaka day per browser and keeps the first `visit_number` as "Guest #N" (`abhijatri_guest_number`, `abhijatri_guest_last_visit` in `localStorage`). |
+| Tests | `tests/test_guest_visits.py`: the table columns are exactly `{id, visited_at}`; any request field (name, old scope secret, device id) gives 422; each visit adds one row with the next number; a 20:30 UTC visit counts for the next Dhaka day; `daily` fills zero days; the `days` bounds are checked; HTTP shapes; rate limit 429. Frontend: `guests.test.ts`, where the body is exactly `{}`, a browser is counted once per day, and a later day keeps the first number. |
+| Run | ruff and mypy clean; `alembic upgrade head`, `check`, `downgrade -1` and `upgrade` clean; backend unit and integration suites green; frontend 29 tests, `tsc` and build clean. |

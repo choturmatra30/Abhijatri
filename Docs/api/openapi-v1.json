@@ -346,6 +346,25 @@
         "title": "ContactKind",
         "type": "string"
       },
+      "DailyGuestVisits": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "visits"
+        ],
+        "title": "DailyGuestVisits",
+        "type": "object"
+      },
       "DestinationList": {
         "properties": {
           "items": {
@@ -889,53 +908,51 @@
       },
       "GuestVisitRequest": {
         "additionalProperties": false,
-        "description": "Only the device's Guest scope secret. The guest's name never leaves the device.",
-        "properties": {
-          "guest_scope_secret": {
-            "maxLength": 200,
-            "minLength": 43,
-            "title": "Guest Scope Secret",
-            "type": "string"
-          }
-        },
-        "required": [
-          "guest_scope_secret"
-        ],
+        "description": "Deliberately empty: nothing about the guest is sent or stored, not even a device id.",
+        "properties": {},
         "title": "GuestVisitRequest",
         "type": "object"
       },
       "GuestVisitResponse": {
         "properties": {
-          "guest_number": {
-            "title": "Guest Number",
+          "visit_number": {
+            "title": "Visit Number",
             "type": "integer"
           },
-          "total_guests": {
-            "title": "Total Guests",
+          "visits_today": {
+            "title": "Visits Today",
             "type": "integer"
           }
         },
         "required": [
-          "guest_number",
-          "total_guests"
+          "visit_number",
+          "visits_today"
         ],
         "title": "GuestVisitResponse",
         "type": "object"
       },
       "GuestVisitStats": {
         "properties": {
-          "guests_today": {
-            "title": "Guests Today",
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/DailyGuestVisits"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
+          "total_visits": {
+            "title": "Total Visits",
             "type": "integer"
           },
-          "total_guests": {
-            "title": "Total Guests",
+          "visits_today": {
+            "title": "Visits Today",
             "type": "integer"
           }
         },
         "required": [
-          "total_guests",
-          "guests_today"
+          "total_visits",
+          "visits_today",
+          "daily"
         ],
         "title": "GuestVisitStats",
         "type": "object"
@@ -1922,7 +1939,7 @@
     },
     "/api/v1/guest-visits": {
       "post": {
-        "description": "Stable \"Guest #N\" for this device. The guest's name never reaches the server.",
+        "description": "Count one guest visit: only a running number and the time are stored, never who.",
         "operationId": "create_guest_visit_api_v1_guest_visits_post",
         "requestBody": {
           "content": {
@@ -1962,6 +1979,20 @@
     "/api/v1/guest-visits/stats": {
       "get": {
         "operationId": "guest_visits_stats_api_v1_guest_visits_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1972,6 +2003,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Guest Visits Stats"

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GUEST_NAME_MAX, loadGuestName, normalizeGuestName, registerGuestVisit, saveGuestName } from './guests';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GUEST_NAME_MAX, loadGuestName, normalizeGuestName, recordDailyVisit, saveGuestName } from './guests';
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -14,6 +14,18 @@ function memoryStorage(): Storage {
     setItem: (key, value) => void values.set(key, String(value)),
   };
 }
+
+const blockedStorage = {
+  getItem: () => {
+    throw new Error('blocked');
+  },
+  setItem: () => {
+    throw new Error('blocked');
+  },
+  removeItem: () => {
+    throw new Error('blocked');
+  },
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -45,35 +57,49 @@ describe('guest name storage', () => {
   });
 
   it('tolerates blocked storage', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => {
-        throw new Error('blocked');
-      },
-      setItem: () => {
-        throw new Error('blocked');
-      },
-      removeItem: () => {
-        throw new Error('blocked');
-      },
-    });
+    vi.stubGlobal('localStorage', blockedStorage);
     expect(() => saveGuestName('Sadia')).not.toThrow();
     expect(loadGuestName()).toBeNull();
   });
 });
 
-describe('registerGuestVisit', () => {
-  it('sends only the scope secret, never the name', async () => {
-    vi.stubGlobal('localStorage', memoryStorage());
-    vi.stubGlobal('document', { documentElement: { lang: 'en' } });
-    saveGuestName('Sadia');
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ guest_number: 7, total_guests: 9 })));
-    vi.stubGlobal('fetch', fetchMock);
+describe('recordDailyVisit', () => {
+  // 10:00 UTC is 16:00 in Dhaka on the same date; the next call is a Dhaka day later.
+  const day1 = new Date('2026-10-20T10:00:00Z');
+  const day2 = new Date('2026-10-21T10:00:00Z');
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let next: number;
 
-    await expect(registerGuestVisit()).resolves.toEqual({ guest_number: 7, total_guests: 9 });
+  beforeEach(() => {
+    vi.stubGlobal('document', { documentElement: { lang: 'en' } });
+    next = 41;
+    fetchMock = vi.fn(async () => {
+      next += 1;
+      return new Response(JSON.stringify({ visit_number: next, visits_today: 1 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('sends an empty body: never the name or any device id', async () => {
+    vi.stubGlobal('localStorage', memoryStorage());
+    saveGuestName('Sadia');
+    await recordDailyVisit(day1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain('/api/v1/guest-visits');
-    const body = JSON.parse(String(init.body));
-    expect(Object.keys(body)).toEqual(['guest_scope_secret']);
-    expect(String(init.body)).not.toContain('Sadia');
+    expect(init.body).toBe('{}');
+  });
+
+  it('counts a browser once per day and keeps its first number', async () => {
+    vi.stubGlobal('localStorage', memoryStorage());
+    expect(await recordDailyVisit(day1)).toBe(42);
+    expect(await recordDailyVisit(day1)).toBe(42); // same day: no request
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await recordDailyVisit(day2)).toBe(42); // next day: counted again, same number
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('still works with storage blocked (number shown for this visit only)', async () => {
+    vi.stubGlobal('localStorage', blockedStorage);
+    expect(await recordDailyVisit(day1)).toBe(42);
   });
 });

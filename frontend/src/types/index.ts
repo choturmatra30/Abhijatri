@@ -228,15 +228,17 @@ export interface ReviewParameters {
   };
 }
 
-/** `POST /guest-visits` (API.md 5.14). The guest's name never leaves the device. */
+/** `POST /guest-visits` (API.md 5.14). Nothing about the guest is sent or stored. */
 export interface GuestVisit {
-  guest_number: number;
-  total_guests: number;
+  visit_number: number;
+  visits_today: number;
 }
 
 export interface GuestVisitStats {
-  total_guests: number;
-  guests_today: number;
+  total_visits: number;
+  visits_today: number;
+  /** Oldest first, one entry per display-time-zone day. */
+  daily: { date: string; visits: number }[];
 }
 
 export interface GuestReviewCreate {

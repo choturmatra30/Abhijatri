@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.destination_api import public_cache_headers
 from app.errors import ApiError
-from app.guest_services import guest_visit_stats, register_guest_visit
+from app.guest_services import guest_visit_stats, record_guest_visit
 from app.limits import guest_submit_limit, guest_visit_limit, limiter, receipt_limit
 from app.models import (
     DestinationRatingStats,
@@ -35,6 +35,7 @@ from app.schemas import (
     CategoryParameter,
     ChoiceOption,
     ConflictFlagRequest,
+    DailyGuestVisits,
     GuestReviewCreate,
     GuestReviewCreated,
     GuestVisitRequest,
@@ -250,11 +251,13 @@ def create_guest_visit(
     sessions: CounterSessions,
     session: Session = Depends(get_session),
 ) -> GuestVisitResponse:
-    """Stable "Guest #N" for this device. The guest's name never reaches the server."""
+    """Count one guest visit: only a running number and the time are stored, never who."""
+    del payload  # always empty; declared so any field (a name, a device id) is a 422
     abuse.enforce(sessions, abuse.guest_visit_checks(get_settings(), network_digest(request)))
-    guest_number, total = register_guest_visit(session, payload.guest_scope_secret)
+    visit_number = record_guest_visit(session)
     session.commit()
-    return GuestVisitResponse(guest_number=guest_number, total_guests=total)
+    _, today, _ = guest_visit_stats(session, days=1)
+    return GuestVisitResponse(visit_number=visit_number, visits_today=today)
 
 
 @router.get("/guest-visits/stats", response_model=GuestVisitStats)
@@ -262,11 +265,16 @@ def create_guest_visit(
 def guest_visits_stats(
     request: Request,
     response: Response,
+    days: int = Query(default=30, ge=1, le=90),
     session: Session = Depends(get_session),
 ) -> GuestVisitStats:
-    total, today = guest_visit_stats(session)
+    total, today, daily = guest_visit_stats(session, days=days)
     response.headers.update(public_cache_headers())
-    return GuestVisitStats(total_guests=total, guests_today=today)
+    return GuestVisitStats(
+        total_visits=total,
+        visits_today=today,
+        daily=[DailyGuestVisits(date=day, visits=visits) for day, visits in daily],
+    )
 
 
 @router.get("/staff/moderation/reviews", response_model=list[ModerationQueueItem])

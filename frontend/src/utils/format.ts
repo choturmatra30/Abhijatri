@@ -36,6 +36,16 @@ export function formatTimestamp(isoTimestamp: string, language: Language): strin
   }).format(date);
 }
 
+/** Today in the display time zone as `YYYY-MM-DD` (the guest footprint counts one visit per day). */
+export function currentDisplayDate(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DISPLAY_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 /** Current month in the display time zone as `YYYY-MM` (the latest allowed visit month). */
 export function currentDisplayMonth(now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {

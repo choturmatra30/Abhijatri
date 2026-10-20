@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { loadGuestName, normalizeGuestName, registerGuestVisit, saveGuestName } from '../api/guests';
+import { loadGuestName, loadGuestNumber, normalizeGuestName, recordDailyVisit, saveGuestName } from '../api/guests';
 
 /**
  * Who is using the app. The interface adapts to it (for example, photo upload is offered only to
@@ -7,9 +7,10 @@ import { loadGuestName, normalizeGuestName, registerGuestVisit, saveGuestName } 
  * server-side (Review.md 1.1, PF 8).
  *
  * Every visitor is a guest until the account service exists (R04). A guest may give a name on
- * `/guest`; it stays on this device and the server only returns a stable "Guest #N" (API.md
- * 5.14). The member and verified states are filled from `GET /api/v1/auth/session` when R04
- * lands; nothing on the client can set them.
+ * `/guest`; it stays on this device. The server only counts guest visits per day and never
+ * learns who visited; "Guest #N" is the number of this browser's first visit (API.md 5.14).
+ * The member and verified states are filled from `GET /api/v1/auth/session` when R04 lands;
+ * nothing on the client can set them.
  */
 export type Session =
   | { kind: 'guest'; displayName: string | null; guestNumber: number | null }
@@ -33,14 +34,15 @@ const SessionContext = createContext<SessionContextValue>({
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [displayName, setDisplayName] = useState<string | null>(loadGuestName);
-  const [guestNumber, setGuestNumber] = useState<number | null>(null);
+  const [guestNumber, setGuestNumber] = useState<number | null>(loadGuestNumber);
 
-  // A guest number is only a courtesy; a failed request leaves the welcome without it.
+  // Counts this browser once per day (number + time only, API.md 5.14). The guest number is a
+  // courtesy: a failed request keeps whatever number is already stored.
   const fetchNumber = useCallback(async () => {
     try {
-      setGuestNumber((await registerGuestVisit()).guest_number);
+      setGuestNumber(await recordDailyVisit());
     } catch {
-      setGuestNumber(null);
+      setGuestNumber(loadGuestNumber());
     }
   }, []);
 

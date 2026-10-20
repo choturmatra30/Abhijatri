@@ -1,18 +1,37 @@
 /**
- * Guest entry (API.md 5.14; Review.md 3.2 step 1).
+ * Guest entry and footprint (API.md 5.14; Review.md 3.2 step 1).
  *
- * The guest's name stays on this device: it is kept in localStorage for the welcome message and
- * to pre-fill the review display name, and is never sent to the API. The server only returns a
- * stable "Guest #N" for this device, keyed by the same Guest scope secret used for reviews.
+ * Only how many guests come each day is counted, never who. The guest's name stays on this
+ * device. The browser reports at most one visit per Dhaka day with an empty request body, and
+ * keeps the number of its first visit to say "Guest #N".
  */
 
 import type { GuestVisit, GuestVisitStats } from '../types';
+import { currentDisplayDate } from '../utils/format';
 import { apiRequest } from './client';
-import { getGuestScopeSecret } from './reviews';
 
 const GUEST_NAME_KEY = 'abhijatri_guest_name';
+const GUEST_NUMBER_KEY = 'abhijatri_guest_number';
+const LAST_VISIT_KEY = 'abhijatri_guest_last_visit';
 /** Same limit as the review display name (API.md 5.15 `display_name`). */
 export const GUEST_NAME_MAX = 80;
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // storage blocked: behave as a first visit
+  }
+}
+
+function write(key: string, value: string | null): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // storage blocked: the value lives only in memory for this visit
+  }
+}
 
 /** Trimmed, NFC-normalised and at most 80 code points; null when nothing usable is left. */
 export function normalizeGuestName(value: string): string | null {
@@ -22,29 +41,37 @@ export function normalizeGuestName(value: string): string | null {
 }
 
 export function loadGuestName(): string | null {
-  try {
-    const stored = localStorage.getItem(GUEST_NAME_KEY);
-    return stored ? normalizeGuestName(stored) : null;
-  } catch {
-    return null; // storage blocked: the guest simply enters the name again
-  }
+  const stored = read(GUEST_NAME_KEY);
+  return stored ? normalizeGuestName(stored) : null;
 }
 
 export function saveGuestName(name: string | null): void {
-  try {
-    if (name) localStorage.setItem(GUEST_NAME_KEY, name);
-    else localStorage.removeItem(GUEST_NAME_KEY);
-  } catch {
-    // storage blocked: the name lives only in memory for this visit
-  }
+  write(GUEST_NAME_KEY, name);
 }
 
-/** The body carries only the scope secret; the name is never sent. */
+export function loadGuestNumber(): number | null {
+  const value = Number(read(GUEST_NUMBER_KEY));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+/** Sends nothing about the guest: the body is always an empty object. */
 export function registerGuestVisit(): Promise<GuestVisit> {
-  return apiRequest<GuestVisit>('/api/v1/guest-visits', {
-    method: 'POST',
-    body: { guest_scope_secret: getGuestScopeSecret() },
-  });
+  return apiRequest<GuestVisit>('/api/v1/guest-visits', { method: 'POST', body: {} });
+}
+
+/**
+ * Counts this browser at most once per Dhaka day and returns its guest number. A later day adds
+ * one visit to the daily count but keeps the number from the first visit.
+ */
+export async function recordDailyVisit(now: Date = new Date()): Promise<number | null> {
+  const today = currentDisplayDate(now);
+  const stored = loadGuestNumber();
+  if (stored !== null && read(LAST_VISIT_KEY) === today) return stored;
+  const { visit_number } = await registerGuestVisit();
+  write(LAST_VISIT_KEY, today);
+  if (stored !== null) return stored;
+  write(GUEST_NUMBER_KEY, String(visit_number));
+  return visit_number;
 }
 
 export function getGuestVisitStats(signal?: AbortSignal): Promise<GuestVisitStats> {
