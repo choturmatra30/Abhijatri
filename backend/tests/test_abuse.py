@@ -31,6 +31,13 @@ def _reset_limiter() -> None:
     limiter.reset()
 
 
+@pytest.fixture(autouse=True)
+def _no_background_purge(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The opportunistic purge is throttled by a process-wide timestamp; keep it out of the way
+    # so counts are deterministic. It is exercised on its own below.
+    monkeypatch.setattr(abuse, "_last_purge", float("inf"))
+
+
 class FakeVerifier:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -157,6 +164,16 @@ def test_purge_removes_only_old_windows(harness: Harness) -> None:
         session.commit()
     assert removed == 1
     assert harness.bucket_total("t:purge") == 1
+
+
+def test_hit_purges_old_windows_relative_to_its_own_clock(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rule = Rule("t:auto", 3600, 5)
+    abuse.hit(harness.factory, rule, b"o" * 32, now=NOW - timedelta(days=3))
+    monkeypatch.setattr(abuse, "_last_purge", 0.0)
+    abuse.hit(harness.factory, rule, b"n" * 32, now=NOW)
+    assert harness.bucket_total("t:auto") == 1
 
 
 # ---------- guest submission ----------

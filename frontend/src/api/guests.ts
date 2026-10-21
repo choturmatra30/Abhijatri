@@ -50,12 +50,15 @@ export function saveGuestName(name: string | null): void {
 }
 
 /**
- * Signs the guest out by forgetting the name only. The guest number and last-visit day belong to
- * the device: clearing them would count the same browser twice in one day. The review scope
- * secret stays too, so duplicate-draft recovery and receipts keep working.
+ * Signs the guest out: forgets the name, the guest number and the last-visit day. The next guest
+ * on this browser registers a new visit and gets the next, higher number, so guest numbers only
+ * ever increase. The review scope secret stays, so duplicate-draft recovery and receipts keep
+ * working.
  */
 export function signOutGuest(): void {
-  saveGuestName(null);
+  write(GUEST_NAME_KEY, null);
+  write(GUEST_NUMBER_KEY, null);
+  write(LAST_VISIT_KEY, null);
 }
 
 export function loadGuestNumber(): number | null {
