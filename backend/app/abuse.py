@@ -80,13 +80,13 @@ def purge_expired_buckets(session: Session, *, now: datetime | None = None) -> i
     return int(result.rowcount or 0)  # type: ignore[attr-defined]
 
 
-def _maybe_purge(session: Session) -> None:
+def _maybe_purge(session: Session, now: datetime) -> None:
     global _last_purge  # noqa: PLW0603
     with _purge_lock:
         if time.monotonic() - _last_purge < 60:
             return
         _last_purge = time.monotonic()
-    purge_expired_buckets(session)
+    purge_expired_buckets(session, now=now)
 
 
 def hit(
@@ -118,7 +118,7 @@ def hit(
             .returning(RateLimitBucket.count)
         )
         count = int(session.execute(statement).scalar_one())
-        _maybe_purge(session)
+        _maybe_purge(session, moment)
         session.commit()
     if count > rule.limit:
         return count, _retry_after(moment, start, rule.window_seconds)
