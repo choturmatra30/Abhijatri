@@ -22,6 +22,7 @@ React PWA -> HTTPS -> FastAPI (Render) -> SQLAlchemy/Psycopg -> Supabase-managed
 ```
 
 - [`Docs/Architecture.md`](Docs/Architecture.md): system flow, modules, environments, environment variables.
+- [`Docs/UI-Architecture.md`](Docs/UI-Architecture.md): bilingual information architecture, flows and component map (F03).
 - [`Docs/Schema.md`](Docs/Schema.md): ERD and table catalogue.
 - [`Docs/api/API.md`](Docs/api/API.md): versioned API contract and snapshot.
 - [`Docs/Implemented.md`](Docs/Implemented.md): evidenced implementation status ([`Backend-Implemented.md`](Docs/Backend-Implemented.md), [`Frontend-Implemented.md`](Docs/Frontend-Implemented.md) hold the detail).

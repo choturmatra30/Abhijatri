@@ -2,6 +2,7 @@
 
 **Status:** Current as of October 2026.  
 **Philosophy:** Contemporary Minimalist, Bangla-First, Offline-Ready Travel Companion for Bangladesh.  
+**Companion:** language rules, sitemap and component map are in [`Docs/UI-Architecture.md`](UI-Architecture.md) (F03).  
 **Traceability:** Traces to [`Docs/Abhijatri_Project_Proposal.tex`](Abhijatri_Project_Proposal.tex) (O1, O2, O3, O4, O5) and [`Docs/Architecture.md`](Architecture.md).
 
 ---

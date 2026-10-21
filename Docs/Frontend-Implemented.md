@@ -12,7 +12,7 @@
 
 | ID | Task | Window | State |
 |---|---|---|---|
-| F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Overdue.** Design tokens exist in `Docs/Design.md`; the component map and Bangla-default flow approval do not. |
+| F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Plan written 20 Oct, awaiting approval:** `Docs/UI-Architecture.md` (language rules, sitemap, flows, component map, fonts, audit). Follow-ups U1 to U6 listed there. |
 | R03 | Bilingual destination list and detail screens | 15 to 22 Oct | **Implemented** against the R02 API, with loading, error and empty states (section 2). |
 | R05 | Account, verification and session screens | 18 to 23 Oct | **Sign-in screen built, disabled** until R04 exists (section 3a). Registration, verification and session screens wait for R04. |
 | R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | Not started. No manifest, service worker or IndexedDB yet. |
