@@ -31,9 +31,9 @@ interface SessionContextValue {
   /** Forgets the stored name ("Not you?"); the device keeps its guest number. */
   clearGuestName: () => void;
   /**
-   * Signs out. A guest has no server session, so this forgets the name on this device and keeps
-   * the device's guest number. When member accounts land (R04) a member sign-out will also post
-   * `/auth/logout`.
+   * Signs out. A guest has no server session, so this forgets the name and guest number on this
+   * device; the next guest gets a new, higher number. When member accounts land (R04) a member
+   * sign-out will also post `/auth/logout`.
    */
   signOut: () => void;
 }
@@ -85,6 +85,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const signOut = useCallback(() => {
     signOutGuest();
     setDisplayName(null);
+    setGuestNumber(null);
   }, []);
 
   const value = useMemo<SessionContextValue>(

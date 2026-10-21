@@ -119,7 +119,7 @@ describe('signOutGuest', () => {
     vi.stubGlobal('document', { documentElement: { lang: 'en' } });
   });
 
-  it('forgets the name but keeps the device number, last visit and review scope', async () => {
+  it('forgets the name, number and last visit but keeps the review scope', async () => {
     const storage = memoryStorage();
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ visit_number: 7, visits_today: 1 }))));
@@ -130,23 +130,27 @@ describe('signOutGuest', () => {
     signOutGuest();
 
     expect(loadGuestName()).toBeNull();
-    expect(loadGuestNumber()).toBe(7);
-    expect(storage.getItem('abhijatri_guest_last_visit')).not.toBeNull();
+    expect(loadGuestNumber()).toBeNull();
+    expect(storage.getItem('abhijatri_guest_last_visit')).toBeNull();
     expect(storage.getItem('abhijatri_guest_scope')).toBe('scope-secret');
   });
 
-  it('does not count the browser twice when the guest returns the same day', async () => {
+  it('gives the next guest a new, higher number even on the same day', async () => {
     vi.stubGlobal('localStorage', memoryStorage());
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ visit_number: 7, visits_today: 1 })));
+    let next = 6;
+    const fetchMock = vi.fn(async () => {
+      next += 1;
+      return new Response(JSON.stringify({ visit_number: next, visits_today: 1 }));
+    });
     vi.stubGlobal('fetch', fetchMock);
     saveGuestName('Sadia');
-    await recordDailyVisit(day1);
+    expect(await recordDailyVisit(day1)).toBe(7);
 
     signOutGuest();
     saveGuestName('Rafi');
 
-    expect(await recordDailyVisit(day1)).toBe(7);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await recordDailyVisit(day1)).toBe(8);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('tolerates blocked storage', () => {

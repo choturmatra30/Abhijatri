@@ -9,14 +9,15 @@ This log records build-time decisions without reopening the frozen Review specif
 | No manual schema edits | Never create, alter or drop tables in the Supabase dashboard or SQL editor for the production database. Every schema change is an Alembic migration that runs on deploy (PF 22). `alembic_version` must never be touched. | On 20 Oct 2026, 14 tables, including `alembic_version`, were deleted by hand. The API returned 503 and every new deploy crash-looped. Recovery is recorded in `Docs/Backend-Implemented.md` 4.1. |
 | What "nothing about guests in the DB" means | Only **guest** data is limited: `guest_visits(id, visited_at)`. The other tables (destinations, guides, advisories, contacts, reviews, receipts, ratings, rate limits, roles, audit) are the application itself and are required. | The scope owner's count-only rule applies to guest visitors, not to the platform's data. |
 
-## 2026-10-20 (Guest sign-out clears the name only)
+## 2026-10-20 (Guest sign-out ends that guest; numbers only increase)
 
 A guest who had entered a name could not sign out: the sidebar showed only "Sign in", and the name could be cleared only through "Change name" on `/guest`. Member auth (R04) is on hold while the main features, RBAC and scalability come first, so this fix is guest-only and client-side.
 
 | Decision | Rule | Reason |
 |---|---|---|
-| What sign-out does | "Sign out" (sidebar session card and `/guest`) forgets `abhijatri_guest_name` and opens `/`. It is shown only to a named guest. | A guest has no server session; the name lives only on the device. |
-| What it keeps | The device guest number, the last-visit day and `abhijatri_guest_scope` stay. | Clearing the number or the day would count the same browser twice in one day (count-only rule below). The scope secret keeps duplicate-draft recovery and receipts working. |
+| What sign-out does | "Sign out" (sidebar session card and `/guest`) forgets the guest's name, guest number and last-visit day, then opens `/`. It is shown only to a named guest. | A guest has no server session; all of this lives only on the device. |
+| Guest numbers only increase | The next guest on that browser registers a new visit (`POST /guest-visits`) and gets the next running number, even on the same day. A guest never sees an older number after someone signs out. | Muhtasim, 20 Oct 2026: "the guest number should increase always." `guest_visits.id` is an identity column, so the server number is monotonic. This refines "at most one visit per browser per day": a sign-out starts a new guest, which is a new visit. |
+| What it keeps | `abhijatri_guest_scope` stays. "Change name" still keeps the number (same guest correcting a name). | The scope secret keeps duplicate-draft recovery and receipts working. |
 | Members later | `SessionContext.signOut` is the one sign-out entry point; when R04 lands, the member branch also posts `/auth/logout`. | One control for both kinds of visitor. |
 
 ## 2026-10-20 (Guest footprint is a count only)
