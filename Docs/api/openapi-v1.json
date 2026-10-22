@@ -1236,6 +1236,14 @@
       },
       "PublicReview": {
         "properties": {
+          "author_type": {
+            "enum": [
+              "GUEST",
+              "MEMBER"
+            ],
+            "title": "Author Type",
+            "type": "string"
+          },
           "body": {
             "title": "Body",
             "type": "string"
@@ -1249,17 +1257,6 @@
             },
             "title": "Category Ratings",
             "type": "object"
-          },
-          "guest_display_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Guest Display Name"
           },
           "guest_tag": {
             "anyOf": [
@@ -1296,7 +1293,7 @@
         },
         "required": [
           "id",
-          "guest_display_name",
+          "author_type",
           "status",
           "overall_rating",
           "published_at",

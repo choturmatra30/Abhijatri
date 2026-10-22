@@ -128,9 +128,10 @@ class PublicReview(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    guest_display_name: str | None
-    # "Anonymous guest · 1C669-J0TDY"; null for member reviews and guest reviews written before
-    # the tag existed (Guest-Identity-and-Visits 3.3).
+    # A guest's typed name is never public (owner, 22 Oct 2026): a guest review is shown only as
+    # "Anonymous guest · 1C669-J0TDY". The name stays visible to moderators in the queue.
+    author_type: Literal["GUEST", "MEMBER"]
+    # Null for member reviews and for guest reviews written before the tag existed.
     guest_tag: str | None = None
     status: ReviewStatus
     overall_rating: int

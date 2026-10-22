@@ -675,3 +675,16 @@ No new variable is needed. Redeploy after merging, because Vite reads `VITE_*` v
 - **Range totals:** these are visitor-days, not distinct people (doc 5). A person who browses as a guest and signs in on the same day counts in both.
 - **Unflushed event counts:** up to `METRICS_FLUSH_SECONDS` of counts can be lost if a free Render instance sleeps or restarts. Visit counters are written immediately and are not affected.
 - **Phase 2:** the token is replaced by staff sign-in with MFA and `ops.read` (dashboard doc 3.2), with R04 and R11.
+
+#### Deployment record (22 Oct 2026)
+
+The live API runs on **Railway**, not Render: project `sincere-warmth`, service `abhijatri-api`, region asia-southeast1. It builds `backend/Dockerfile` from the **`main`** branch, root `./backend`. The Dockerfile start command runs `alembic upgrade head`, so migration `0009` is applied when the new code first deploys.
+
+| Item | State |
+|---|---|
+| Ops dashboard | Vercel project `abhijatri-ops-44afee` (account `syedmuhtasimapon-8894`), https://abhijatri-ops-44afee.vercel.app. Deployed from `ops/` with the Vercel CLI and not linked to GitHub, so updates are `vercel deploy --prod` from `ops/`. `VITE_API_BASE_URL=https://abhijatri-backend.up.railway.app` is set for Production. The headers `noindex`, CSP and `no-store` were verified live. |
+| Railway variables set (no restart) | `OPS_DASHBOARD_TOKEN` (64 characters, generated locally and never printed), `CORS_ALLOWED_ORIGINS=https://abhijatri.vercel.app,https://abhijatri-ops-44afee.vercel.app`, `VISIT_COUNTER_ENABLED=true`. |
+| **Blocking before `backend-dev` reaches `main`** | `REDIS_URL` (Upstash `rediss://`) is **not set**. Railway runs `APP_ENV=production`, and the new code refuses to start there without it. Set it first: `railway variable set REDIS_URL --stdin --skip-deploys` from `backend/`, then paste the URL. |
+| Public app | Vercel project `abhijatri` (https://abhijatri.vercel.app) belongs to the `choturmatra30` account. Its owner redeploys it after the merge. |
+| Nightly roll-up | Add the GitHub secrets `OPS_API_URL=https://abhijatri-backend.up.railway.app` and `OPS_DASHBOARD_TOKEN` (the same token). |
+

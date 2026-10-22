@@ -68,7 +68,7 @@ The tag itself is not stored, because it is derived. All reads and writes are gu
 | Place | Shows |
 |---|---|
 | Sidebar session card, `/guest` welcome | "Welcome, Sadia · Guest `1C669-J0TDY`" (Bangla: "স্বাগতম, Sadia · অতিথি `1C669-J0TDY`"). Without a name: "Guest `1C669-J0TDY`". |
-| Guest review card on a destination | Line 1: the display name the guest typed. Line 2: **"Anonymous guest · `1C669-J0TDY`"** (বেনামী অতিথি). Reviews written before the tag existed show "Anonymous guest" only. |
+| Guest review card on a destination | **"Anonymous guest · `1C669-J0TDY`"** (বেনামী অতিথি) only. The typed name is **not** shown and not sent by the public API (owner, 22 Oct 2026); only moderators see it. Reviews written before the tag existed show "Anonymous guest" only. |
 | Member review card | Name and Member / Verified Member badge, unchanged. |
 
 The tag stays in Latin letters in both languages, like the receipt, because it is an identifier. "Anonymous" here means "no account", and the submission notice says so: *"Your reviews from this browser show the same guest tag, so readers can see they came from the same guest."* (Security 3.4 notice change.)

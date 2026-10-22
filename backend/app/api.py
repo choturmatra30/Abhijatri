@@ -407,7 +407,7 @@ def public_reviews(
     items = [
         PublicReview(
             id=review.id,
-            guest_display_name=review.guest_display_name,
+            author_type="MEMBER" if review.author_user_id else "GUEST",
             guest_tag=display_guest_tag(review.guest_tag),
             status=review.status,
             overall_rating=review.overall_rating,

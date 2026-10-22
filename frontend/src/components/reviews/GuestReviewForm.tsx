@@ -235,7 +235,7 @@ export const GuestReviewForm: React.FC<{
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="review-name" className={labelClass}>
-            {t('প্রদর্শন নাম (প্রকাশিত হবে)', 'Display name (shown publicly)')}
+            {t('আপনার নাম (শুধু মডারেটর দেখবেন; প্রকাশ্যে "বেনামী অতিথি" দেখাবে)', 'Your name (seen only by moderators; shown publicly as "Anonymous guest")')}
           </label>
           <input
             id="review-name"

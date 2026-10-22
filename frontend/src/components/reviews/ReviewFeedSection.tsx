@@ -116,21 +116,18 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
                     />
                   ))}
                 </span>
-                <span className="font-semibold text-on-surface dark:text-on-dark">{review.guest_display_name ?? t('সদস্য', 'Member')}</span>
-                <span className="ml-auto">{formatTimestamp(review.published_at, language)}</span>
-              </div>
-              {/* Guest-Identity-and-Visits 3.3: "Anonymous guest · TAG"; older guest reviews have no tag. */}
-              {review.guest_display_name !== null && (
-                <p className="-mt-1 text-xs text-on-surface-variant dark:text-on-dark-muted">
-                  {t('বেনামী অতিথি', 'Anonymous guest')}
-                  {review.guest_tag && (
+                {/* A guest's name is never shown: "Anonymous guest · TAG" (owner, 22 Oct 2026). */}
+                <span className="font-semibold text-on-surface dark:text-on-dark">
+                  {review.author_type === 'GUEST' ? t('বেনামী অতিথি', 'Anonymous guest') : t('সদস্য', 'Member')}
+                  {review.author_type === 'GUEST' && review.guest_tag && (
                     <>
                       {' · '}
-                      <code className="font-mono tracking-wide">{review.guest_tag}</code>
+                      <code className="font-mono font-normal tracking-wide">{review.guest_tag}</code>
                     </>
                   )}
-                </p>
-              )}
+                </span>
+                <span className="ml-auto">{formatTimestamp(review.published_at, language)}</span>
+              </div>
               {/* Plain text only: React escapes it, and user HTML is never rendered (Review.md 10). */}
               <h3 className="text-base font-bold font-title text-on-surface dark:text-on-dark">{review.title}</h3>
               <p className="text-sm font-body leading-relaxed text-on-surface dark:text-on-dark whitespace-pre-line">{review.body}</p>

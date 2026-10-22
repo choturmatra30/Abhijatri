@@ -340,7 +340,7 @@ Query: `after` (optional cursor, at most 200 characters), `limit` (1 to 50, defa
   "items": [
     {
       "id": "...",
-      "guest_display_name": "Sadia Rahman",
+      "author_type": "GUEST",
       "guest_tag": "1C669-J0TDY",
       "status": "PUBLISHED",
       "overall_rating": 4,
@@ -360,7 +360,7 @@ Query: `after` (optional cursor, at most 200 characters), `limit` (1 to 50, defa
 }
 ```
 
-`guest_tag` is the guest's public pseudonym, computed by the server from the scope secret (Guest-Identity-and-Visits 3.1). Clients show it as "Anonymous guest · 1C669-J0TDY" (বেনামী অতিথি). It is `null` for member reviews and for guest reviews written before 22 Oct 2026. `category_ratings` is `{}` when the reviewer rated no category. `guest_category_averages` lists only categories with at least one counted rating, in the Section 8 order, each with its own count.
+**The guest's typed name is never in the public feed** (owner, 22 Oct 2026): `author_type` is `GUEST` or `MEMBER`, and a guest review is shown only as "Anonymous guest · tag". Moderators still see `guest_display_name` in `GET /staff/moderation/reviews`. `guest_tag` is the guest's public pseudonym, computed by the server from the scope secret (Guest-Identity-and-Visits 3.1). Clients show it as "Anonymous guest · 1C669-J0TDY" (বেনামী অতিথি). It is `null` for member reviews and for guest reviews written before 22 Oct 2026. `category_ratings` is `{}` when the reviewer rated no category. `guest_category_averages` lists only categories with at least one counted rating, in the Section 8 order, each with its own count.
 
 Only `PUBLISHED` reviews appear. Guest ratings feed Guest Feedback only, never Community Rating (RV 6.2). The response carries a short public `Cache-Control` TTL (Security 7.1), not `no-store`.
 

@@ -171,7 +171,8 @@ export type CategoryRatings = Partial<Record<ReviewCategory, number>>;
 
 export interface PublicReview {
   id: string;
-  guest_display_name: string | null;
+  /** A guest's typed name is never public; a guest review shows only "Anonymous guest · tag". */
+  author_type: 'GUEST' | 'MEMBER';
   /** "1C669-J0TDY"; null for member reviews and guest reviews written before the tag existed. */
   guest_tag: string | null;
   status: ReviewStatus;

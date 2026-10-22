@@ -117,7 +117,8 @@ GitHub PR -> CI (lint, unit, PostgreSQL integration, migration, security, contra
 | Staging | `https://api.<owned-domain>` | Supabase `abhijatri-staging` | |
 | Production or pilot | `https://api.<owned-domain>` | Supabase `abhijatri-prod` | |
 | Public frontend (interim, Vercel) | `https://<project>.vercel.app` (fill in after first deploy) | uses the API above | |
-| API on Railway (not in the approved plan) | `https://abhijatri-backend.up.railway.app` | unknown; check its `DATABASE_URL` | 19 Oct 2026: live, but serving pre-merge code (`Docs/Frontend-Implemented.md` B4) |
+| API on Railway (not in the approved plan) | `https://abhijatri-backend.up.railway.app` | unknown; check its `DATABASE_URL` | 19 Oct 2026: live, but serving pre-merge code (`Docs/Frontend-Implemented.md` B4). 22 Oct 2026: deploys `main`, `APP_ENV=production`; ops token and CORS set, `REDIS_URL` still required before the 0009 code ships |
+| Ops dashboard (Vercel, private) | `https://abhijatri-ops-44afee.vercel.app` | calls the Railway API with the ops token | 22 Oct 2026: deployed from `ops/` |
 
 ### Public frontend deployment on Vercel (interim)
 
