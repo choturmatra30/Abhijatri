@@ -25,6 +25,8 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Cache-Control": "no-store",
 }
+API_CSP = "default-src 'none'; frame-ancestors 'none'"
+DOCS_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/openapi.json"})
 
 
 RECEIPT_PATTERN = re.compile(r"abr1_[A-Za-z0-9_-]+")
@@ -92,29 +94,36 @@ def create_app() -> FastAPI:
     ) -> Response:
         request.state.request_id = request_id = str(uuid.uuid4())
         declared = request.headers.get("content-length", "")
+        response: Response
         if declared.isdigit() and int(declared) > settings.max_request_body_bytes:
-            return error_response(request, "PAYLOAD_TOO_LARGE")
-        try:
-            body = bytearray()
-            async for chunk in request.stream():
-                body.extend(chunk)
-                if len(body) > settings.max_request_body_bytes:
-                    raise ApiError("PAYLOAD_TOO_LARGE")
+            response = error_response(request, "PAYLOAD_TOO_LARGE")
+        else:
+            try:
+                body = bytearray()
+                async for chunk in request.stream():
+                    body.extend(chunk)
+                    if len(body) > settings.max_request_body_bytes:
+                        raise ApiError("PAYLOAD_TOO_LARGE")
 
-            # request.stream() consumes the ASGI body. Cache the validated body so
-            # FastAPI can still parse JSON/form payloads in the downstream handler.
-            request._body = bytes(body)
-            response = await asyncio.wait_for(
-                call_next(request), timeout=settings.request_timeout_seconds
-            )
-        except ApiError as error:
-            return error_response(request, error.code)
-        except TimeoutError:
-            logger.error("request timed out: %s %s", request.method, request.url.path)
-            return error_response(request, "REQUEST_TIMEOUT")
+                # request.stream() consumes the ASGI body. Cache the validated body so
+                # FastAPI can still parse JSON/form payloads in the downstream handler.
+                request._body = bytes(body)
+                response = await asyncio.wait_for(
+                    call_next(request), timeout=settings.request_timeout_seconds
+                )
+            except ApiError as error:
+                response = error_response(request, error.code)
+            except TimeoutError:
+                logger.error("request timed out: %s %s", request.method, request.url.path)
+                response = error_response(request, "REQUEST_TIMEOUT")
+        # Every response, success or early-return error, carries the same headers (audit F-06).
         response.headers["X-Request-ID"] = request_id
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
+        # A JSON API never needs to run scripts or be framed (audit F-09). The interactive docs
+        # (development only) load Swagger UI, so they are left without the CSP.
+        if request.url.path not in DOCS_PATHS:
+            response.headers.setdefault("Content-Security-Policy", API_CSP)
         if settings.is_production:
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"

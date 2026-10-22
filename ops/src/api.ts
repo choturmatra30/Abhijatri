@@ -71,7 +71,12 @@ export const runRollup = (token: string) =>
 export function describeError(error: unknown, lang: 'bn' | 'en'): string {
   const t = (bn: string, en: string) => (lang === 'bn' ? bn : en);
   if (!(error instanceof OpsError)) return t('অজানা ত্রুটি।', 'Unknown error.');
-  if (error.status === 0) return t(`API-তে পৌঁছানো যায়নি (${API_BASE})।`, `Could not reach the API at ${API_BASE}.`);
+  // A blocked CORS preflight also surfaces as a network error in the browser.
+  if (error.status === 0)
+    return t(
+      `API-তে পৌঁছানো যায়নি (${API_BASE})। সম্ভাব্য কারণ: API বন্ধ, API-তে এখনো ops সংস্করণ ডিপ্লয় হয়নি, অথবা CORS_ALLOWED_ORIGINS-এ এই ড্যাশবোর্ডের ঠিকানা নেই (${window.location.origin})।`,
+      `Could not reach the API at ${API_BASE}. Likely causes: the API is down, the deployed API predates the ops routes, or CORS_ALLOWED_ORIGINS does not include this dashboard (${window.location.origin}).`,
+    );
   if (error.status === 401) return t('টোকেন সঠিক নয়।', 'The token is not valid.');
   if (error.status === 404)
     return t(

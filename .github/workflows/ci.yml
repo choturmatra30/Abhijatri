@@ -78,6 +78,8 @@ jobs:
         run: |
           uv export --frozen --no-emit-project -o requirements.txt
           uvx pip-audit -r requirements.txt --disable-pip
+      - name: No credentials in tracked files or binary documents (audit F-01)
+        run: python3 .github/scripts/check_committed_secrets.py
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:

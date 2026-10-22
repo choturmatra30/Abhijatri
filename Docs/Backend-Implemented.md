@@ -688,3 +688,17 @@ The live API runs on **Railway**, not Render: project `sincere-warmth`, service 
 | Public app | Vercel project `abhijatri` (https://abhijatri.vercel.app) belongs to the `choturmatra30` account. Its owner redeploys it after the merge. |
 | Nightly roll-up | Add the GitHub secrets `OPS_API_URL=https://abhijatri-backend.up.railway.app` and `OPS_DASHBOARD_TOKEN` (the same token). |
 
+
+### 5.12 Security audit follow-up (22 October 2026)
+
+The full record is in `Docs/Security-Audit-2026-10-21.md`. In code:
+- **F-06 and F-09:** `app/main.py` adds the security headers, including a restrictive API CSP, to every response, including early 413 and 504 errors.
+- **F-03:** the config tests are hermetic.
+- **Audit §6 tests:** added as `tests/test_audit_additions.py`.
+- **F-02 and F-04:** React Router 7.18.4, Vite 8.3.5, Vitest 5.0.5 and plugin-react 6.1.2 in `frontend/` and `ops/`.
+- **F-01 guard:** a CI step, `.github/scripts/check_committed_secrets.py`, fails on credential URLs and on binary documents that are not allowlisted.
+
+Still open, owner actions:
+- **F-01:** rotate the Supabase password, update Railway `DATABASE_URL`, and remove the audit PDF from `backend-dev` history.
+- **F-04 remainder:** the Tailwind 4 migration.
+- **F-08:** the `ruff format` team decision.

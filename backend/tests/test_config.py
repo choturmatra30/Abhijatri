@@ -10,6 +10,13 @@ SUPABASE = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every case states its own configuration; no ambient CI or shell variable leaks in (audit F-03)."""
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+
+
 def _prod(**overrides) -> Settings:
     values = {
         "app_env": "production",
@@ -68,7 +75,7 @@ def test_production_accepts_a_long_ops_token() -> None:
 
 
 def test_development_keeps_defaults() -> None:
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None, app_env="development")
     assert settings.docs_are_enabled is True
     assert settings.cors_origins == ["http://localhost:5173"]
 
@@ -94,13 +101,14 @@ def test_invalid_timezones_are_rejected(overrides: dict) -> None:
         Settings(_env_file=None, app_env="test", **overrides)
 
 
-def test_unset_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("APP_ENV", raising=False)
+def test_unset_environment_fails_closed() -> None:
     with pytest.raises(ValidationError):  # unset APP_ENV is production, which needs the full set
         Settings(_env_file=None, receipt_pepper=GOOD_PEPPER)
     settings = Settings(
         _env_file=None,
+        database_url=SUPABASE,
         receipt_pepper=GOOD_PEPPER,
+        cors_allowed_origins="https://app.example.com",
         client_address_header="X-Forwarded-For",
         turnstile_enabled=True,
         turnstile_secret="s" * 20,
