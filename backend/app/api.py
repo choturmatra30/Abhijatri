@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
-from app import abuse
+from app import abuse, visits
 from app import review_parameters as rp
 from app.abuse import CounterSessions
 from app.client_address import network_digest, trusted_client_address
@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.destination_api import public_cache_headers
 from app.errors import ApiError
-from app.guest_services import guest_visit_stats, record_guest_visit
+from app.guest_tag import display_guest_tag
 from app.limits import guest_submit_limit, guest_visit_limit, limiter, receipt_limit
 from app.models import (
     DestinationRatingStats,
@@ -31,16 +31,14 @@ from app.models import (
     User,
     UserPlatformRole,
 )
+from app.redis_client import RedisDep
 from app.schemas import (
     CategoryParameter,
     ChoiceOption,
     ConflictFlagRequest,
-    DailyGuestVisits,
     GuestReviewCreate,
     GuestReviewCreated,
     GuestVisitRequest,
-    GuestVisitResponse,
-    GuestVisitStats,
     HealthResponse,
     LocalizedText,
     ModerationQueueItem,
@@ -243,38 +241,23 @@ def review_parameters(request: Request, response: Response) -> ReviewParameters:
     )
 
 
-@router.post("/guest-visits", response_model=GuestVisitResponse)
+@router.post("/guest-visits", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit(guest_visit_limit)
 def create_guest_visit(
     request: Request,
     payload: GuestVisitRequest,
     sessions: CounterSessions,
-    session: Session = Depends(get_session),
-) -> GuestVisitResponse:
-    """Count one guest visit: only a running number and the time are stored, never who."""
-    del payload  # always empty; declared so any field (a name, a device id) is a 422
+    redis_client: RedisDep,
+) -> Response:
+    """Count one guest visit-day in Redis (Guest-Identity-and-Visits 4.2). Nothing identifies the guest.
+
+    The browser sends this at most once per Dhaka day. Counting is best effort: a Redis failure is
+    recorded in ``visits_dropped`` and the response is still 204.
+    """
     abuse.enforce(sessions, abuse.guest_visit_checks(get_settings(), network_digest(request)))
-    visit_number = record_guest_visit(session)
-    session.commit()
-    _, today, _ = guest_visit_stats(session, days=1)
-    return GuestVisitResponse(visit_number=visit_number, visits_today=today)
-
-
-@router.get("/guest-visits/stats", response_model=GuestVisitStats)
-@limiter.limit("60/minute")
-def guest_visits_stats(
-    request: Request,
-    response: Response,
-    days: int = Query(default=30, ge=1, le=90),
-    session: Session = Depends(get_session),
-) -> GuestVisitStats:
-    total, today, daily = guest_visit_stats(session, days=days)
-    response.headers.update(public_cache_headers())
-    return GuestVisitStats(
-        total_visits=total,
-        visits_today=today,
-        daily=[DailyGuestVisits(date=day, visits=visits) for day, visits in daily],
-    )
+    if get_settings().visit_counter_enabled:
+        visits.record_visit(redis_client, "guest", new=payload.first_visit)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/staff/moderation/reviews", response_model=list[ModerationQueueItem])
@@ -299,6 +282,7 @@ def moderation_queue(
             counted_rating=review.counted_rating,
             destination_id=review.destination_id,
             guest_display_name=review.guest_display_name,
+            guest_tag=display_guest_tag(review.guest_tag),
             overall_rating=review.overall_rating,
             title=revision.title,
             body=revision.body,
@@ -424,6 +408,7 @@ def public_reviews(
         PublicReview(
             id=review.id,
             guest_display_name=review.guest_display_name,
+            guest_tag=display_guest_tag(review.guest_tag),
             status=review.status,
             overall_rating=review.overall_rating,
             published_at=review.published_at,

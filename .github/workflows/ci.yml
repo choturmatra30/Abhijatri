@@ -104,3 +104,26 @@ jobs:
           npm run lint --if-present
           npm run build
           npm test --if-present
+      - if: steps.detect.outputs.present == 'true'
+        name: Public build carries no ops dashboard code (System-Monitoring-Dashboard 11)
+        working-directory: frontend
+        run: |
+          if grep -rIl -e "/api/v1/ops" -e "OPS_DASHBOARD_TOKEN" -e "abhijatri_ops_token" dist; then
+            echo "The public frontend build must not reference the ops dashboard."; exit 1
+          fi
+
+  ops:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ops
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ops/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test

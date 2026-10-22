@@ -20,6 +20,7 @@ def _prod(**overrides) -> Settings:
         "turnstile_enabled": True,
         "turnstile_secret": "0x4AAAAAAA-secret",
         "turnstile_hostname": "app.example.com",
+        "redis_url": "rediss://default:pw@apn1-example.upstash.io:6379",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
@@ -52,11 +53,18 @@ def test_production_accepts_valid_configuration() -> None:
         {"turnstile_enabled": False},
         {"turnstile_secret": None},
         {"turnstile_hostname": None},
+        {"redis_url": None},
+        {"redis_url": "redis://default:pw@apn1-example.upstash.io:6379"},  # TLS is required
+        {"ops_dashboard_token": "too-short"},
     ],
 )
 def test_production_fails_closed(overrides: dict) -> None:
     with pytest.raises(ValidationError):
         _prod(**overrides)
+
+
+def test_production_accepts_a_long_ops_token() -> None:
+    assert _prod(ops_dashboard_token="t" * 43).ops_dashboard_token == "t" * 43
 
 
 def test_development_keeps_defaults() -> None:
@@ -97,6 +105,7 @@ def test_unset_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None
         turnstile_enabled=True,
         turnstile_secret="s" * 20,
         turnstile_hostname="app.example.com",
+        redis_url="rediss://default:pw@apn1-example.upstash.io:6379",
     )
     assert settings.is_production
     assert not settings.docs_are_enabled

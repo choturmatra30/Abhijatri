@@ -346,25 +346,6 @@
         "title": "ContactKind",
         "type": "string"
       },
-      "DailyGuestVisits": {
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "visits": {
-            "title": "Visits",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "visits"
-        ],
-        "title": "DailyGuestVisits",
-        "type": "object"
-      },
       "DestinationList": {
         "properties": {
           "items": {
@@ -908,53 +889,17 @@
       },
       "GuestVisitRequest": {
         "additionalProperties": false,
-        "description": "Deliberately empty: nothing about the guest is sent or stored, not even a device id.",
-        "properties": {},
+        "description": "Exactly one boolean (Guest-Identity-and-Visits 4.2). Any other field, such as a name, tag,\nsecret or device id, is a 422 ``UNKNOWN_FIELD``.",
+        "properties": {
+          "first_visit": {
+            "title": "First Visit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "first_visit"
+        ],
         "title": "GuestVisitRequest",
-        "type": "object"
-      },
-      "GuestVisitResponse": {
-        "properties": {
-          "visit_number": {
-            "title": "Visit Number",
-            "type": "integer"
-          },
-          "visits_today": {
-            "title": "Visits Today",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "visit_number",
-          "visits_today"
-        ],
-        "title": "GuestVisitResponse",
-        "type": "object"
-      },
-      "GuestVisitStats": {
-        "properties": {
-          "daily": {
-            "items": {
-              "$ref": "#/components/schemas/DailyGuestVisits"
-            },
-            "title": "Daily",
-            "type": "array"
-          },
-          "total_visits": {
-            "title": "Total Visits",
-            "type": "integer"
-          },
-          "visits_today": {
-            "title": "Visits Today",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_visits",
-          "visits_today",
-          "daily"
-        ],
-        "title": "GuestVisitStats",
         "type": "object"
       },
       "GuideCategory": {
@@ -1107,6 +1052,17 @@
               }
             ],
             "title": "Guest Display Name"
+          },
+          "guest_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Tag"
           },
           "overall_rating": {
             "title": "Overall Rating",
@@ -1304,6 +1260,17 @@
               }
             ],
             "title": "Guest Display Name"
+          },
+          "guest_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Tag"
           },
           "id": {
             "format": "uuid",
@@ -1939,7 +1906,7 @@
     },
     "/api/v1/guest-visits": {
       "post": {
-        "description": "Count one guest visit: only a running number and the time are stored, never who.",
+        "description": "Count one guest visit-day in Redis (Guest-Identity-and-Visits 4.2). Nothing identifies the guest.\n\nThe browser sends this at most once per Dhaka day. Counting is best effort: a Redis failure is\nrecorded in ``visits_dropped`` and the response is still 204.",
         "operationId": "create_guest_visit_api_v1_guest_visits_post",
         "requestBody": {
           "content": {
@@ -1952,14 +1919,7 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GuestVisitResponse"
-                }
-              }
-            },
+          "204": {
             "description": "Successful Response"
           },
           "422": {
@@ -1974,48 +1934,6 @@
           }
         },
         "summary": "Create Guest Visit"
-      }
-    },
-    "/api/v1/guest-visits/stats": {
-      "get": {
-        "operationId": "guest_visits_stats_api_v1_guest_visits_stats_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "maximum": 90,
-              "minimum": 1,
-              "title": "Days",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GuestVisitStats"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Guest Visits Stats"
       }
     },
     "/api/v1/health": {
@@ -2084,6 +2002,240 @@
           }
         },
         "summary": "Health Ready"
+      }
+    },
+    "/api/v1/ops/jobs/visit-rollup": {
+      "post": {
+        "description": "Idempotent; called nightly by GitHub Actions and by the dashboard's \"Run roll-up\" button.",
+        "operationId": "visit_rollup_api_v1_ops_jobs_visit_rollup_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Visit Rollup Api V1 Ops Jobs Visit Rollup Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visit Rollup",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/overview": {
+      "get": {
+        "operationId": "overview_api_v1_ops_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Overview Api V1 Ops Overview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/panels": {
+      "get": {
+        "operationId": "list_panels_api_v1_ops_panels_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Panels Api V1 Ops Panels Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Panels",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/api/v1/ops/panels/{panel_id}": {
+      "get": {
+        "operationId": "get_one_panel_api_v1_ops_panels__panel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "panel_id",
+            "required": true,
+            "schema": {
+              "title": "Panel Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get One Panel Api V1 Ops Panels  Panel Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get One Panel",
+        "tags": [
+          "ops"
+        ]
       }
     },
     "/api/v1/review-parameters": {

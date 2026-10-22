@@ -81,6 +81,17 @@ class Settings(BaseSettings):
     turnstile_verify_url: str = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     turnstile_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 
+    # Visit counters and ops event counters (Guest-Identity-and-Visits 7). Upstash in shared
+    # environments (rediss://), a local container or fakeredis in development and tests.
+    redis_url: str | None = Field(default=None, repr=False)
+    redis_timeout_ms: int = Field(default=300, ge=50, le=5000)
+    visit_counter_enabled: bool = True  # kill switch for counting visits
+    metrics_flush_seconds: int = Field(default=60, ge=5, le=3600)
+
+    # System Monitoring Dashboard, phase 1 (System-Monitoring-Dashboard 3.1). Unset: /ops is 404.
+    ops_dashboard_token: str | None = Field(default=None, repr=False)
+    ops_auth_failures_per_network_per_hour: int = Field(default=10, ge=1)
+
     @field_validator("database_url", "migration_database_url")
     @classmethod
     def _normalize_url(cls, value: str | None) -> str | None:
@@ -181,6 +192,10 @@ class Settings(BaseSettings):
         host = urlparse(self.database_url.replace("+psycopg", "", 1)).hostname or ""
         if host not in LOCAL_HOSTS and "sslmode=require" not in self.database_url:
             raise ValueError("DATABASE_URL must include sslmode=require outside local hosts")
+        if not (self.redis_url and self.redis_url.startswith("rediss://")):
+            raise ValueError("REDIS_URL must be set to this environment's rediss:// (TLS) Upstash URL")
+        if self.ops_dashboard_token is not None and len(self.ops_dashboard_token) < 32:
+            raise ValueError("OPS_DASHBOARD_TOKEN must be at least 32 characters, or unset")
         return self
 
 

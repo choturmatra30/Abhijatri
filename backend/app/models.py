@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    CHAR,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -14,7 +15,6 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
-    Identity,
     Index,
     Integer,
     LargeBinary,
@@ -292,6 +292,9 @@ class User(Base):
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_team_account: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    # Member visit days (Guest-Identity-and-Visits 4.3): set by GET /auth/session once R04 exists.
+    first_visit_on: Mapped[date | None] = mapped_column(Date)
+    last_visit_on: Mapped[date | None] = mapped_column(Date)
 
 
 class PlatformRole(Base):
@@ -344,6 +347,10 @@ class Review(Base):
             "(guest_scope_hash IS NULL) = (guest_scope_key_id IS NULL)",
             name="ck_review_scope_key_pair",
         ),
+        CheckConstraint(
+            "guest_tag IS NULL OR (author_user_id IS NULL AND guest_tag ~ '^[0-9A-HJKMNP-TV-Z]{10}$')",
+            name="ck_review_guest_tag",
+        ),
         Index(
             "uq_reviews_member_draft",
             "author_user_id",
@@ -386,6 +393,8 @@ class Review(Base):
     guest_display_name: Mapped[str | None] = mapped_column(String(80))
     guest_scope_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
     guest_scope_key_id: Mapped[str | None] = mapped_column(String(16))
+    # Public pseudonym derived from the scope secret (Guest-Identity-and-Visits 3.1), no dash.
+    guest_tag: Mapped[str | None] = mapped_column(CHAR(10))
     client_draft_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     current_revision_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(
@@ -574,18 +583,25 @@ class RateLimitBucket(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
-class GuestVisit(Base):
-    """The guest footprint: one row per guest per day, holding only a number and a time.
+class VisitDailyStats(Base):
+    """Four visit totals per Asia/Dhaka day, rolled up from Redis (Guest-Identity-and-Visits 4.5).
 
-    Who a guest is does not matter, only how many come each day (scope owner, 20 Oct 2026).
-    Nothing else about a guest is stored: no name, device id, hash, address or user reference.
-    The guest's name stays on their device (Review.md 3.2 step 1).
+    Numbers only: no guest tag, secret, address or user reference. The split columns are NULL only
+    for legacy days migrated from ``guest_visits``, whose totals sit in ``guest_total_legacy``.
     """
 
-    __tablename__ = "guest_visits"
-    __table_args__ = (Index("ix_guest_visits_visited_at", "visited_at"),)
+    __tablename__ = "visit_daily_stats"
+    __table_args__ = tuple(
+        CheckConstraint(f"{column} IS NULL OR {column} >= 0", name=f"ck_visit_daily_stats_{column}")
+        for column in ("guest_new", "guest_returning", "member_new", "member_returning", "guest_total_legacy")
+    )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    visited_at: Mapped[datetime] = mapped_column(
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    guest_new: Mapped[int | None] = mapped_column(Integer)
+    guest_returning: Mapped[int | None] = mapped_column(Integer)
+    member_new: Mapped[int | None] = mapped_column(Integer)
+    member_returning: Mapped[int | None] = mapped_column(Integer)
+    guest_total_legacy: Mapped[int | None] = mapped_column(Integer)
+    rolled_up_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
     )

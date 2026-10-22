@@ -90,6 +90,7 @@ class ModerationQueueItem(ModerationResult):
 
     destination_id: uuid.UUID
     guest_display_name: str | None
+    guest_tag: str | None = None
     overall_rating: int
     title: str
     body: str
@@ -128,6 +129,9 @@ class PublicReview(BaseModel):
 
     id: uuid.UUID
     guest_display_name: str | None
+    # "Anonymous guest · 1C669-J0TDY"; null for member reviews and guest reviews written before
+    # the tag existed (Guest-Identity-and-Visits 3.3).
+    guest_tag: str | None = None
     status: ReviewStatus
     overall_rating: int
     published_at: datetime
@@ -211,23 +215,10 @@ class ReviewParameters(BaseModel):
 
 
 class GuestVisitRequest(StrictRequestModel):
-    """Deliberately empty: nothing about the guest is sent or stored, not even a device id."""
+    """Exactly one boolean (Guest-Identity-and-Visits 4.2). Any other field, such as a name, tag,
+    secret or device id, is a 422 ``UNKNOWN_FIELD``."""
 
-
-class GuestVisitResponse(BaseModel):
-    visit_number: int
-    visits_today: int
-
-
-class DailyGuestVisits(BaseModel):
-    date: date
-    visits: int
-
-
-class GuestVisitStats(BaseModel):
-    total_visits: int
-    visits_today: int
-    daily: list[DailyGuestVisits]
+    first_visit: bool
 
 
 AdvisoryState = Literal["NOT_YET_EFFECTIVE", "CURRENT", "STALE", "EXPIRED"]

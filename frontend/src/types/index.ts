@@ -172,6 +172,8 @@ export type CategoryRatings = Partial<Record<ReviewCategory, number>>;
 export interface PublicReview {
   id: string;
   guest_display_name: string | null;
+  /** "1C669-J0TDY"; null for member reviews and guest reviews written before the tag existed. */
+  guest_tag: string | null;
   status: ReviewStatus;
   overall_rating: number;
   published_at: string;
@@ -229,18 +231,6 @@ export interface ReviewParameters {
 }
 
 /** `POST /guest-visits` (API.md 5.14). Nothing about the guest is sent or stored. */
-export interface GuestVisit {
-  visit_number: number;
-  visits_today: number;
-}
-
-export interface GuestVisitStats {
-  total_visits: number;
-  visits_today: number;
-  /** Oldest first, one entry per display-time-zone day. */
-  daily: { date: string; visits: number }[];
-}
-
 export interface GuestReviewCreate {
   destination_id: string;
   client_draft_id: string;

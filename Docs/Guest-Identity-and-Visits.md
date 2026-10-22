@@ -1,6 +1,6 @@
 # Guest Identity and Visit Counting
 
-**Status:** Proposed, 21 October 2026. Replaces the pasted "Production-Grade System Architecture" draft; the issues with that draft are in `Docs/Reviews/Guest-Identity-Monitoring-review.md`.
+**Status:** Implemented 22 October 2026 (sections 3, 4.2, 4.4 to 4.6, 5; member visits wait for R04). Proposed 21 October 2026. Replaces the pasted "Production-Grade System Architecture" draft; the issues with that draft are in `Docs/Reviews/Guest-Identity-Monitoring-review.md`.
 **Companion:** `Docs/System-Monitoring-Dashboard.md` (the private dashboard that reads these numbers). Section 9 describes how the two connect.
 **Owner decisions it carries forward:** guest footprint is a count only (Decisions.md, 20 Oct 2026); guests have no account (Review.md 1.1); the team chat of 21 Oct 2026 (random unique guest string, badge on the device, "anonymous guest" heading on notes, Guest / Verified / New / Total / Old = A − B, Upstash Redis instead of the database for guests, Vercel hosting).
 

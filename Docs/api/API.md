@@ -116,8 +116,12 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 | `GET /health` (also `HEAD`) | none | no-store | Implemented |
 | `GET /health/ready` (also `HEAD`) | none | no-store | Change required |
 | `GET /auth/csrf` | member or staff session | no-store | Planned (R04) |
-| `POST /guest-visits` | none (empty body, no cookie, no name) | no-store | Implemented 20 Oct 2026; count-only since migration 0008 (section 5.14) |
-| `GET /guest-visits/stats` | none | Public, short TTL | Implemented 20 Oct 2026 (section 5.14) |
+| `POST /guest-visits` | none (body `{ "first_visit": bool }` only, no cookie) | no-store | Implemented; Redis day counters since 22 Oct 2026 (section 5.14) |
+| `GET /guest-visits/stats` | — | — | **Removed 22 Oct 2026**: traffic volume is not public; the numbers moved to `GET /ops/overview` (5.16) |
+| `GET /ops/panels` | ops token (`Authorization: Bearer`) | no-store | Implemented 22 Oct 2026 (section 5.16) |
+| `GET /ops/panels/{panel_id}` | ops token | no-store | Implemented 22 Oct 2026 (section 5.16) |
+| `GET /ops/overview` | ops token | no-store | Implemented 22 Oct 2026 (section 5.16) |
+| `POST /ops/jobs/visit-rollup` | ops token | no-store | Implemented 22 Oct 2026 (section 5.16) |
 
 `/health` returns `{ "status": "ok" }`. `/health/ready` checks the database and returns `503 SERVICE_UNAVAILABLE` if it is down. It must also report the deployed build and the database migration revision, because the deploy workflow polls it for both (PF 22.1):
 
@@ -337,6 +341,7 @@ Query: `after` (optional cursor, at most 200 characters), `limit` (1 to 50, defa
     {
       "id": "...",
       "guest_display_name": "Sadia Rahman",
+      "guest_tag": "1C669-J0TDY",
       "status": "PUBLISHED",
       "overall_rating": 4,
       "published_at": "2026-10-15T08:30:00Z",
@@ -355,7 +360,7 @@ Query: `after` (optional cursor, at most 200 characters), `limit` (1 to 50, defa
 }
 ```
 
-`category_ratings` is `{}` when the reviewer rated no category. `guest_category_averages` lists only categories with at least one counted rating, in the Section 8 order, each with its own count.
+`guest_tag` is the guest's public pseudonym, computed by the server from the scope secret (Guest-Identity-and-Visits 3.1). Clients show it as "Anonymous guest · 1C669-J0TDY" (বেনামী অতিথি). It is `null` for member reviews and for guest reviews written before 22 Oct 2026. `category_ratings` is `{}` when the reviewer rated no category. `guest_category_averages` lists only categories with at least one counted rating, in the Section 8 order, each with its own count.
 
 Only `PUBLISHED` reviews appear. Guest ratings feed Guest Feedback only, never Community Rating (RV 6.2). The response carries a short public `Cache-Control` TTL (Security 7.1), not `no-store`.
 
@@ -524,47 +529,27 @@ Rules:
   - `seeded_selection` is `true` while the score is `null`. The client then shows "Seeded Destination Selection" instead of a score (RV 6.4).
   - Clients display these values and never compute the rating themselves.
 
-### 5.14 `POST /guest-visits` and `GET /guest-visits/stats`
+### 5.14 `POST /guest-visits`
 
-This is the **guest footprint**: how many guests come to the site each day, **never who** (scope owner, 20 Oct 2026). The guest's name stays on their device for the welcome "Welcome, <name> · Guest #N" (Review.md 3.2 step 1).
+Counts one visitor-day (Guest-Identity-and-Visits 4.2). Nothing identifies the guest; the guest tag, name and scope secret never reach this route.
 
 ```http
 POST /api/v1/guest-visits
 Content-Type: application/json
 
-{}
+{ "first_visit": true }
 ```
 
-Response `200`:
+Response `204 No Content`, `Cache-Control: no-store`.
 
-```json
-{ "visit_number": 128, "visits_today": 9 }
-```
+- **The body is exactly one boolean.** Any other field (name, tag, secret, device id) returns `422 UNKNOWN_FIELD`; a missing `first_visit` returns `422 REQUIRED`.
+- **What is stored:** one `HINCRBY` on the Redis hash `abj:{APP_ENV}:visits:{YYYY-MM-DD}` (field `guest_new` or `guest_returning`, TTL 8 days). Finished days are rolled up into `visit_daily_stats` (four integers per day). No server row per visit or per guest exists.
+- **Once per Asia/Dhaka day per browser.** The client sends nothing when `abhijatri_last_visit_on` is today. `first_visit` is `true` only when the browser has never been counted.
+- **Best effort.** If Redis is slow or down the route still returns `204`; the miss is counted as `visits_dropped` and shown on the ops dashboard. `VISIT_COUNTER_ENABLED=false` stops counting.
+- **Limits.** Burst `RATE_LIMIT_GUEST_VISIT` (default `20/minute`), then the durable `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default 60) returning `429 RATE_LIMITED` with `Retry-After`.
+- The response carries no number, so traffic volume is not public.
 
-- **The body is always empty.** Any field (a `name`, the old `guest_scope_secret`, a device id) returns `422 UNKNOWN_FIELD`.
-- **What is stored:** exactly one row in `guest_visits` with two columns, `id` (the running number) and `visited_at`. Nothing else: no name, device id, hash, address or user reference.
-- **One visit per guest per day.** The client calls this at most once per Asia/Dhaka calendar day per browser (it remembers the date locally). It keeps the `visit_number` of its first visit as "Guest #N" and reuses it on later days. A new browser, an incognito window or cleared storage counts as a new guest.
-- **Limits.** The in-memory burst limit `RATE_LIMIT_GUEST_VISIT` (default `20/minute`) applies, then a durable `GUEST_VISITS_PER_NETWORK_PER_HOUR` (default 60), which returns `429 RATE_LIMITED` with `Retry-After`. Those counters live in `rate_limit_buckets`, the platform's general abuse control keyed by a network digest and purged within 2 days. They are not guest data.
-- **Caching:** `Cache-Control: no-store`. No cookie or CSRF token is used.
-
-`GET /api/v1/guest-visits/stats?days=30` (`days` 1 to 90) returns the daily footprint:
-
-```json
-{
-  "total_visits": 128,
-  "visits_today": 9,
-  "daily": [{ "date": "2026-10-19", "visits": 14 }, { "date": "2026-10-20", "visits": 9 }]
-}
-```
-
-`daily` lists the last `days` Asia/Dhaka days, oldest first, with days that had no visits shown as 0. The response is public with a short TTL (Security 7.1).
-
-**Client flow** (`frontend/src/api/guests.ts`, `recordDailyVisit`):
-1. The guest enters a name on `/guest`, and it is saved locally.
-2. If this browser has not been counted today, it calls `POST /guest-visits` with `{}`.
-3. It stores today's date and, on the first visit only, the `visit_number`.
-4. It shows "Welcome, <name> · Guest #N".
-5. If the call fails, the welcome still shows the name with any number already stored.
+**Client flow** (`frontend/src/api/guests.ts`, `recordDailyVisit`): on every app load, if this browser was not counted today, send `{ "first_visit": <no abhijatri_first_visit_on yet> }`, then store today in `abhijatri_last_visit_on` (and `abhijatri_first_visit_on` the first time).
 
 ### 5.15 `GET /review-parameters`
 
@@ -601,6 +586,25 @@ This route returns the review form and the rating rules, so the client renders t
 - **Community Rating** is the Bayesian `score` over eligible Verified Member reviews (5.12). It is shown only from five reviews.
 - **Category averages** are computed per audience and never merged.
 - The overall rating is never derived from the category ratings.
+
+### 5.16 Operations API: `/ops/*` (System Monitoring Dashboard)
+
+Private, read-only API for the ops dashboard (`Docs/System-Monitoring-Dashboard.md` 3 to 6).
+
+- **Credential:** `Authorization: Bearer <OPS_DASHBOARD_TOKEN>` only (never a URL, cookie or log). When the variable is unset every `/ops` route is `404`. A wrong or missing token is `401 AUTH_REQUIRED`; after 10 failures per network per hour the network gets `429 RATE_LIMITED`.
+- **Caching:** every response is `no-store`. Burst limit 60 requests per minute.
+- **Content:** aggregates and system state only. No names, guest tags, secrets, receipts, IP addresses, emails or review bodies.
+
+| Route | Returns |
+|---|---|
+| `GET /ops/panels` | `{ "panels": [{ id, title {bn,en}, version, refresh_seconds, permission, sources, owner }] }` |
+| `GET /ops/panels/{panel_id}?days=7\|30\|90` | One panel (shape below); unknown id is `404` |
+| `GET /ops/overview?days=7\|30\|90` | `{ generated_at, days, panels: [...] }`. First rolls up any missing finished day (best effort). |
+| `POST /ops/jobs/visit-rollup` | `{ "rolled_up": ["2026-10-21"] }`. Idempotent; `503` when Redis is not reachable. |
+
+Panel shape (dashboard doc 6.2): `{ id, version, title, status: ok|degraded|unavailable, generated_at, refresh_seconds, sources: [{name, fresh_at}], blocks: [...], notes: [{bn,en}] }`. Block types are `stat` (`value`, optional `limit`, `level`, `hint`), `series` (`points: [{date, value}]`, `null` = no data), `table` (`columns`, `rows`) and `status` (`value`, `level`). A missing number is `null`, never `0`.
+
+Panels: `visitors`, `content`, `reviews`, `traffic`, `health`, `members`.
 
 ## 6. Changes required in the current code
 

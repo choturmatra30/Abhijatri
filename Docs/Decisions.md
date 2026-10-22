@@ -2,6 +2,21 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-10-22 (Guest tag, Redis visit counters, ops dashboard token)
+
+Implements `Docs/Guest-Identity-and-Visits.md` and `Docs/System-Monitoring-Dashboard.md` (phase 1). Owner choices of 22 Oct 2026 are marked "owner".
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Guest tag replaces Guest #N | Each browser's tag is `CrockfordBase32(SHA-256("abhijatri:guest-tag:v1
+" + scope secret))[50 bits]`, shown `XXXXX-XXXXX`. The browser computes it for the badge; the server computes it in `POST /reviews/guest` and stores it in `reviews.guest_tag`. A client-sent tag is a 422. "Guest #N" and its storage keys are retired. | Unique, unguessable, needs no server list of guests, and nobody can post under another tag (Guest doc D1 to D3). |
+| Unique identifier (owner) | The **guest tag** is the unique guest identifier. Typed guest display names may repeat. | Making names unique would need a server list of guest names, which the count-only rule forbids. |
+| Guest session (owner) | The typed name is remembered for **30 days after the last visit**, then asked again. The tag, scope secret, receipts and visit dates stay, so the guest is not counted as new. Sign-out forgets the name only. | "Session cache for about one month" without inflating New Guest. |
+| Visit counting | A visit is one visitor per Asia/Dhaka day; "new" is the first ever day. Counters live in Upstash Redis (`abj:{env}:visits:{date}`, 8-day TTL); finished days roll up into `visit_daily_stats` (numbers only). `guest_visits` is dropped; its totals moved to `guest_total_legacy`. `GET /guest-visits/stats` is removed from the public API. | Amends the Redis deferral (PF 32, "Scope control") for counters only. Old visits = A − B holds by construction. |
+| Verified counts (owner) | `users.first_visit_on` / `last_visit_on` and the counting SQL exist now; they are wired to `GET /auth/session` with R04. Until then Verified is 0 and the dashboard says "member sign-in not built". | No sign-in exists yet; no fake numbers (Dashboard R5). |
+| Ops dashboard (owner) | A separate `ops/` Vite app (own Vercel project, `noindex`). The API checks `OPS_DASHBOARD_TOKEN` (`Authorization: Bearer`, constant-time, ≥ 32 chars, 10 failures per network per hour then 429; unset = every `/ops` route 404). The browser keeps it in `sessionStorage`. Panels show aggregates only. | A private URL is not protection (Security 4.1). The token is not an identity and reads aggregates only, so it does not conflict with PF 25. Replaced by staff sign-in with MFA in phase 2 (R04, R11). |
+| Processor | Upstash (Redis, ap-southeast-1) holds aggregate counters only: no tag, secret, IP, user id or user agent. | Security 3.8 processor register. |
+
 ## 2026-10-20 (Production schema changes only through Alembic)
 
 | Decision | Rule | Reason |
