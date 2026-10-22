@@ -1,6 +1,6 @@
 # System Monitoring Dashboard
 
-**Status:** Proposed, 21 October 2026.
+**Status:** Phase 1 implemented 22 October 2026 (token access, six panels, operations API, ops app, nightly roll-up). Proposed 21 October 2026.
 **Companion:** `Docs/Guest-Identity-and-Visits.md` (produces the visitor numbers). Section 9 describes how the two connect. Issues with the earlier draft: `Docs/Reviews/Guest-Identity-Monitoring-review.md`.
 **Goal from the team chat:** a private System Monitoring Dashboard where the team "sees everything in the system", and where new things can be connected later without rebuilding it.
 

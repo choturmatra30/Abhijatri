@@ -1,6 +1,6 @@
 # Guest Identity and Visit Counting
 
-**Status:** Proposed, 21 October 2026. Replaces the pasted "Production-Grade System Architecture" draft; the issues with that draft are in `Docs/Reviews/Guest-Identity-Monitoring-review.md`.
+**Status:** Implemented 22 October 2026 (sections 3, 4.2, 4.4 to 4.6, 5; member visits wait for R04). Proposed 21 October 2026. Replaces the pasted "Production-Grade System Architecture" draft; the issues with that draft are in `Docs/Reviews/Guest-Identity-Monitoring-review.md`.
 **Companion:** `Docs/System-Monitoring-Dashboard.md` (the private dashboard that reads these numbers). Section 9 describes how the two connect.
 **Owner decisions it carries forward:** guest footprint is a count only (Decisions.md, 20 Oct 2026); guests have no account (Review.md 1.1); the team chat of 21 Oct 2026 (random unique guest string, badge on the device, "anonymous guest" heading on notes, Guest / Verified / New / Total / Old = A − B, Upstash Redis instead of the database for guests, Vercel hosting).
 
@@ -68,7 +68,7 @@ The tag itself is not stored, because it is derived. All reads and writes are gu
 | Place | Shows |
 |---|---|
 | Sidebar session card, `/guest` welcome | "Welcome, Sadia · Guest `1C669-J0TDY`" (Bangla: "স্বাগতম, Sadia · অতিথি `1C669-J0TDY`"). Without a name: "Guest `1C669-J0TDY`". |
-| Guest review card on a destination | Line 1: the display name the guest typed. Line 2: **"Anonymous guest · `1C669-J0TDY`"** (বেনামী অতিথি). Reviews written before the tag existed show "Anonymous guest" only. |
+| Guest review card on a destination | **"Anonymous guest · `1C669-J0TDY`"** (বেনামী অতিথি) only. The typed name is **not** shown and not sent by the public API (owner, 22 Oct 2026); only moderators see it. Reviews written before the tag existed show "Anonymous guest" only. |
 | Member review card | Name and Member / Verified Member badge, unchanged. |
 
 The tag stays in Latin letters in both languages, like the receipt, because it is an identifier. "Anonymous" here means "no account", and the submission notice says so: *"Your reviews from this browser show the same guest tag, so readers can see they came from the same guest."* (Security 3.4 notice change.)

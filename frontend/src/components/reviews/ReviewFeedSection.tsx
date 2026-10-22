@@ -116,12 +116,16 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
                     />
                   ))}
                 </span>
-                <span className="font-semibold text-on-surface dark:text-on-dark">{review.guest_display_name ?? t('সদস্য', 'Member')}</span>
-                {review.guest_display_name && (
-                  <span className="px-2 py-0.5 rounded-full bg-surface-container dark:bg-dark-surface-2 text-[10px] font-bold uppercase">
-                    {t('অতিথি', 'Guest')}
-                  </span>
-                )}
+                {/* A guest's name is never shown: "Anonymous guest · TAG" (owner, 22 Oct 2026). */}
+                <span className="font-semibold text-on-surface dark:text-on-dark">
+                  {review.author_type === 'GUEST' ? t('বেনামী অতিথি', 'Anonymous guest') : t('সদস্য', 'Member')}
+                  {review.author_type === 'GUEST' && review.guest_tag && (
+                    <>
+                      {' · '}
+                      <code className="font-mono font-normal tracking-wide">{review.guest_tag}</code>
+                    </>
+                  )}
+                </span>
                 <span className="ml-auto">{formatTimestamp(review.published_at, language)}</span>
               </div>
               {/* Plain text only: React escapes it, and user HTML is never rendered (Review.md 10). */}

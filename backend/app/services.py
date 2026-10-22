@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import crypto
+from app.guest_tag import stored_guest_tag
 from app.models import (
     Destination,
     DestinationCategoryStats,
@@ -179,6 +180,8 @@ def submit_guest_review(session: Session, payload: GuestReviewCreate) -> GuestSu
         guest_display_name=normalize_guest_name(payload.guest_display_name),
         guest_scope_hash=crypto.digest(crypto.GUEST_SCOPE_LABEL, key_id, payload.guest_scope_secret),
         guest_scope_key_id=key_id,
+        # Computed here from the secret, never accepted from the client (Guest-Identity 3.1, D3).
+        guest_tag=stored_guest_tag(payload.guest_scope_secret),
         client_draft_id=payload.client_draft_id,
         status=ReviewStatus.PENDING,
         rating_eligibility=RatingEligibility.NOT_EVALUATED,

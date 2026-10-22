@@ -139,10 +139,13 @@ export function isReceiptFormat(value: string): boolean {
 }
 
 /**
- * The guest scope secret is long-lived per device and is only a supplemental abuse signal.
- * PF 18.1 places it in IndexedDB; until the offline draft store lands (R15) it is kept in
- * localStorage. It never leaves the device except in the submission body.
+ * The guest scope secret is long-lived per device. It is the source of the guest tag
+ * (Guest-Identity-and-Visits 3.1) and a supplemental abuse signal. PF 18.1 places it in IndexedDB;
+ * until the offline draft store lands (R15) it is kept in localStorage. It never leaves the device
+ * except in the review submission body. It is created on the first visit, so the badge exists at once.
  */
+let inMemoryScope: string | null = null;
+
 export function getGuestScopeSecret(): string {
   try {
     const stored = localStorage.getItem(GUEST_SCOPE_KEY);
@@ -151,8 +154,22 @@ export function getGuestScopeSecret(): string {
     localStorage.setItem(GUEST_SCOPE_KEY, fresh);
     return fresh;
   } catch {
-    return randomBase64Url(48); // storage blocked: one-off scope for this session
+    // Storage blocked: one scope (and so one tag) for the life of this tab.
+    inMemoryScope ??= randomBase64Url(48);
+    return inMemoryScope;
   }
+}
+
+/** "Start as a new guest": a new secret, therefore a new tag. Visit dates are kept. */
+export function resetGuestScopeSecret(): string {
+  const fresh = randomBase64Url(48);
+  inMemoryScope = fresh;
+  try {
+    localStorage.setItem(GUEST_SCOPE_KEY, fresh);
+  } catch {
+    // storage blocked: the new scope lives only in this tab
+  }
+  return fresh;
 }
 
 export function getReviewFeed(

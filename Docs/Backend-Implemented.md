@@ -378,7 +378,7 @@ Source: Review.md 3.1 and amendment A2; API.md 5.2 and section 6 ("Rejects `cate
 **Tests to add:** schema unit tests (range, unknown key, empty object, 7-key limit); PostgreSQL tests for rows per revision, deltas on publish, hide and withdraw, and no change for pending reviews; an HTTP test that `category_ratings` is accepted; the OpenAPI contract test.
 **Frontend switch afterwards:** `VITE_REVIEW_CATEGORY_RATINGS=true` in `frontend/.env` and on Vercel.
 
-### 5.3 Guest welcome and anonymous guest counter (new) — backend implemented 20 Oct 2026
+### 5.3 Guest welcome and anonymous guest counter (new) — backend implemented 20 Oct 2026 (superseded by 5.11)
 
 **Rule:** a Guest has no account (Review.md 1.1). The name the Guest types on the landing page stays in the browser (`localStorage` key `abhijatri_guest_name`) and is used for the welcome message and to pre-fill the review display name. **The server never receives or stores it.** The server counts distinct guest devices by the keyed digest of the existing `guest_scope_secret` (`src/api/reviews.ts:getGuestScopeSecret`), so a reload keeps the same number and no personal data is stored.
 
@@ -518,3 +518,187 @@ The scope owner ruled that only the number of guests per day is needed, never wh
 | Frontend | `recordDailyVisit()` reports at most once per Dhaka day per browser and keeps the first `visit_number` as "Guest #N" (`abhijatri_guest_number`, `abhijatri_guest_last_visit` in `localStorage`). |
 | Tests | `tests/test_guest_visits.py`: the table columns are exactly `{id, visited_at}`; any request field (name, old scope secret, device id) gives 422; each visit adds one row with the next number; a 20:30 UTC visit counts for the next Dhaka day; `daily` fills zero days; the `days` bounds are checked; HTTP shapes; rate limit 429. Frontend: `guests.test.ts`, where the body is exactly `{}`, a browser is counted once per day, and a later day keeps the first number. |
 | Run | ruff and mypy clean; `alembic upgrade head`, `check`, `downgrade -1` and `upgrade` clean; backend unit and integration suites green; frontend 29 tests, `tsc` and build clean. |
+
+### 5.11 Guest identity, visit counting and the System Monitoring Dashboard (22 October 2026; supersedes 5.3 and 5.10)
+
+Implements `Docs/Guest-Identity-and-Visits.md` and `Docs/System-Monitoring-Dashboard.md` phase 1. Owner choices of 22 Oct 2026 are in `Docs/Decisions.md`:
+
+- The guest tag is the unique guest identifier; typed names may repeat.
+- The guest name is a 30-day session.
+- Verified stays 0 until R04.
+- The dashboard is a separate `ops/` app.
+
+#### What was built
+
+| Area | Detail |
+|---|---|
+| Guest tag | `app/guest_tag.py`: `CrockfordBase32(SHA-256("abhijatri:guest-tag:v1\n" + scope secret))[50 bits]`, shown `XXXXX-XXXXX`. The spec test vector gives `1C669-J0TDY` in Python and TypeScript. `submit_guest_review` stores it in `reviews.guest_tag` (no dash). The client cannot send one: `guest_tag` in the body is a `422 UNKNOWN_FIELD`. |
+| Review feed | `GET /destinations/{id}/reviews` and the moderation queue return `guest_tag` ("1C669-J0TDY", or `null` for member reviews and older guest reviews). The destination page shows the name, then **"Anonymous guest · 1C669-J0TDY"** (বেনামী অতিথি). |
+| Visit counting | `app/visits.py`. `POST /guest-visits` takes exactly `{ "first_visit": bool }` and returns `204` with `no-store`. One `HINCRBY` and `EXPIRE` (8 days) in a single `MULTI` on `abj:{APP_ENV}:visits:{Dhaka date}` (fields `guest_new`, `guest_returning`, `member_new`, `member_returning`). If Redis is down or unset, the route still returns 204, `visits_dropped` goes up, and a warning without request data is logged. `VISIT_COUNTER_ENABLED=false` stops counting. The burst and durable per-network limits are unchanged. `GET /guest-visits/stats` is removed. |
+| Metrics | `visits.metrics()` is the one implementation of doc 5: Guest, Verified, New Guest, New Verified, A = total, B = new, Old = A − B. A hypothesis test checks that A − B always equals the returning visits. |
+| Roll-up | `visits.rollup()` takes a per-day `SET NX EX 300` lock and upserts the absolute values of each finished day (last 7) into `visit_daily_stats`. Running it twice gives the same row. A missing hash never zeroes a row. Triggered nightly by `.github/workflows/visit-rollup.yml` (00:15 Dhaka) and by every dashboard open. |
+| Member visits | `users.first_visit_on` / `last_visit_on` and `visits.record_member_visit()` (the doc 4.3 `UPDATE … RETURNING`). Wired into `GET /auth/session` with R04. |
+| Migration `0009_guest_tag_visit_stats` | Adds `reviews.guest_tag char(10)` with `ck_review_guest_tag` (guest reviews only, Crockford pattern). Adds `users.first_visit_on` and `last_visit_on`. Creates `visit_daily_stats` (RLS on, Supabase roles revoked). Copies the old `guest_visits` totals per Dhaka day into `guest_total_legacy`, then drops `guest_visits`. The downgrade reverses it. The revision id stays under Alembic's 32-character limit. |
+| Ops API | `app/ops/`, under `/api/v1/ops`. Routes: `GET /panels`, `GET /panels/{id}?days=7\|30\|90`, `GET /overview?days=`, `POST /jobs/visit-rollup`. **Access:** `OPS_DASHBOARD_TOKEN` as `Authorization: Bearer`, compared in constant time. Unset means every route is 404. A wrong token is 401; after 10 failures per network per hour the network gets 429. **Limits:** responses are `no-store`, with a burst limit of 60 per minute. |
+| Panels | `visitors`, `content`, `reviews`, `traffic`, `health`, `members` (`app/ops/providers/`). Each runs with a 2-second budget, and one failing panel shows `unavailable` without affecting the others. A missing number is `null`, never 0. Adding a panel takes one new provider file (doc 6.4). |
+| Event counters | `app/ops/events.py`: an `EVENT_NAMES` allowlist plus `route_5xx:<route template>`, counted in memory and flushed every `METRICS_FLUSH_SECONDS` to `abj:{env}:events:{date}`. Middleware counts 2xx, 4xx and 5xx, 429, `CHALLENGE_FAILED` and 5xx per route template (never raw paths). |
+| Logging | `RedactIdentifiers` in `app/main.py` replaces guest tags and `abr1_` receipts in every log line. |
+| Config | Production start-up fails unless `REDIS_URL` is a `rediss://` URL, and when `OPS_DASHBOARD_TOKEN` is set but shorter than 32 characters. CORS allows the `Authorization` header. |
+| Frontend | `src/api/guests.ts` changes: <ul><li>WebCrypto `guestTag()`.</li><li>The scope secret is created on the first visit.</li><li>New keys `abhijatri_first_visit_on` and `abhijatri_last_visit_on`.</li><li>The retired `abhijatri_guest_number` and `abhijatri_guest_last_visit` are read once (the browser counts as returning), then removed.</li><li>The 30-day name session uses `abhijatri_guest_name_seen_on`.</li><li>Sign-out forgets the name only.</li><li>"Start as a new guest" makes a new secret, and so a new tag, without resetting the visit dates.</li></ul> Other files: `SessionContext` counts a visit on every app load, with or without a name. The sidebar card and `/guest` show "Welcome, Sadia · Guest 1C669-J0TDY" plus the doc 3.3 notice. If storage is blocked, the tab keeps one tag. |
+| Ops app | `ops/`: Vite, React and TypeScript on port 5174. **Login:** a token prompt that keeps the token in `sessionStorage`. **Content:** a generic renderer for the four block types (stat, series with gaps for missing days, table, status), the 7/30/90 selector, per-panel refresh, the "Run roll-up" button and Bangla/English. **Hosting:** `vercel.json` sets `X-Robots-Tag: noindex`, a strict CSP and `no-store`. |
+| Local stack | `compose.yaml` gains a `redis` service on `127.0.0.1:6379`. The new variables are documented in `backend/.env.example`, `ops/.env.example` and `render.yaml`. |
+| CI | Two additions: a new `ops` job (`npm ci`, build, test), and a check that the public `frontend/dist` contains no ops route or token name. |
+
+#### Verification (22 Oct 2026)
+
+| Check | Result |
+|---|---|
+| Backend | ruff and mypy clean. 225 unit tests and 76 integration tests passed on PostgreSQL 17. `alembic upgrade head`, `check` (no drift) and `downgrade base` are clean. Three legacy `guest_visits` rows migrated to the correct Dhaka days (`2026-10-19: 1`, `2026-10-20: 2`). OpenAPI snapshot regenerated. |
+| Frontend | `tsc`, build and 38 vitest tests pass, including the tag parity vector, the once-per-day flag, the 30-day name, the retired-key migration and sign-out keeping the tag. |
+| Ops app | `tsc`, build and 4 tests pass. |
+| End to end (real Redis, real Postgres, running API) | 15 of 15 checks passed: <ul><li>Two visits return 204, and an extra field returns 422.</li><li>A guest review stores the server-derived tag.</li><li>After publishing, the destination feed returns `guest_display_name: "Rahim"` and the matching `guest_tag`.</li><li>A wrong ops token returns 401.</li><li>All six panels return `ok`.</li><li>Visitors today shows Guest 2, New Guest 1, A 2, B 1, Old 1, Verified 0.</li><li>No tag, secret or receipt appears in the dashboard output.</li><li>The roll-up route works.</li></ul> Redis held only `abj:development:visits:<date>` (`guest_new 1`, `guest_returning 1`) and the events hash. |
+
+#### Run everything on localhost (no Vercel, no Render)
+
+1. Start Postgres and Redis (from the repository root):
+   ```powershell
+   docker compose up -d postgres redis
+   ```
+2. Configure the backend. In `backend/.env` (copy of `.env.example`) set at least:
+   ```ini
+   APP_ENV=development
+   REDIS_URL=redis://localhost:6379/0
+   OPS_DASHBOARD_TOKEN=<python -c "import secrets;print(secrets.token_urlsafe(48))">
+   CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+   ALLOW_TEST_STAFF_HEADER=true        # only to publish reviews locally with X-Test-Staff-Id
+   ```
+3. Migrate, seed and start the API:
+   ```powershell
+   cd backend
+   uv run alembic upgrade head
+   uv run python scripts/seed_destinations.py
+   uv run uvicorn app.main:app --reload            # http://localhost:8000
+   ```
+4. Start the public app: `cd frontend; npm run dev`, then open http://localhost:5173. The sidebar shows "Guest XXXXX-XXXXX". Write a review from a destination page.
+5. Publish the review. Guest reviews are `PENDING` until a moderator publishes them, and staff sign-in waits for R04. Locally, use the development staff header:
+   1. Create a user with the `MODERATOR` role in `user_platform_roles`.
+   2. Call `POST /api/v1/staff/moderation/reviews/{id}/decisions` with `X-Test-Staff-Id: <that user id>` and `{"expected_version": 1, "decision": "PUBLISH", "reason_code": "OK"}`.
+
+   The destination page then shows "Anonymous guest · XXXXX-XXXXX".
+6. Start the dashboard: `cd ops; npm install; npm run dev`, open http://localhost:5174 and paste the `OPS_DASHBOARD_TOKEN`.
+
+#### Deploying: Upstash, Render, Vercel, GitHub
+
+Secrets (the Redis URL and the ops token) go only into the host dashboards or GitHub secrets: never into git, chat or an MCP prompt. Use the MCP route for non-secret steps and status checks, and paste secret values into the web consoles yourself.
+
+**1. Upstash Redis (manual; once per environment)**
+
+1. Sign in at https://console.upstash.com and choose **Redis → Create database**.
+2. Fill in the form:
+   - Name: `abhijatri-prod`
+   - Type: **Regional**
+   - Region: **AP-Southeast-1 (Singapore)**, same as the API
+   - TLS: on (the default)
+3. Open the database and copy the **`rediss://default:<password>@<name>.upstash.io:6379`** URL (Connect → Redis URL). Use a separate database for staging.
+4. Check the free-plan command limit in the console (about 100,000 to 150,000 commands a month at 1,000 visitors a day; dashboard doc 8).
+
+**2. Render API (manual)**
+
+1. Open https://dashboard.render.com and select the **abhijatri-api** service, then **Environment**.
+2. Add or update these variables:
+   - `REDIS_URL` = the Upstash `rediss://…` URL.
+   - `OPS_DASHBOARD_TOKEN` = a new value from `python -c "import secrets;print(secrets.token_urlsafe(48))"`. Store it in the password manager of two owners.
+   - `CORS_ALLOWED_ORIGINS` = `https://<public-app>.vercel.app,https://<ops-app>.vercel.app`. Add the ops origin after step 4 has created it.
+   - `VISIT_COUNTER_ENABLED` = `true`.
+3. Click **Save, rebuild and deploy**. The Docker command runs `alembic upgrade head` on start, so migration `0009` is applied automatically. If the service is managed by the Blueprint, **Blueprints → Sync** asks for the new `sync: false` keys from `render.yaml`.
+4. Verify:
+   - `GET https://<api>/api/v1/health/ready` returns 200.
+   - `curl -X POST https://<api>/api/v1/guest-visits -H "Content-Type: application/json" -d '{"first_visit":false}'` returns 204.
+   - `curl https://<api>/api/v1/ops/panels -H "Authorization: Bearer <token>"` returns 200.
+
+   If the service does not start, the logs name the missing variable (the production guard).
+
+**2b. Render through MCP (optional)**
+
+1. Create an API key: Render Dashboard → Account Settings → API Keys.
+2. Connect Render's hosted MCP server in Claude Code:
+   ```powershell
+   claude mcp add --transport http render https://mcp.render.com/mcp --header "Authorization: Bearer <RENDER_API_KEY>"
+   ```
+3. Run `/mcp` to confirm it is connected, then ask, for example: "select my Render workspace", "list services", "show the latest deploy and logs of abhijatri-api", "set VISIT_COUNTER_ENABLED=true on abhijatri-api".
+4. Set `REDIS_URL` and `OPS_DASHBOARD_TOKEN` in the dashboard (step 2), not through the chat.
+
+This session had no Render MCP connected, so these steps were written, not run.
+
+**3. Public app on Vercel**
+
+No new variable is needed. Redeploy after merging, because Vite reads `VITE_*` values at build time. The existing `VITE_API_BASE_URL` must point to the Render API.
+
+**4. Ops dashboard on Vercel (manual)**
+
+1. Go to https://vercel.com/new, choose **Import Git Repository**, and pick `shahriar6130/Abhijatri`.
+2. Set **Project name** to something unlisted, such as `abhijatri-ops-<random>`, and **Root Directory** to **`ops`**. Vercel detects Vite (build `npm run build`, output `dist`).
+3. Under **Environment Variables** add `VITE_API_BASE_URL` = `https://<api>.onrender.com` (no trailing slash).
+4. Click **Deploy**, and note the `https://abhijatri-ops-<random>.vercel.app` origin.
+5. Tighten the CSP: in `ops/vercel.json`, change `connect-src` from the `*.onrender.com` / `*.up.railway.app` wildcards to the exact API origin, then commit and redeploy.
+6. Add the ops origin to the API's `CORS_ALLOWED_ORIGINS` (step 2), then open the dashboard and paste the token.
+7. Optional: Project → Settings → **Deployment Protection** → Vercel Authentication, as a second lock in front of the token, if your plan offers it for production.
+8. Do not add a link to the ops URL anywhere in the public app (rule R1).
+
+**4b. Vercel through MCP**
+
+1. Connect the Vercel MCP if it is not already connected (it is in this Claude session):
+   ```powershell
+   claude mcp add --transport http vercel https://mcp.vercel.com
+   ```
+2. Run `/mcp` and complete the Vercel sign-in.
+3. Ask Claude to create a Git-connected project from `shahriar6130/Abhijatri` with root directory `ops`, add the environment variable `VITE_API_BASE_URL=https://<api>`, and deploy production. Behind the scenes this uses the project, environment-variable and deployment tools.
+4. Ask for the deployment status and build logs to confirm.
+
+`VITE_API_BASE_URL` is not a secret. The ops token is never stored in Vercel: each person types it into the dashboard.
+
+**5. GitHub (nightly roll-up)**
+
+1. Open Repository → **Settings → Secrets and variables → Actions → New repository secret** and add:
+   - `OPS_API_URL` = `https://<api>.onrender.com`
+   - `OPS_DASHBOARD_TOKEN` = the same token as on Render.
+2. Actions → **Nightly visit roll-up** → **Run workflow** once to test. The job skips itself when the secrets are missing, and it wakes a sleeping free Render instance.
+
+**6. Rotation and the kill switches**
+
+- **Token:** change `OPS_DASHBOARD_TOKEN` on Render and in GitHub, then redeploy. Rotate when a team member leaves and at least each semester.
+- **Counting:** `VISIT_COUNTER_ENABLED=false` stops counting without a deploy of code.
+
+#### Known limits
+
+- **Verified numbers:** they are 0 until member sign-in (R04) calls `record_member_visit` from `GET /auth/session`. The dashboard says "member sign-in not built".
+- **Range totals:** these are visitor-days, not distinct people (doc 5). A person who browses as a guest and signs in on the same day counts in both.
+- **Unflushed event counts:** up to `METRICS_FLUSH_SECONDS` of counts can be lost if a free Render instance sleeps or restarts. Visit counters are written immediately and are not affected.
+- **Phase 2:** the token is replaced by staff sign-in with MFA and `ops.read` (dashboard doc 3.2), with R04 and R11.
+
+#### Deployment record (22 Oct 2026)
+
+The live API runs on **Railway**, not Render: project `sincere-warmth`, service `abhijatri-api`, region asia-southeast1. It builds `backend/Dockerfile` from the **`main`** branch, root `./backend`. The Dockerfile start command runs `alembic upgrade head`, so migration `0009` is applied when the new code first deploys.
+
+| Item | State |
+|---|---|
+| Ops dashboard | Vercel project `abhijatri-ops-44afee` (account `syedmuhtasimapon-8894`), https://abhijatri-ops-44afee.vercel.app. Deployed from `ops/` with the Vercel CLI and not linked to GitHub, so updates are `vercel deploy --prod` from `ops/`. `VITE_API_BASE_URL=https://abhijatri-backend.up.railway.app` is set for Production. The headers `noindex`, CSP and `no-store` were verified live. |
+| Railway variables set (no restart) | `OPS_DASHBOARD_TOKEN` (64 characters, generated locally and never printed), `CORS_ALLOWED_ORIGINS=https://abhijatri.vercel.app,https://abhijatri-ops-44afee.vercel.app`, `VISIT_COUNTER_ENABLED=true`. |
+| **Blocking before `backend-dev` reaches `main`** | `REDIS_URL` (Upstash `rediss://`) is **not set**. Railway runs `APP_ENV=production`, and the new code refuses to start there without it. Set it first: `railway variable set REDIS_URL --stdin --skip-deploys` from `backend/`, then paste the URL. |
+| Public app | Vercel project `abhijatri` (https://abhijatri.vercel.app) belongs to the `choturmatra30` account. Its owner redeploys it after the merge. |
+| Nightly roll-up | Add the GitHub secrets `OPS_API_URL=https://abhijatri-backend.up.railway.app` and `OPS_DASHBOARD_TOKEN` (the same token). |
+
+
+### 5.12 Security audit follow-up (22 October 2026)
+
+The full record is in `Docs/Security-Audit-2026-10-21.md`. In code:
+- **F-06 and F-09:** `app/main.py` adds the security headers, including a restrictive API CSP, to every response, including early 413 and 504 errors.
+- **F-03:** the config tests are hermetic.
+- **Audit §6 tests:** added as `tests/test_audit_additions.py`.
+- **F-02 and F-04:** React Router 7.18.4, Vite 8.3.5, Vitest 5.0.5 and plugin-react 6.1.2 in `frontend/` and `ops/`.
+- **F-01 guard:** a CI step, `.github/scripts/check_committed_secrets.py`, fails on credential URLs and on binary documents that are not allowlisted.
+
+Still open, owner actions:
+- **F-01:** rotate the Supabase password, update Railway `DATABASE_URL`, and remove the audit PDF from `backend-dev` history.
+- **F-04 remainder:** the Tailwind 4 migration.
+- **F-08:** the `ruff format` team decision.

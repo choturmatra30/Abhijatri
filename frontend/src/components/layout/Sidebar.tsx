@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
-import { formatNumber } from '../../utils/format';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -23,7 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const { session, isVerifiedMember, signOut } = useSession();
   const navigate = useNavigate();
 
@@ -147,10 +146,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 ? `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`
                 : session.displayName
                   ? t(
-                      `স্বাগতম, ${session.displayName}${session.guestNumber ? ` · অতিথি #${formatNumber(session.guestNumber, language)}` : ''}`,
-                      `Welcome, ${session.displayName}${session.guestNumber ? ` · Guest #${session.guestNumber}` : ''}`,
+                      `স্বাগতম, ${session.displayName}${session.guestTag ? ` · অতিথি ${session.guestTag}` : ''}`,
+                      `Welcome, ${session.displayName}${session.guestTag ? ` · Guest ${session.guestTag}` : ''}`,
                     )
-                  : t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
+                  : session.guestTag
+                    ? t(`অতিথি ${session.guestTag}`, `Guest ${session.guestTag}`)
+                    : t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
             </span>
           </div>
           {session.kind === 'guest' && (

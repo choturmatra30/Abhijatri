@@ -167,9 +167,14 @@ erDiagram
         int rating_sum
         int rating_count
     }
-    guest_visits {
-        bigint id PK
-        timestamptz visited_at
+    visit_daily_stats {
+        date day PK
+        int guest_new
+        int guest_returning
+        int member_new
+        int member_returning
+        int guest_total_legacy
+        timestamptz rolled_up_at
     }
     moderation_actions {
         uuid id PK
@@ -200,17 +205,17 @@ erDiagram
 | Table | Purpose | Key constraints and indexes | Privacy class |
 |---|---|---|---|
 | `destinations` | Bilingual destination identity, publication state and profile text (region, summary, seasonality, restrictions, coordinates, content licence). Profile columns are nullable until R01 content is entered. | PK `id`; enum `destination_status`; `ck_destination_latitude_range`, `ck_destination_longitude_range`, `ck_destination_coordinates_pair`; partial index `ix_destinations_published_name`. | Public when `PUBLISHED` |
-| `users` | Account identity. | Unique `email`. | Personal data |
+| `users` | Account identity. `first_visit_on` / `last_visit_on` (migration `0009`) are member visit days for the Verified visit counts, written once member sign-in (R04) exists. | Unique `email`. | Personal data |
 | `platform_roles` | Staff role catalogue (`MODERATOR`, `ADMINISTRATOR`, `SUPER_ADMINISTRATOR`). | Unique `code`. | Internal |
 | `user_platform_roles` | Role assignment with optional expiry. | Unique `(user_id, role_id)`. | Internal |
 | `verifications` | Verified Member state; separate from staff authority. | FK to `users` (subject and approver). | Sensitive |
-| `reviews` | Stable review identity, state machine, counted rating, optimistic `version`. | `ck_review_rating_range` (1-5); `ck_review_counted_rating_range`; `ck_review_author_shape` (Member xor Guest); `uq_reviews_guest_draft` and `uq_reviews_member_draft` (permanent draft uniqueness); `uq_reviews_member_active_visit` (one active review per Member, destination, month unless override); `ix_reviews_published_feed` (partial, `status = 'PUBLISHED'`). | Public when `PUBLISHED`, otherwise private |
+| `reviews` | Stable review identity, state machine, counted rating, optimistic `version`. | `ck_review_rating_range` (1-5); `ck_review_counted_rating_range`; `ck_review_author_shape` (Member xor Guest); `ck_review_guest_tag` (`guest_tag char(10)`, migration `0009`: the public pseudonym derived from the guest scope secret, Crockford base32, guest reviews only); `uq_reviews_guest_draft` and `uq_reviews_member_draft` (permanent draft uniqueness); `uq_reviews_member_active_visit` (one active review per Member, destination, month unless override); `ix_reviews_published_feed` (partial, `status = 'PUBLISHED'`). | Public when `PUBLISHED`, otherwise private |
 | `review_revisions` | Append-only submitted versions; body tombstoned only by retention. | Unique `(review_id, sequence)`; `ck_revision_rating_range`. | Private until published |
 | `review_receipts` | Keyed digest of the client-generated Guest receipt (HMAC-SHA-256, label `abhijatri:review-receipt:v1`, versioned key); never the raw receipt. | `key_id`, `digest`; unique `uq_review_receipt_key_digest (key_id, digest)`; `revoked_at`. Rows from the old server-issued scheme are revoked and marked `legacy`. | Secret-derived |
 | `destination_rating_stats` | O(1) Community and Guest sum/count aggregates, updated under row lock. | Non-negative `CHECK`s; `version`. | Public aggregate |
 | `review_category_ratings` | Optional per-category score (1 to 5) for a revision; one row per rated `review_category`, absent when not applicable (Review.md 3.1, amendment A2). Migration `0006`. | Composite PK `(revision_id, category)`; FK `revision_id` `CASCADE`; `ck_category_rating_range`. | Private until published |
 | `destination_category_stats` | O(1) per-category sum/count for each destination and audience (`GUEST` or `COMMUNITY`), moved in the same transaction and lock order as `destination_rating_stats`. Migration `0006`. | Composite PK `(destination_id, category, audience)`; FK `CASCADE`; `ck_category_stats_sum_nonnegative`, `ck_category_stats_count_nonnegative`. | Public aggregate |
-| `guest_visits` | Guest footprint: one row per guest per Asia/Dhaka day, holding **only** a running number (`id`) and `visited_at`. It answers "how many guests came each day", never "who". **No other guest data is stored anywhere**: no name, device id, hash, address or user reference (scope owner, 20 Oct 2026). Migration `0008` replaced the `0007` per-device digest table. | PK `id` (identity); index `ix_guest_visits_visited_at`. | Aggregate count, no identifiers |
+| `visit_daily_stats` | Four visit totals per Asia/Dhaka day (`guest_new`, `guest_returning`, `member_new`, `member_returning`), rolled up nightly from the Redis day hashes (Guest-Identity-and-Visits 4.5). `guest_total_legacy` holds the per-day totals copied from the retired `guest_visits` table (split unknown, so the four split columns are `NULL` on those days). Nothing in it identifies a visitor. Migration `0009` (replaces `guest_visits`). | PK `day`; `CHECK (>= 0)` on every count column. | Aggregate statistics, no identifiers |
 | `destination_guide_items` | Bilingual attraction, accommodation, food, transport and local-practice entries with provenance. | FK `destination_id` `CASCADE`; enum `guide_category`; index `ix_guide_items_destination_category`; shown only when `is_published`. | Public when published |
 | `destination_advisories` | Dated bilingual advisories: `effective_on`, `valid_until` (Asia/Dhaka dates), `verified_on`, source and licence. | FK `CASCADE`; enum `advisory_severity`; `ck_advisory_validity_window` (`valid_until >= effective_on`); index `ix_advisories_destination_valid_until`. State (`CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE`) is derived at read time, never stored. | Public when published |
 | `destination_contacts` | Public institution and emergency contacts with coordinates and provenance. No personal contacts. | FK `CASCADE`; enum `contact_kind`; `ck_contact_phone_format`, `ck_contact_latitude_range`, `ck_contact_longitude_range`, `ck_contact_coordinates_pair`; index `ix_contacts_destination_kind`. | Public when published |

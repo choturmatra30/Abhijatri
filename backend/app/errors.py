@@ -139,6 +139,7 @@ def error_response(
     status_code, message_bn, message_en = CATALOGUE[code]
     language = preferred_language(request.headers.get("accept-language"))
     request_id = request_id_of(request)
+    request.state.error_code = code  # read by the ops event middleware (app.main)
     return JSONResponse(
         {
             "error": {
