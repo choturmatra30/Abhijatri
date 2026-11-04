@@ -4,6 +4,7 @@ import { ApiError, NETWORK_ERROR, TIMEOUT_ERROR } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSlowFlag } from '../../hooks/useNetworkState';
 import { SignInLink } from './SignInLink';
+import { Button, buttonVariants } from '@/components/ui/button';
 
 type Translate = (bn: string, en: string) => string;
 
@@ -102,20 +103,16 @@ export const ErrorState: React.FC<{ error: unknown; onRetry?: () => void }> = ({
         </p>
       )}
       {kind === 'signin' && (
-        <SignInLink className="mt-1 inline-flex items-center gap-2 px-5 min-h-[44px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-title">
+        <SignInLink className={buttonVariants({ className: 'mt-1' })}>
           <LogIn size={14} aria-hidden="true" />
           {t('সাইন ইন', 'Sign in')}
         </SignInLink>
       )}
       {canRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-1 inline-flex items-center gap-2 px-5 min-h-[44px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-title"
-        >
-          <RefreshCw size={14} aria-hidden="true" />
+        <Button type="button" onClick={onRetry} className="mt-1">
+          <RefreshCw aria-hidden="true" />
           {t('আবার চেষ্টা করুন', 'Try again')}
-        </button>
+        </Button>
       )}
     </div>
   );

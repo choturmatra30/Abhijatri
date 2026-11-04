@@ -66,7 +66,7 @@ export const SessionExpiredBanner: React.FC = () => {
     <div role="alert" className="w-full bg-sky-50 dark:bg-sky-950/50 text-sky-900 dark:text-sky-100 border-b border-sky-200 dark:border-sky-900">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         <LogIn size={16} className="shrink-0" aria-hidden="true" />
-        <span className="flex-1 min-w-[12rem]">
+        <span className="flex-1 min-w-48">
           <strong>{t('আপনার সেশনের মেয়াদ শেষ হয়েছে।', 'Your session has expired.')}</strong>{' '}
           {t('নিরাপত্তার জন্য আপনাকে সাইন আউট করা হয়েছে। চালিয়ে যেতে আবার সাইন ইন করুন।', 'You were signed out for security. Sign in again to continue.')}
         </span>

@@ -2,6 +2,23 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-04 (shadcn/ui, Tailwind 4 and a new theme)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Tailwind 4 | The frontend moves from Tailwind 3.4 to 4 (`@tailwindcss/postcss`, CSS-first config in `src/global.css`; `tailwind.config.js` removed; `autoprefixer` dropped). | Current shadcn/ui targets Tailwind 4; requested by the frontend owner. |
+| shadcn/ui | `components.json` (style new-york, base colour stone, lucide icons), `@/` alias to `src/` in `tsconfig.json` and `vite.config.ts`, `cn()` in `src/lib/utils.ts`. First components: button, card, input, label, textarea, badge, separator, select, dialog, sonner. `sonner` uses our `ThemeContext` instead of `next-themes`. | Accessible Radix primitives and one set of variants instead of per-page class strings. |
+| New theme | Supersedes the Design.md sage/neon palette: shadcn stone neutrals with a green primary (light `green-700`, dark `green-500`; shadcn's `green-600` fails AA with white text). The old colour names (`forest-primary`, `surface-sage`, ...) remain as aliases of the new tokens so unmigrated pages follow the theme; new code uses shadcn names. | Chosen by the frontend owner. Needs team acknowledgement because it changes the approved look (F03 review). |
+| Fonts | Inter for interface and English; Hind Siliguri for Bangla, with system Bangla fallbacks. Noto Serif Bengali is no longer loaded. | One sans family pairs with the shadcn look and saves a web-font download. |
+
+## 2026-11-04 (Destination photos and the interactive selector)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Destination photos | Supersedes "No destination images" (2026-10-19). Destination photos are allowed when they are open-licence Wikimedia Commons images of the actual place, with author and licence read from Commons metadata, resized to at most 1024 px WebP, self-hosted under `frontend/public/images/destinations/`, credited on the photo, and listed in `Docs/Image-Credits.md`. Stock photos (Unsplash, CDN mirrors) remain excluded. | Requested by the frontend owner with the 21st.dev selector; keeps PF 17 (licensed, attributed) and PF 16.3 (`img-src 'self'`, no hotlinking). |
+| `components/ui/` and shadcn/ui | Superseded the same day (see below): shadcn/ui is adopted. Generic UI pieces live in `frontend/src/components/ui/`; shadcn components are added with `npx shadcn@latest add <name>` and then adjusted (44 px targets, wrapping text). | The frontend owner chose shadcn/ui for consistent, accessible components. |
+| 21st.dev components | Adapted, not pasted: props instead of hard-coded data, lucide icons instead of `react-icons`, Tailwind and CSS keyframes instead of Next.js styled-jsx, keyboard and screen-reader support, phone layout, reduced motion. | The original used Next-only styled-jsx, needed 600 px of width, used clickable `div`s, and shipped stock images. |
+
 ## 2026-11-04 (UI states: network, session, permission)
 
 | Decision | Rule | Reason |

@@ -23,6 +23,9 @@ For nighttime expedition planning, it features an electric **Neon Slate Night Mo
 
 ## 2. Color Palettes
 
+> **Superseded 4 Nov 2026** (Decisions, "shadcn/ui, Tailwind 4 and a new theme"). The live theme is shadcn/ui stone with a green primary, defined as CSS variables in `frontend/src/global.css`: light background white, text stone-950, primary green-700 (#15803d-equivalent, 5.0:1 with white), borders stone-200; dark background stone-950, cards stone-900, primary green-500 with near-black text. Fonts: Inter (interface, English) and Hind Siliguri (Bangla). Components come from shadcn/ui (`src/components/ui/`) with 44 px minimum targets. The palettes below are kept for history only.
+
+
 ### 2.1 Light Theme (ColorHunt Botanical Sage)
 Selected palette based on [ColorHunt #e1f0da](https://colorhunt.co/palette/e1f0dad4e7c5bfd8af99bc85):
 
@@ -107,6 +110,13 @@ All fonts are loaded directly from Google Fonts:
 - `1px solid var(--color-border-subtle)` micro-border.
 - `transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1)`.
 - Subtle hover elevation (`translateY(-2px)` with diffuse shadow) **only on cards that are links** (`a.tonal-card`). Forms and content panels do not move on hover: lifting a large card made it jitter when the cursor sat near its edge.
+
+### 5.2a Interactive Selector (`components/ui/interactive-selector.tsx`)
+- Expanding photo panels: the open panel grows to seven times the width of the others (`flex 7 : 1`), with a 2px white border (neon lime in dark mode); closed panels show only their icon on desktop.
+- 16px (`rounded-2xl`) corners and an 8px gap, matching the tonal cards; a bottom-to-top black gradient keeps white text readable on any photo.
+- Phones stack the panels vertically (34rem tall) and keep names visible on closed panels.
+- Motion: 700ms ease-out for size and image zoom (110% to 100%), a 120ms-staggered slide-in on load, all disabled under reduced motion.
+- Every photo carries its credit pill (top right of the open panel); see `Docs/Image-Credits.md`.
 
 ### 5.3 Badges & Status Indicators
 - **Bayesian Verified**: Shield icon with emerald green accent.

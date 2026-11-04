@@ -2,6 +2,7 @@ import React from 'react';
 import { Languages, Moon, Sun } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { buttonVariants } from '@/components/ui/button';
 
 /**
  * Language (Bangla default) and theme switches, shared by the app navbar and public pages.
@@ -18,7 +19,7 @@ export const PreferenceToggles: React.FC = () => {
         type="button"
         onClick={toggleLanguage}
         lang={language === 'bn' ? 'en' : 'bn'}
-        className="flex items-center gap-1 px-3 min-h-[44px] rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime text-xs font-semibold hover:bg-surface-container dark:hover:bg-dark-surface-2 transition-colors"
+        className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'min-h-11 gap-1.5' })}
       >
         <Languages size={14} aria-hidden="true" />
         <span>{language === 'bn' ? 'English' : 'বাংলা'}</span>
@@ -26,7 +27,7 @@ export const PreferenceToggles: React.FC = () => {
       <button
         type="button"
         onClick={toggleTheme}
-        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime hover:bg-surface-container dark:hover:bg-dark-surface-2 transition-colors"
+        className={buttonVariants({ variant: 'secondary', size: 'icon' })}
         aria-label={theme === 'light' ? t('রাতের থিম', 'Switch to night theme') : t('দিনের থিম', 'Switch to day theme')}
       >
         {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}

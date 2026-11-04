@@ -221,6 +221,34 @@ Evidence (4 Nov 2026): `npm test` 123 passed (13 files; 13 new in `api/client.te
 
 Not covered: the staff and ops apps (separate builds owned by others) were not changed; real-device and screen-reader passes are still outstanding.
 
+## 5c. Interactive destination selector on the landing page (4 November 2026)
+
+| Item | Location |
+|---|---|
+| Generic selector (from the 21st.dev "interactive-selector", adapted) | `frontend/src/components/ui/interactive-selector.tsx` |
+| Licensed photos and their credits | `frontend/src/data/destinationImages.ts`, `frontend/public/images/destinations/*.webp`, `Docs/Image-Credits.md` |
+| Credit line on each photo | `frontend/src/components/common/ImageCredit.tsx` |
+| Entry motion | `@keyframes selector-in` in `frontend/src/global.css` (motion-safe only) |
+| Placement | `LandingPage.tsx`: replaces the destination chips under the hero |
+
+Behaviour: the live `GET /destinations` list becomes expanding photo panels; the open panel shows the name, summary, an **Open guide** link and the photo credit. Panels are real buttons (`aria-expanded`), arrow keys, Home and End move between them and focus opens a panel. Desktop shows a wide open panel and slim tabs; phones stack the panels, with names visible on the closed ones. A destination without a licensed photo still gets a panel (dark background, map-pin icon). Images are self-hosted: about 509 KB for all five, only the open one loads eagerly.
+
+Evidence (4 Nov 2026): `npm test` 123 passed; `npm run build` clean. Browser run in Edge at 1280 px and 390 px with five stubbed destinations: five panels; clicking Sylhet opened it with "Photo: Sumon Mallick · CC BY-SA 4.0 · resized"; ArrowRight wrapped to the first panel and Home returned to it; the Open guide link pointed at `/destinations/<id>`; the open image had its alt text; every image request went to the app's own origin; no horizontal overflow; no page errors.
+
+## 5d. shadcn/ui, Tailwind 4 and the new theme (4 November 2026)
+
+| Item | Location |
+|---|---|
+| Tailwind 4 (CSS-first config, `@tailwindcss/postcss`) | `src/global.css`, `postcss.config.js`; `tailwind.config.js` removed |
+| shadcn/ui setup | `components.json`, `src/lib/utils.ts`, `@/` alias in `tsconfig.json` and `vite.config.ts` |
+| Components | `src/components/ui/{button,card,input,label,textarea,badge,separator,select,dialog,sonner}.tsx` (44 px targets, wrapping buttons) |
+| Theme tokens (stone + green, light and dark) and aliases for the old colour names | `src/global.css` |
+| Migrated to shadcn `Button` variants | `AccountUi` (all account pages), `PreferenceToggles`, `Sidebar`, `GuestEntryPage`, `StatusViews`, `FeatureUnavailable`, `LandingPage` |
+
+Not yet migrated: page-specific buttons, chips and inputs on destination, review and moderation pages (they already take the new colours through the aliases); dialogs and toasts are installed but not yet used.
+
+Evidence (4 Nov 2026): `tsc -b` clean; `npm test` 123 passed; `npm run build` clean, JS 142 KB gzip (was 129 KB; budget 200 KB), CSS 13.7 KB gzip. Screenshots of landing, overview, destinations, reviews, guest and sign-in pages in light and dark at 1280 px checked by eye.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

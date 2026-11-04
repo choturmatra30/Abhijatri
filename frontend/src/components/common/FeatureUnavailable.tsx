@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, type LucideIcon } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { buttonVariants } from '@/components/ui/button';
 
 type Pair = [bn: string, en: string];
 
@@ -59,7 +60,7 @@ export const FeatureUnavailable: React.FC<{
             <li key={to}>
               <Link
                 to={to}
-                className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title"
+                className={buttonVariants()}
               >
                 {t(...label)}
                 <ArrowRight size={16} aria-hidden="true" />

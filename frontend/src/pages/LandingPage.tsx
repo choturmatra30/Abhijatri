@@ -5,19 +5,28 @@ import {
   BadgeCheck,
   Check,
   Clock,
+  Cloudy,
   ImagePlus,
+  Leaf,
   LogIn,
   MapPin,
   MessageSquareText,
+  Mountain,
   Phone,
   ShieldAlert,
+  Trees,
   UserRound,
+  Waves,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import { listAllDestinations } from '../api/destinations';
 import { useApiResource } from '../hooks/useApiResource';
 import { pick } from '../utils/format';
+import { InteractiveSelector, type SelectorOption } from '../components/ui/interactive-selector';
+import { ImageCredit } from '../components/common/ImageCredit';
+import { destinationImage } from '../data/destinationImages';
+import { buttonVariants } from '@/components/ui/button';
 
 type Capability = { icon: typeof Check; bn: string; en: string; planned?: boolean };
 
@@ -60,6 +69,15 @@ const CapabilityList: React.FC<{ items: Capability[] }> = ({ items }) => {
   );
 };
 
+/** One icon per seeded destination; anything new falls back to a map pin. */
+const DESTINATION_ICON: Record<string, typeof MapPin> = {
+  "Cox's Bazar": Waves,
+  'Sajek Valley': Cloudy,
+  Sylhet: Leaf,
+  Sundarbans: Trees,
+  Bandarban: Mountain,
+};
+
 export const LandingPage: React.FC = () => {
   const { language, t } = useLanguage();
   const { session } = useSession();
@@ -83,6 +101,37 @@ export const LandingPage: React.FC = () => {
         </p>
       </section>
 
+      {destinations && destinations.length > 0 && (
+        <section aria-labelledby="landing-destinations" className="flex flex-col gap-3">
+          <h2 id="landing-destinations" className="text-sm font-bold text-on-surface-variant dark:text-on-dark-muted">
+            {t('গন্তব্য বেছে নিন', 'Pick a destination')}
+          </h2>
+          <InteractiveSelector
+            label={t('গন্তব্যসমূহ', 'Destinations')}
+            options={destinations.map((d): SelectorOption => {
+              const image = destinationImage(d.name_en);
+              return {
+                id: d.id,
+                title: pick(language, d.name_bn, d.name_en),
+                description: pick(language, d.summary_bn, d.summary_en),
+                icon: DESTINATION_ICON[d.name_en] ?? MapPin,
+                image: image && { src: image.src, width: image.width, height: image.height, alt: image.alt[language] },
+                action: (
+                  <Link
+                    to={`/destinations/${d.id}`}
+                    className={buttonVariants({ variant: 'secondary', className: 'bg-white text-stone-900 hover:bg-white/90' })}
+                  >
+                    {t('গাইড দেখুন', 'Open guide')}
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
+                ),
+                credit: image && <ImageCredit credit={image.credit} />,
+              };
+            })}
+          />
+        </section>
+      )}
+
       <section aria-label={t('কীভাবে শুরু করবেন', 'How to start')} className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <article className="tonal-card p-6 sm:p-8 flex flex-col gap-5 border-forest-primary/30 dark:border-neon-lime/30">
           <div className="flex flex-col gap-1">
@@ -93,13 +142,13 @@ export const LandingPage: React.FC = () => {
           </div>
           <CapabilityList items={GUEST} />
           {session.kind === 'member' && (
-            <p className="text-xs text-on-surface-variant dark:text-on-dark-muted [overflow-wrap:anywhere]">
+            <p className="text-xs text-on-surface-variant dark:text-on-dark-muted wrap-anywhere">
               {t(`আপনি ${session.displayName} হিসেবে সাইন ইন আছেন; অতিথি হতে আগে সাইন আউট করতে হবে।`, `You are signed in as ${session.displayName}; guest mode needs you to sign out first.`)}
             </p>
           )}
           <Link
             to="/guest"
-            className="mt-auto inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title hover:opacity-95"
+            className={buttonVariants({ size: 'lg', className: 'mt-auto' })}
           >
             {t('অতিথি হিসেবে চালিয়ে যান', 'Continue as guest')}
             <ArrowRight size={16} aria-hidden="true" />
@@ -116,7 +165,7 @@ export const LandingPage: React.FC = () => {
           <CapabilityList items={MEMBER} />
           <Link
             to="/login"
-            className="mt-auto inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-sm font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-2"
+            className={buttonVariants({ variant: 'outline', size: 'lg', className: 'mt-auto' })}
           >
             <LogIn size={16} aria-hidden="true" />
             {t('সাইন ইন', 'Sign in')}
@@ -124,26 +173,6 @@ export const LandingPage: React.FC = () => {
         </article>
       </section>
 
-      {destinations && destinations.length > 0 && (
-        <section aria-labelledby="landing-destinations" className="flex flex-col gap-3">
-          <h2 id="landing-destinations" className="text-sm font-bold text-on-surface-variant dark:text-on-dark-muted">
-            {t('এখনই দেখুন', 'Start exploring')}
-          </h2>
-          <ul className="flex flex-wrap gap-2">
-            {destinations.map((d) => (
-              <li key={d.id}>
-                <Link
-                  to={`/destinations/${d.id}`}
-                  className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-1 text-forest-primary dark:text-neon-lime text-sm font-semibold hover:bg-surface-container dark:hover:bg-dark-surface-2"
-                >
-                  <MapPin size={14} aria-hidden="true" />
-                  {pick(language, d.name_bn, d.name_en)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 };

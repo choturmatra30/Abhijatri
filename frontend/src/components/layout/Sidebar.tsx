@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
+import { buttonVariants } from '@/components/ui/button';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -85,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Mobile Backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs lg:hidden"
           onClick={onClose}
         />
       )}
@@ -99,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="flex flex-col gap-6">
           {/* Logo Brand Header */}
           <Link to="/" onClick={onClose} className="flex items-center gap-3 px-3 py-1 rounded-xl" aria-label={t('অভিযাত্রী হোম', 'Abhijatri home')}>
-            <div className="w-10 h-10 rounded-2xl bg-forest-primary dark:bg-neon-lime flex items-center justify-center text-white dark:text-dark-bg-base shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-forest-primary dark:bg-neon-lime flex items-center justify-center text-white dark:text-dark-bg-base shadow-xs">
               <Compass size={24} aria-hidden="true" />
             </div>
             <div className="flex flex-col">
@@ -124,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${
                       isActive
-                        ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-sm'
+                        ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-xs'
                         : 'text-on-surface-variant dark:text-on-dark hover:bg-surface-container dark:hover:bg-dark-surface-2'
                     }`
                   }
@@ -149,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
             <UserRound size={16} className="text-forest-primary dark:text-neon-lime shrink-0" aria-hidden="true" />
-            <span className="min-w-0 break-words">
+            <span className="min-w-0 wrap-break-word">
               {session.kind === 'member'
                 ? `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`
                 : session.displayName
@@ -166,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <Link
             to="/login"
             onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+            className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogIn size={14} aria-hidden="true" />
             {t('সাইন ইন', 'Sign in')}
@@ -196,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={handleSignOut}
-            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+            className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogOut size={14} aria-hidden="true" />
             {t('সাইন আউট', 'Sign out')}

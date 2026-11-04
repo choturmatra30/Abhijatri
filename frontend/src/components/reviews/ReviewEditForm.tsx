@@ -12,7 +12,7 @@ import { CategoryRatings } from './CategoryRatings';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
 
 const inputClass =
-  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-[invalid=true]:border-error-alert';
+  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert';
 const labelClass = 'text-xs font-bold text-on-surface-variant dark:text-on-dark-muted';
 
 type Field = 'title' | 'body' | 'overallRating' | 'visitMonth' | 'language' | 'travellerType' | 'comfortTier' | 'categoryRatings';

@@ -34,7 +34,7 @@ export const ReviewMediaGallery: React.FC<{ media?: PublicMedia[] }> = ({ media 
                     decoding="async"
                     width={photo.width ?? undefined}
                     height={photo.height ?? undefined}
-                    className="w-full aspect-[4/3] object-cover"
+                    className="w-full aspect-4/3 object-cover"
                   />
                 </a>
                 {photo.caption && <figcaption className="text-[11px] text-on-surface-variant dark:text-on-dark-muted">{photo.caption}</figcaption>}
