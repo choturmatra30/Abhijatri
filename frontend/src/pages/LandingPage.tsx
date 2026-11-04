@@ -93,7 +93,7 @@ export const LandingPage: React.FC = () => {
           </div>
           <CapabilityList items={GUEST} />
           {session.kind === 'member' && (
-            <p className="text-xs text-on-surface-variant dark:text-on-dark-muted">
+            <p className="text-xs text-on-surface-variant dark:text-on-dark-muted [overflow-wrap:anywhere]">
               {t(`আপনি ${session.displayName} হিসেবে সাইন ইন আছেন; অতিথি হতে আগে সাইন আউট করতে হবে।`, `You are signed in as ${session.displayName}; guest mode needs you to sign out first.`)}
             </p>
           )}

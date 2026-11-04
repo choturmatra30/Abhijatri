@@ -19,6 +19,15 @@ import { LoadingState, SlowNetworkHint } from '../components/common/StatusViews'
  *
  * This is an entry point, never a gate: every app route still opens directly for guests.
  */
+// Shared button styles. Text may contain a person's name of any length, so every button wraps
+// (overflow-wrap: anywhere) and centres its lines instead of overflowing the card; icons never shrink.
+const buttonBase =
+  'inline-flex items-center justify-center gap-2 min-h-[48px] max-w-full px-6 py-2.5 rounded-full text-center leading-snug [overflow-wrap:anywhere] text-sm font-bold font-title transition-colors duration-150 [&>svg]:shrink-0 disabled:opacity-60 disabled:cursor-not-allowed';
+const primaryButton = `${buttonBase} bg-forest-primary text-white hover:bg-forest-container dark:bg-neon-lime dark:text-dark-bg-base dark:hover:bg-pistachio-glow`;
+const outlineButton = `${buttonBase} border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime hover:bg-surface-sage hover:border-forest-primary dark:hover:bg-dark-surface-2 dark:hover:border-neon-lime`;
+const textButton =
+  'min-h-[44px] text-left text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2 [overflow-wrap:anywhere] transition-colors hover:text-forest-primary dark:hover:text-neon-lime disabled:opacity-60';
+
 export const GuestEntryPage: React.FC = () => {
   const { t } = useLanguage();
   const { session, status, setGuestName, clearGuestName, startAsNewGuest, signOut } = useSession();
@@ -81,7 +90,7 @@ export const GuestEntryPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark">
             {t('অতিথি হিসেবে প্রবেশ', 'Continue as a guest')}
           </h1>
-          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted">
+          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted [overflow-wrap:anywhere]">
             {t(
               `আপনি ${session.displayName} হিসেবে সাইন ইন করা আছেন। অতিথি হতে হলে আগে সাইন আউট করতে হবে; সাইন আউটের পর আপনার রিভিউ ও অ্যাকাউন্ট আগের মতোই থাকবে।`,
               `You are signed in as ${session.displayName}. To use guest mode, sign out first; your account and reviews stay as they are.`,
@@ -91,7 +100,7 @@ export const GuestEntryPage: React.FC = () => {
         <div className="tonal-card p-6 flex flex-col gap-3">
           <Link
             to="/overview"
-            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title"
+            className={primaryButton}
           >
             {t(`${session.displayName} হিসেবে চালিয়ে যান`, `Continue as ${session.displayName}`)}
             <ArrowRight size={16} aria-hidden="true" />
@@ -101,7 +110,7 @@ export const GuestEntryPage: React.FC = () => {
             onClick={() => void leaveAccount()}
             disabled={leaving}
             aria-busy={leaving}
-            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-sm font-bold font-title disabled:opacity-60"
+            className={outlineButton}
           >
             <LogOut size={16} aria-hidden="true" />
             {leaving ? t('সাইন আউট হচ্ছে…', 'Signing out…') : t('সাইন আউট করে অতিথি হিসেবে চালিয়ে যান', 'Sign out and continue as a guest')}
@@ -119,7 +128,7 @@ export const GuestEntryPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark">
             {t('অতিথি হিসেবে প্রবেশ', 'Continue as a guest')}
           </h1>
-          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted">
+          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted [overflow-wrap:anywhere]">
             {t(
               'কোনো অ্যাকাউন্ট লাগবে না। নামটি শুধু এই ডিভাইসে ৩০ দিন থাকে; সার্ভারে পাঠানো হয় না।',
               'No account needed. Your name stays on this device for 30 days and is never sent to the server.',
@@ -151,7 +160,7 @@ export const GuestEntryPage: React.FC = () => {
           </div>
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title disabled:opacity-60"
+            className={primaryButton}
           >
             {t('প্রবেশ করুন', 'Continue')}
             <ArrowRight size={16} aria-hidden="true" />
@@ -165,7 +174,7 @@ export const GuestEntryPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex flex-col gap-6">
       <section className="tonal-card p-6 sm:p-8 flex flex-col gap-3 bg-surface-sage/60 dark:bg-dark-surface-1" aria-live="polite">
         <PartyPopper size={28} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
-        <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark break-words">
+        <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark [overflow-wrap:anywhere]">
           {t(`স্বাগতম, ${storedName}!`, `Welcome, ${storedName}!`)}
         </h1>
         {tagBadge}
@@ -178,14 +187,14 @@ export const GuestEntryPage: React.FC = () => {
         <div className="flex flex-wrap gap-3 pt-2">
           <Link
             to="/reviews"
-            className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title"
+            className={primaryButton}
           >
             <MessageSquarePlus size={16} aria-hidden="true" />
             {t('রিভিউ লিখুন', 'Write a review')}
           </Link>
           <Link
             to="/overview"
-            className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-sm font-bold font-title"
+            className={outlineButton}
           >
             <Compass size={16} aria-hidden="true" />
             {t('গন্তব্য দেখুন', 'Explore destinations')}
@@ -195,7 +204,7 @@ export const GuestEntryPage: React.FC = () => {
           <button
             type="button"
             onClick={clearGuestName}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+            className={textButton}
           >
             {t(`${storedName} নন? নাম পরিবর্তন করুন`, `Not ${storedName}? Change name`)}
           </button>
@@ -205,7 +214,7 @@ export const GuestEntryPage: React.FC = () => {
               void signOut();
               navigate('/');
             }}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+            className={textButton}
           >
             {t('সাইন আউট', 'Sign out')}
           </button>
@@ -213,7 +222,7 @@ export const GuestEntryPage: React.FC = () => {
             type="button"
             onClick={handleNewGuest}
             disabled={renewing}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2 disabled:opacity-60"
+            className={textButton}
           >
             {t('নতুন অতিথি হিসেবে শুরু করুন', 'Start as a new guest')}
           </button>
