@@ -27,7 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
 
   const handleSignOut = () => {
-    signOut();
+    void signOut();
     onClose?.();
     navigate('/');
   };

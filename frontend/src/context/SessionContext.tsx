@@ -47,7 +47,7 @@ interface SessionContextValue {
    * dates stay (Decisions 20 Oct 2026). When member accounts land (R04) a member sign-out will
    * also post `/auth/logout`.
    */
-  signOut: () => void;
+  signOut: () => Promise<void>;
   /** True after a signed-in member's session ended on the server (expired or revoked). */
   sessionExpired: boolean;
   dismissSessionExpired: () => void;
@@ -62,7 +62,7 @@ const SessionContext = createContext<SessionContextValue>({
   setGuestName: () => undefined,
   clearGuestName: () => undefined,
   startAsNewGuest: async () => undefined,
-  signOut: () => undefined,
+  signOut: async () => undefined,
   sessionExpired: false,
   dismissSessionExpired: () => undefined,
 });
@@ -145,12 +145,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setGuestTag(await resetGuest());
   }, []);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
     if (account) {
       // End the server session; the page returns to the guest view whether or not the call succeeds.
-      void logoutRequest()
-        .catch(() => undefined)
-        .finally(() => setAccount(null));
+      // Resolves once the guest view is in place, so callers can wait before moving on.
+      await logoutRequest().catch(() => undefined);
+      setAccount(null);
       return;
     }
     signOutGuest();

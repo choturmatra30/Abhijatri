@@ -14,6 +14,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useSession } from '../context/SessionContext';
 import { listAllDestinations } from '../api/destinations';
 import { useApiResource } from '../hooks/useApiResource';
 import { pick } from '../utils/format';
@@ -61,6 +62,7 @@ const CapabilityList: React.FC<{ items: Capability[] }> = ({ items }) => {
 
 export const LandingPage: React.FC = () => {
   const { language, t } = useLanguage();
+  const { session } = useSession();
   // Optional teaser: the page is fully usable even if this request fails.
   const { data: destinations } = useApiResource((signal) => listAllDestinations(signal), []);
 
@@ -90,6 +92,11 @@ export const LandingPage: React.FC = () => {
             </p>
           </div>
           <CapabilityList items={GUEST} />
+          {session.kind === 'member' && (
+            <p className="text-xs text-on-surface-variant dark:text-on-dark-muted">
+              {t(`আপনি ${session.displayName} হিসেবে সাইন ইন আছেন; অতিথি হতে আগে সাইন আউট করতে হবে।`, `You are signed in as ${session.displayName}; guest mode needs you to sign out first.`)}
+            </p>
+          )}
           <Link
             to="/guest"
             className="mt-auto inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title hover:opacity-95"
