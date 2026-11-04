@@ -159,7 +159,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
       )}
 
       {!loading && !error && items.length > 0 && shown.length === 0 && (
-        <EmptyState title={t('এই ফিল্টারে কোনো রিভিউ মেলেনি', 'No loaded review matches these filters')} hint={cursor ? t('আরও রিভিউ লোড করুন বা ফিল্টার মুছুন।', 'Load more reviews or clear the filters.') : t('ফিল্টার মুছুন।', 'Clear the filters.')} />
+        <EmptyState variant="no-results" title={t('এই ফিল্টারে কোনো রিভিউ মেলেনি', 'No loaded review matches these filters')} hint={cursor ? t('আরও রিভিউ লোড করুন বা ফিল্টার মুছুন।', 'Load more reviews or clear the filters.') : t('ফিল্টার মুছুন।', 'Clear the filters.')} />
       )}
       {!loading && !error && shown.length > 0 && (
         <ul className="flex flex-col gap-3">

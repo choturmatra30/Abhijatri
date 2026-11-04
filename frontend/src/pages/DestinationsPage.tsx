@@ -58,7 +58,16 @@ export const DestinationsPage: React.FC = () => {
         />
       )}
       {!loading && !error && data && data.length > 0 && visible.length === 0 && (
-        <EmptyState title={t('কোনো মিল পাওয়া যায়নি', 'No matches')} hint={t('অন্য শব্দ দিয়ে খুঁজুন।', 'Try another word.')} />
+        <EmptyState
+          variant="no-results"
+          title={t(`"${query.trim()}"-এর সাথে কোনো গন্তব্য মেলেনি`, `No destination matches "${query.trim()}"`)}
+          hint={t('বানান দেখুন বা অন্য শব্দ দিয়ে খুঁজুন; বাংলা ও ইংরেজি দুই নামেই খোঁজা যায়।', 'Check the spelling or try another word; Bangla and English names both work.')}
+          action={
+            <button type="button" onClick={() => setQuery('')} className="min-h-[44px] px-4 text-sm font-bold underline underline-offset-2 text-forest-primary dark:text-neon-lime">
+              {t('খোঁজা মুছুন', 'Clear search')}
+            </button>
+          }
+        />
       )}
 
       {!loading && !error && visible.length > 0 && (

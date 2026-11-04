@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { REPORT_REASONS, getMyReports, type MyReport } from '../api/reports';
 import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
 import { linkClass } from '../components/auth/AccountUi';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import { formatTimestamp, pick } from '../utils/format';
+import { SignInLink } from '../components/common/SignInLink';
 
 const STATE_LABEL: Record<MyReport['state'], { bn: string; en: string }> = {
   open: { bn: 'জমা হয়েছে', en: 'Received' },
@@ -47,9 +47,9 @@ export const MyReportsPage: React.FC = () => {
       <EmptyState
         title={t('রিপোর্ট দেখতে সাইন ইন করুন', 'Sign in to see your reports')}
         action={
-          <Link to="/login" className={linkClass}>
+          <SignInLink className={linkClass}>
             {t('সাইন ইন', 'Sign in')}
-          </Link>
+          </SignInLink>
         }
       />
     );

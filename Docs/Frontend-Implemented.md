@@ -200,6 +200,26 @@ Evidence (28 Oct 2026): `npm test` 64 passed (8 files; 3 new for `safeStorage`);
 
 Open: U2 (self-hosted fonts, waits for decision Q2), U15 (review labels from `GET /review-parameters`), QA Frontend 4 (no browser E2E tests in CI).
 
+## 5b. UI states audit (4 November 2026)
+
+Every public-app screen was checked for ten states: empty, loading, error, no internet, slow network, no search result, permission denied, session expired, form validation and success. Empty, loading, error, no-result, validation and success already existed on almost every screen; the four that were app-wide gaps are now handled once, centrally.
+
+| State | Before | Now | Where |
+|---|---|---|---|
+| No internet | Only My reviews noticed it | App-wide banner while offline ("pages already open may still show, nothing new can load or be sent") and a short "back online" notice | `components/common/StatusBanners.tsx` (`NetworkBanner`), `hooks/useNetworkState.ts`; mounted in `AppLayout` and `PublicLayout` |
+| Slow network | A stalled request spun forever; the navbar could say "Checking" forever | GET requests stop after 20 s with a `TIMEOUT` error ("the connection is too slow", Try again); every spinner and busy submit button adds "taking longer than usual" after 8 s; the health check stops after 10 s. Writes get no default deadline, because the server may still complete them. | `api/client.ts` (`READ_TIMEOUT_MS`, `TIMEOUT_ERROR`), `SlowNetworkHint` in `StatusViews.tsx`, `api/health.ts` |
+| Session expired | None: after the server ended a session the app still showed the member as signed in and every request failed | A 401 `AUTH_REQUIRED` fires `AUTH_REQUIRED_EVENT`; `SessionContext` drops to the guest view and shows "Your session has expired" with "Sign in again", which returns to the same page | `api/client.ts`, `context/SessionContext.tsx`, `SessionExpiredBanner` |
+| Permission denied | Same look as any error, with a pointless Try again | Its own state ("No permission", shield icon, no retry). `AUTH_REQUIRED` shows "Sign in required" with a sign-in link instead of a retry | `failureKind()` and `ErrorState` in `StatusViews.tsx` |
+| Sign-in links | Account pages linked to `/login` and sign-in always went to `/overview` | `SignInLink` passes the current page, so sign-in returns there | `components/common/SignInLink.tsx`; My reviews, Review detail, Edit, Appeals, Reports, Notifications, Verification |
+| Empty | Overview showed zero counts and an empty grid | "No published destinations yet" | `OverviewPage.tsx` |
+| No search result | Present, but looked like an empty list and had no way out | `EmptyState variant="no-results"` (search icon); destination search names the query and offers "Clear search"; My reviews offers "Clear filters" | `DestinationsPage.tsx`, `MyReviewsPage.tsx`, `ReviewFeedSection.tsx` |
+| Form validation | Appeal button silently stayed disabled under 10 characters | Live counter says how many characters are still needed | `AppealsPage.tsx` |
+| Loading, error, success | Present | Loading is `aria-busy` and the spinner respects reduced motion; empty and no-result states are `role="status"` | `StatusViews.tsx` |
+
+Evidence (4 Nov 2026): `npm test` 123 passed (13 files; 13 new in `api/client.test.ts`: read timeout, no write timeout, caller abort, network error, session-expired event, wrong credentials not treated as expiry, error classification); `tsc` clean; `npm run build` clean. Browser run in Edge with the API stubbed: overview empty state; destination no-result with Clear search restoring the list; offline banner and back-online notice (Playwright offline mode); slow hint absent at 3 s and present at 9 s with a held request; a 25 s response became "The connection is too slow" with Try again; 403 showed "No permission" with no retry; a signed-in member whose next request got 401 saw "Your session has expired", the sidebar returned to the guest view, and "Sign in again" carried `/account/reviews` to the sign-in page. No page errors.
+
+Not covered: the staff and ops apps (separate builds owned by others) were not changed; real-device and screen-reader passes are still outstanding.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

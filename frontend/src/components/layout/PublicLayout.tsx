@@ -3,6 +3,7 @@ import { Link, Outlet } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { PreferenceToggles } from './PreferenceToggles';
+import { NetworkBanner, SessionExpiredBanner } from '../common/StatusBanners';
 
 /** Shell for pages outside the app (landing, sign-in): brand, preferences, no sidebar. */
 export const PublicLayout: React.FC = () => {
@@ -22,6 +23,8 @@ export const PublicLayout: React.FC = () => {
         </div>
       </header>
 
+      <NetworkBanner />
+      <SessionExpiredBanner />
       <main className="flex-1 w-full">
         <Outlet />
       </main>

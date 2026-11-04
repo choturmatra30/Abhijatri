@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, MapPin, MessageSquarePlus, Users } from 'luc
 import { useLanguage } from '../context/LanguageContext';
 import { listAllDestinations } from '../api/destinations';
 import { useApiResource } from '../hooks/useApiResource';
-import { ErrorState, LoadingState } from '../components/common/StatusViews';
+import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { formatNumber, pick } from '../utils/format';
 
@@ -52,7 +52,13 @@ export const OverviewPage: React.FC = () => {
       {loading && <LoadingState />}
       {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}
 
-      {!loading && !error && (
+      {!loading && !error && destinations.length === 0 && (
+        <EmptyState
+          title={t('এখনো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations yet')}
+          hint={t('গাইড প্রকাশিত হলে এখানে সংখ্যা ও সতর্কতা দেখা যাবে।', 'Counts and advisories appear here once guides are published.')}
+        />
+      )}
+      {!loading && !error && destinations.length > 0 && (
         <>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {metrics.map(({ icon: Icon, value, label }) => (

@@ -5,7 +5,7 @@ import { appealRejectedReview, editGuestReview, getReceiptStatus, isReceiptForma
 import type { ReceiptStatus, ReviewAppealState, ReviewEditChanges } from '../../types';
 import { currentDisplayMonth, formatTimestamp } from '../../utils/format';
 import { APPEAL_MAX, APPEAL_MIN, appealStatementProblem, canAppealRejection, canEdit, codePoints, type EditableValues } from '../../utils/reviewAuthor';
-import { describeError } from '../common/StatusViews';
+import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { ReviewEditForm } from './ReviewEditForm';
 import { STATUS_LABEL } from './reviewLabels';
 
@@ -156,6 +156,7 @@ export const ReceiptStatusPanel: React.FC = () => {
           <Search size={14} aria-hidden="true" />
           {t('অবস্থা দেখুন', 'Check status')}
         </button>
+        <SlowNetworkHint active={busy} />
       </form>
 
       {error && (

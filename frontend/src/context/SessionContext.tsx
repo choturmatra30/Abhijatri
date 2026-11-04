@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getSession, login as loginRequest, logout as logoutRequest } from '../api/auth';
+import { AUTH_REQUIRED_EVENT } from '../api/client';
 import type { AuthSession, StaffRole } from '../types';
 import {
   loadGuestName,
@@ -47,6 +48,9 @@ interface SessionContextValue {
    * also post `/auth/logout`.
    */
   signOut: () => void;
+  /** True after a signed-in member's session ended on the server (expired or revoked). */
+  sessionExpired: boolean;
+  dismissSessionExpired: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue>({
@@ -59,6 +63,8 @@ const SessionContext = createContext<SessionContextValue>({
   clearGuestName: () => undefined,
   startAsNewGuest: async () => undefined,
   signOut: () => undefined,
+  sessionExpired: false,
+  dismissSessionExpired: () => undefined,
 });
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -66,6 +72,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [guestTag, setGuestTag] = useState<string | null>(null);
   const [account, setAccount] = useState<Extract<AuthSession, { authenticated: true }> | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Any API call answering 401 AUTH_REQUIRED while we believe a member is signed in means the
+  // server session ended (idle or absolute timeout, sign-out elsewhere, revocation). Drop to the
+  // guest view at once instead of failing every later request, and say why.
+  useEffect(() => {
+    const onAuthRequired = () => {
+      setAccount((current) => {
+        if (current) setSessionExpired(true);
+        return null;
+      });
+    };
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -102,7 +123,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const signIn = useCallback(async (email: string, password: string) => {
     const answer = await loginRequest(email, password);
-    if (answer.authenticated) setAccount(answer);
+    if (answer.authenticated) {
+      setAccount(answer);
+      setSessionExpired(false);
+    }
   }, []);
 
   const setGuestName = useCallback((name: string) => {
@@ -133,6 +157,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDisplayName(null);
   }, [account]);
 
+  const dismissSessionExpired = useCallback(() => setSessionExpired(false), []);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       session: account
@@ -152,8 +178,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       clearGuestName,
       startAsNewGuest,
       signOut,
+      sessionExpired,
+      dismissSessionExpired,
     }),
-    [account, displayName, guestTag, status, signIn, refresh, setGuestName, clearGuestName, startAsNewGuest, signOut],
+    [account, displayName, guestTag, status, signIn, refresh, setGuestName, clearGuestName, startAsNewGuest, signOut, sessionExpired, dismissSessionExpired],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

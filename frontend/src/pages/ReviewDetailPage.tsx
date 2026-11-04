@@ -13,6 +13,7 @@ import { useSession } from '../context/SessionContext';
 import type { ReviewAppealState, ReviewCategory, ReviewDetail } from '../types';
 import { formatCalendarDate, formatTimestamp, pick } from '../utils/format';
 import { canEdit, canWithdraw } from '../utils/reviewAuthor';
+import { SignInLink } from '../components/common/SignInLink';
 
 const APPEAL_TEXT: Record<ReviewAppealState, [string, string]> = {
   received: ['আপিল গৃহীত', 'Appeal received'],
@@ -78,7 +79,7 @@ export const ReviewDetailPage: React.FC = () => {
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">{t('রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see this review.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link></Notice>
+        <Notice tone="info">{t('রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see this review.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink></Notice>
       </div>
     );
   }

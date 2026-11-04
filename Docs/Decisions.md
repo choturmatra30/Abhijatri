@@ -2,6 +2,15 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-04 (UI states: network, session, permission)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Read deadline | GET requests through `apiRequest` stop after 20 s with `TIMEOUT`; writes have no default deadline; callers may pass `timeoutMs`. | A stalled connection must end in a clear, retryable state. 20 s leaves room for Slow 3G (PF 19.4). A write may still complete on the server, so it is not abandoned silently. |
+| Slow hint | Any spinner or busy submit button shows "taking longer than usual" after 8 s. | Users on weak networks need to know the app is still working. |
+| Session expiry | A 401 `AUTH_REQUIRED` ends the member view at once and shows "Your session has expired"; sign-in returns to the same page. Wrong credentials (401 `INVALID_CREDENTIALS`) never count as expiry. | Member sessions expire after 7 days idle or 30 days (PF 8.5); the client must not keep claiming a session the server ended. |
+| Permission denied | 403-class errors get their own state with no retry button. | Retrying cannot change a permission; the message says what the person can do instead. |
+
 ## 2026-10-31 (Hidden reviews and the rating)
 
 | Decision | Rule | Reason |

@@ -11,6 +11,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { ReviewDetail, ReviewEditChanges } from '../types';
 import { canEdit, valuesFromDetail } from '../utils/reviewAuthor';
+import { SignInLink } from '../components/common/SignInLink';
 
 /** Edit one of the signed-in author's unpublished reviews (PENDING or CHANGES_REQUESTED). */
 export const ReviewEditPage: React.FC = () => {
@@ -52,7 +53,7 @@ export const ReviewEditPage: React.FC = () => {
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">{t('সম্পাদনা করতে সাইন ইন করুন।', 'Sign in to edit a review.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link></Notice>
+        <Notice tone="info">{t('সম্পাদনা করতে সাইন ইন করুন।', 'Sign in to edit a review.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink></Notice>
       </div>
     );
   }

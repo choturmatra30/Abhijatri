@@ -9,13 +9,14 @@ import {
   updateNotification,
 } from '../api/account';
 import { Notice, accountErrorMessage, inputClass, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { EmptyState, ErrorState, LoadingState, SlowNetworkHint } from '../components/common/StatusViews';
 import { STAFF_BASE_URL } from '../components/layout/NotificationBell';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { AppNotification, NotificationPreferences } from '../types';
 import { formatTimestamp } from '../utils/format';
 import { CATEGORY_LABEL, categoryOf, linkTarget } from '../utils/notifications';
+import { SignInLink } from '../components/common/SignInLink';
 
 type View = 'all' | 'unread' | 'archived';
 
@@ -69,9 +70,9 @@ export const NotificationsPage: React.FC = () => {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
         <Notice tone="info">
           {t('বিজ্ঞপ্তি দেখতে সাইন ইন করুন।', 'Sign in to see your notifications.')}{' '}
-          <Link to="/login" className={linkClass}>
+          <SignInLink className={linkClass}>
             {t('সাইন ইন', 'Sign in')}
-          </Link>
+          </SignInLink>
         </Notice>
       </div>
     );
@@ -278,6 +279,7 @@ export const NotificationsPage: React.FC = () => {
             <button type="submit" disabled={saving} className={`${primaryButtonClass} self-start`}>
               {saving ? t('সংরক্ষণ হচ্ছে…', 'Saving…') : t('সংরক্ষণ করুন', 'Save')}
             </button>
+            <SlowNetworkHint active={saving} />
           </>
         )}
       </form>

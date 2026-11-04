@@ -7,6 +7,7 @@ import { LoadingState } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { VerificationCaseView } from '../types';
+import { SignInLink } from '../components/common/SignInLink';
 
 const STATE_TEXT: Record<VerificationCaseView['state'], [string, string]> = {
   submitted: ['জমা হয়েছে, পর্যালোচনার অপেক্ষায়', 'Submitted, waiting for review'],
@@ -62,7 +63,7 @@ export const VerificationPage: React.FC = () => {
       <div className="max-w-xl mx-auto px-4 py-10">
         <Notice tone="info">
           {t('যাচাইয়ের জন্য আগে সাইন ইন করুন।', 'Sign in first to request verification.')}{' '}
-          <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link>
+          <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
         </Notice>
       </div>
     );

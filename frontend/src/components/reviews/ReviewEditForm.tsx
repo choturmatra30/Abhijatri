@@ -7,7 +7,7 @@ import { useApiResource } from '../../hooks/useApiResource';
 import type { ComfortTier, ReviewEditChanges, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth } from '../../utils/format';
 import { codePoints, diffEdit, hasChanges, type EditableValues } from '../../utils/reviewAuthor';
-import { describeError } from '../common/StatusViews';
+import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
 
@@ -251,6 +251,7 @@ export const ReviewEditForm: React.FC<{
           <Save size={16} aria-hidden="true" />
           {saving ? t('সংরক্ষণ হচ্ছে…', 'Saving…') : t('সংরক্ষণ করুন', 'Save')}
         </button>
+        <SlowNetworkHint active={saving} />
         <button type="button" onClick={onCancel} className="min-h-[44px] px-5 rounded-full border text-sm font-bold">
           {t('বাতিল', 'Cancel')}
         </button>

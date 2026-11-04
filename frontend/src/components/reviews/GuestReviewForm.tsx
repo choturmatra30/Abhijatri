@@ -18,7 +18,7 @@ import {
 import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth, pick } from '../../utils/format';
 import { photoMetadataComplete } from '../../utils/reviewPhotos';
-import { describeError } from '../common/StatusViews';
+import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { ReviewPhotos, SERVER_MEDIA_TEXT, type ReviewPhoto } from './ReviewPhotos';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
@@ -491,6 +491,7 @@ export const GuestReviewForm: React.FC<{
             ? t('জমা হচ্ছে…', 'Submitting…')
             : t('রিভিউ জমা দিন', 'Submit review')}
       </button>
+      <SlowNetworkHint active={submitting} />
     </form>
   );
 };
