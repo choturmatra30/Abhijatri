@@ -8,7 +8,7 @@ export const AppLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-canvas-light dark:bg-dark-bg-base text-on-surface dark:text-on-dark flex">
+    <div className="min-h-screen text-on-surface dark:text-on-dark flex">
       {/* Sidebar Navigation */}
       <Sidebar 
         isOpen={isSidebarOpen} 
@@ -16,7 +16,7 @@ export const AppLayout: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col lg:pl-72 transition-all">
+      <div className="flex-1 flex flex-col lg:pl-72 min-w-0">
         <Navbar 
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
           isSidebarOpen={isSidebarOpen}

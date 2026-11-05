@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SessionProvider } from './context/SessionContext';
+import { AppBackground } from './components/layout/AppBackground';
 import { AppLayout } from './components/layout/AppLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { LandingPage } from './pages/LandingPage';
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
     <ThemeProvider>
       <LanguageProvider>
         <SessionProvider>
+          <AppBackground />
           <BrowserRouter>
             <Routes>
               {/* Public entry: choose guest or sign in. It is an entry point, never a gate:

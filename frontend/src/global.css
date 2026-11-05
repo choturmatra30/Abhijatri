@@ -26,7 +26,7 @@
   --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
   --secondary-foreground: oklch(0.216 0.006 56.043); /* stone-900 */
   --muted: oklch(0.97 0.001 106.424);
-  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500, 4.8:1 on white */
+  --muted-foreground: oklch(0.444 0.011 73.639); /* stone-600: keeps 4.5:1 on the mint background */
   --accent: oklch(0.97 0.001 106.424);
   --accent-foreground: oklch(0.216 0.006 56.043);
   --destructive: oklch(0.577 0.245 27.325);

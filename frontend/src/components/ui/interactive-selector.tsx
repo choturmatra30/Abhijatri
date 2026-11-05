@@ -116,7 +116,7 @@ export const InteractiveSelector: React.FC<InteractiveSelectorProps> = ({ option
             </button>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end gap-3 p-3 md:p-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white/30 bg-black/50 text-white backdrop-blur-md">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white/30 bg-black/50 text-white">
                 <Icon size={20} aria-hidden="true" />
               </span>
               <div
@@ -134,7 +134,7 @@ export const InteractiveSelector: React.FC<InteractiveSelectorProps> = ({ option
             </div>
 
             {isActive && option.credit && (
-              <div className="pointer-events-auto absolute right-2 top-2 z-20 max-w-[85%] rounded-full bg-black/55 px-2.5 py-1 text-[10px] leading-tight text-white/90 backdrop-blur-xs">
+              <div className="pointer-events-auto absolute right-2 top-2 z-20 max-w-[85%] rounded-full bg-black/55 px-2.5 py-1 text-[10px] leading-tight text-white/90">
                 {option.credit}
               </div>
             )}

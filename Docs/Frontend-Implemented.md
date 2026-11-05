@@ -249,6 +249,30 @@ Not yet migrated: page-specific buttons, chips and inputs on destination, review
 
 Evidence (4 Nov 2026): `tsc -b` clean; `npm test` 123 passed; `npm run build` clean, JS 142 KB gzip (was 129 KB; budget 200 KB), CSS 13.7 KB gzip. Screenshots of landing, overview, destinations, reviews, guest and sign-in pages in light and dark at 1280 px checked by eye.
 
+## 5e. Scroll smoothness and state gaps (5 November 2026)
+
+| Change | Where | Why |
+|---|---|---|
+| Removed `backdrop-blur` from the sticky top bar, the sidebar overlay and the selector's icon and credit pills; the top bar and sidebar are now solid | `Navbar.tsx`, `Sidebar.tsx`, `ui/interactive-selector.tsx` | A blur under a sticky bar is recomputed by the GPU on every scroll frame; on a 144 Hz laptop screen running on integrated graphics that leaves too little time per frame, so scrolling stuttered. Main-thread work while scrolling was measured at about 20 ms per 120 frames, so JavaScript was not the cause. |
+| Removed the page-wide `transition-colors duration-300` on `<body>` and `transition-all` on the main column | `index.html`, `AppLayout.tsx` | Theme changes animated every colour on the page for 300 ms. |
+| Landing destinations: loading placeholder of the selector's exact height; `ErrorState` with retry on failure | `LandingPage.tsx` | Previously blank while loading, then the page jumped; a failure hid the section silently. |
+| Review detail and edit pages use `ErrorState` for load failures | `ReviewDetailPage.tsx`, `ReviewEditPage.tsx` | They showed a generic message, unlike other pages; now offline, slow, signed-out and no-permission each get their own wording and next step. |
+
+Evidence: `tsc -b` clean, 123 tests pass, build clean. Browser (stubbed API): landing shows the placeholder while the request is pending and the "No connection" state with "Try again" when it fails. The review detail/edit change was type-checked only.
+
+## 5f. App-wide animated background (6 November 2026)
+
+`frontend/src/components/ui/velaris.tsx` (adapted from the 21st.dev "Velaris" WebGL gradient) is the background of the whole app. `components/layout/AppBackground.tsx` mounts it once at the app root as a fixed, full-screen layer behind everything (`aria-hidden`), so it keeps running across page changes. The layouts no longer paint their own background; the top bars and sidebar are 80 to 90 percent opaque (no blur) and cards stay solid.
+
+| Theme | Page colour | Gradient colours |
+|---|---|---|
+| Light | white | pale mint: green-100, green-50, emerald-100 |
+| Dark | stone-950 | deep green: green-950, a darker green-900, emerald-950 |
+
+Changes from the original component: half resolution and at most 30 frames per second; stops while off-screen or in a hidden tab; speed 3.5 (about three times the first setting); grain cut from 0.3 to 0.04 (at half resolution each grain dot is upscaled and flickers per frame, which looked grainy); one still frame under reduced motion; edges fade to the page colour instead of black (needed for the light theme); without WebGL the solid page colour shows; colours parsed once; GL resources released; no `cn()` (it would add `tailwind-merge`, about 10 KB gzip). Light-theme muted text moved from stone-500 to stone-600 to keep 4.5:1 on the mint.
+
+Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build 144.5 KB JS gzip. Browser (Edge, stubbed API): 28.5 to 29 draws per second, no page errors; landing, overview and destinations checked by eye in both themes. Contrast on the background's worst 0.5 percent of pixels (99.5th percentile, background alone): light (237,253,245): muted 7.25:1, primary 4.77:1, body 18.8:1; dark (12,58,38): muted 5.05:1, primary 5.59:1, body 12.2:1.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

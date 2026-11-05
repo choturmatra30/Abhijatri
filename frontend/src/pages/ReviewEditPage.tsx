@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { editMemberReview, getReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { LoadingState, describeError } from '../components/common/StatusViews';
+import { ErrorState, LoadingState } from '../components/common/StatusViews';
 import { ReviewEditForm } from '../components/reviews/ReviewEditForm';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -69,8 +69,7 @@ export const ReviewEditPage: React.FC = () => {
   if (error !== null || !detail || !original) {
     return (
       <div className="max-w-xl mx-auto px-4 py-10 flex flex-col gap-3">
-        <Notice tone="error">{describeError(error, t)}</Notice>
-        <button type="button" onClick={() => void load()} className="self-start min-h-[44px] px-4 rounded-full border text-xs font-bold">{t('আবার চেষ্টা করুন', 'Retry')}</button>
+        <ErrorState error={error} onRetry={() => void load()} />
       </div>
     );
   }

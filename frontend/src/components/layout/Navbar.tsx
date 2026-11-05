@@ -29,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isSidebarOpen }
   }, [location.pathname]);
 
   return (
-    <header className="sticky top-0 z-30 h-16 w-full backdrop-blur-xl bg-canvas-light/85 dark:bg-dark-bg-base/85 border-b border-surface-muted/30 dark:border-dark-surface-2 transition-colors">
+    <header className="sticky top-0 z-30 h-16 w-full bg-background/90 border-b border-border">
       <div className="flex h-full items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Left: Mobile Toggle & Search */}
         <div className="flex items-center gap-3">

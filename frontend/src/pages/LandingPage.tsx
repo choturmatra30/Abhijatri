@@ -22,6 +22,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import { listAllDestinations } from '../api/destinations';
 import { useApiResource } from '../hooks/useApiResource';
+import { ErrorState } from '../components/common/StatusViews';
 import { pick } from '../utils/format';
 import { InteractiveSelector, type SelectorOption } from '../components/ui/interactive-selector';
 import { ImageCredit } from '../components/common/ImageCredit';
@@ -82,18 +83,21 @@ export const LandingPage: React.FC = () => {
   const { language, t } = useLanguage();
   const { session } = useSession();
   // Optional teaser: the page is fully usable even if this request fails.
-  const { data: destinations } = useApiResource((signal) => listAllDestinations(signal), []);
+  const { data: destinations, loading: destinationsLoading, error: destinationsError, reload: reloadDestinations } = useApiResource(
+    (signal) => listAllDestinations(signal),
+    [],
+  );
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col gap-12">
       <section className="flex flex-col gap-4 max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-wider text-forest-primary dark:text-neon-lime">
+        <p className="text-xs font-bold uppercase tracking-wider text-primary">
           {t('বাংলাদেশ ভ্রমণের সঙ্গী', 'Your travel companion for Bangladesh')}
         </p>
-        <h1 className="text-3xl sm:text-5xl font-bold font-title tracking-tight text-on-surface dark:text-on-dark leading-tight">
+        <h1 className="text-3xl sm:text-5xl font-bold font-title tracking-tight text-foreground leading-tight">
           {t('যাওয়ার আগে জানুন, ফিরে এসে জানান', 'Know before you go. Share when you are back.')}
         </h1>
-        <p className="text-base sm:text-lg font-body leading-relaxed text-on-surface-variant dark:text-on-dark-muted">
+        <p className="text-base sm:text-lg font-body leading-relaxed text-muted-foreground">
           {t(
             'সূত্র ও তারিখসহ গন্তব্য গাইড, নিরাপত্তা সতর্কতা, জরুরি নম্বর আর মডারেশন করা ভ্রমণকারীর রিভিউ, বাংলায় ও ইংরেজিতে।',
             'Source-dated destination guides, safety advisories, emergency numbers and moderated traveller reviews, in Bangla and English.',
@@ -101,6 +105,16 @@ export const LandingPage: React.FC = () => {
         </p>
       </section>
 
+      {/* Reserve the selector's height while loading, so the page does not jump when it arrives. */}
+      {destinationsLoading && (
+        <div role="status" aria-busy="true" className="flex flex-col gap-3">
+          <span className="text-sm font-bold text-on-surface-variant">{t('গন্তব্য লোড হচ্ছে…', 'Loading destinations…')}</span>
+          <div className="h-[34rem] md:h-[26rem] rounded-2xl bg-muted motion-safe:animate-pulse" />
+        </div>
+      )}
+      {!destinationsLoading && destinationsError != null && (
+        <ErrorState error={destinationsError} onRetry={reloadDestinations} />
+      )}
       {destinations && destinations.length > 0 && (
         <section aria-labelledby="landing-destinations" className="flex flex-col gap-3">
           <h2 id="landing-destinations" className="text-sm font-bold text-on-surface-variant dark:text-on-dark-muted">
