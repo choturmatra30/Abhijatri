@@ -1,10 +1,13 @@
-"""Builds Docs/Abhijatri-SRS-Completion.docx: coverage check of the proposal and the missing SRS sections, ready to paste."""
+"""Builds Docs/Abhijatri-SRS-Completion.docx: the standalone Software Requirements Specification (IEEE 29148 structure).
+
+Version 1.0 also held a coverage check of the proposal; that is now the internal document built by build_srs_coverage.py.
+"""
 
 import json
 from collections import Counter
 from pathlib import Path
 
-from docx_helpers import BAD_FILL, GOOD_FILL, Doc
+from docx_helpers import Doc
 
 HERE = Path(__file__).resolve().parent
 DOCS = HERE.parent
@@ -35,114 +38,39 @@ def api_groups() -> list[list[str]]:
         "/verifications": "Verified Member requests and evidence",
         "/ops": "Operator panels (token protected)",
         "/health": "Liveness and readiness",
-        "/staff": "Original review moderation endpoints (kept for the vertical slice)",
+        "/staff": "Legacy: the first moderation endpoints from the vertical slice; superseded by /admin and kept only for old tests",
         "/guest-visits": "First-visit signal counted in Redis",
         "/review-parameters": "Limits and labels the review form needs",
         "/webhooks": "Email provider callbacks",
     }
     rows = [[k, str(v), meaning.get(k, "")] for k, v in sorted(counts.items(), key=lambda kv: -kv[1])]
-    rows.append(["Total", str(sum(counts.values())), "operations in docs/api/openapi-v1.json"])
+    rows.append(["Total", str(sum(counts.values())), "operations in Docs/api/openapi-v1.json"])
     return rows
 
 
 def main() -> None:
     doc = Doc(
-        "SRS Completion and Proposal Coverage",
-        "What the project proposal already covers, what a complete SRS still needs, and the missing sections ready to paste",
+        "Software Requirements Specification",
+        "Requirements of the Abhijatri platform, with the status of each as built on 31 October 2026",
         [
             ("Project", "Abhijatri: a Bangla-first, offline-ready community travel platform for Bangladesh (Team ChoturMatra, CSE 3102)"),
-            ("Document", "Proposal coverage check, SRS gap analysis, and the missing SRS sections"),
-            ("Version", "1.0, 30 October 2026"),
-            ("Checked against", "Docs/Abhijatri_Project_Proposal.tex and its PDF (proposal date 12 October 2026) and the repository at 30 October 2026"),
-            ("Companion documents", "Abhijatri-DFD.docx (data flow diagrams), Abhijatri-Venn-Diagram.docx, Abhijatri-Proposal-Judging-Checklist.docx"),
-            ("Standard followed", "Section order follows the usual SRS structure of IEEE 29148 (introduction, overall description, specific requirements, appendices)"),
+            ("Document", "Software Requirements Specification (SRS)"),
+            ("Version", "1.1, 31 October 2026 (replaces the SRS completion notes, version 1.0 of 30 October 2026)"),
+            ("Based on", "Docs/Abhijatri_Project_Proposal.tex (12 October 2026) and the repository on 31 October 2026"),
+            ("Structure", "IEEE 29148-2018: 1 Introduction, 2 Overall description, 3 Specific requirements, 4 Verification, 5 As built "
+                          "versus proposed, appendices"),
+            ("Companion documents", "Abhijatri-DFD.docx (data flow diagrams) and Abhijatri-Venn-Diagram.docx"),
         ],
-        "Abhijatri: SRS Completion",
+        "Abhijatri: Software Requirements Specification",
     )
     doc.contents()
 
-    # ------------------------------------------------------------------ 1
-    doc.h1("1. Summary")
-    doc.p("The proposal already contains **all nine** points your instructor requires. Each is present and substantial. What it does not contain is the rest of a Software Requirements Specification (SRS): "
-          "a glossary, constraints, assumptions, external interface requirements, data requirements, detailed use case descriptions, state and sequence diagrams, a data flow diagram, a traceability matrix, and revision history. "
-          "It was also written on 12 October 2026, before the review, moderation, notification and account features were built, so some statements need an \"as built\" note.")
-    doc.table(
-        ["Question", "Answer"],
-        [
-            ["Are the nine required proposal points present?", "Yes, all nine (section 2)."],
-            ["Is there a use case diagram?", "Yes: the UML use case model with four actors and ten packages (proposal section \"Primary Use Cases\"). It is reproduced in section 4.4 of this document."],
-            ["Is there a complete SRS?", "Not yet. 14 standard SRS elements are missing or only partly covered (section 3). Sections 4 to 10 supply them."],
-            ["Is there a data flow diagram?", "No in the proposal. It is now in Abhijatri-DFD.docx (context, level 0, level 1 and level 2)."],
-            ["Does the proposal match what was built?", "Mostly in intent, but with differences listed in section 11 (for example Supabase Auth instead of self-managed password hashing, and the offline features still being prototypes)."],
-        ],
-        [6.0, 10.5], caption="Summary of findings",
-    )
-    doc.note("**How to use this document.** Sections 4 to 11 are written so they can be copied into the proposal or the SRS report as they are. "
-             "Where something is a prototype or not built, the text says so plainly; do not remove those statements, because they are what the repository supports.")
-
-    # ------------------------------------------------------------------ 2
-    doc.h1("2. The nine required proposal points: coverage")
-    fills = {(i, 1): GREEN for i in range(9)}
-    doc.table(
-        ["#", "Required point", "Where in the proposal", "Assessment and what to improve"],
-        [
-            ["1", "Executive Summary", "Section 1, Executive Summary", "Present. Covers the problem, the solution and the semester outcome (a tested PWA with five seeded destinations). Improve: add one sentence of as-built status and one headline measure."],
-            ["2", "Problem Statement", "Section 2, five subsections (fragmented information, unclear costs, weak connectivity, Bangla-first support, trust and freshness)", "Present and well structured. Improve: add one or two cited sources or survey figures if available, because the section states the gap without evidence."],
-            ["3", "Objectives and Goals", "Section 3, objectives O1 to O8 with completion measures", "Present and measurable (for example 10 of 10 airplane-mode tests, at least eight consenting participants). Improve: add the results as they become known; note that O4 depends on offline features that are not built yet."],
-            ["4", "Functional Requirements", "Section 4: core and future features, user roles, FR01 to FR17 catalogue, cost planner rules, use case model, user stories, MVP exclusions", "Present and the strongest section. Improve: add use case specifications (section 4.6 here) and an as-built status per requirement (section 4.4)."],
-            ["5", "Non-functional Requirements", "Section 5, table with performance, security, reliability, scalability, usability and accessibility, maintainability, portability, privacy", "Present with acceptance measures. Improve: state uptime and load targets as numbers, name an accessibility standard, and record measured results."],
-            ["6", "Stakeholders", "Section 6, seven stakeholder groups with interest and engagement", "Present. Improve: add influence and interest levels and who is the decision owner."],
-            ["7", "Timeline / Milestones", "Section 7: milestones M1 to M4 and gate G1, formal testing phase, Gantt chart with dependencies and effort", "Present and detailed. Improve: add a \"planned versus actual\" column as of the submission date."],
-            ["8", "Risk Assessment", "Section 8, 13 risks with level, early warning, mitigation and owner", "Present. Improve: add likelihood and impact scores, residual risk and a risk for dependence on third-party services (Supabase, Cloudflare, email provider)."],
-            ["9", "Feasibility Study", "Section 9: technical, economic (BDT 6,000 ceiling), schedule, operational and ethical", "Present, covers all three required kinds plus one more. Improve: update the cost table with the actual hosting and service costs, and say what happens if free tiers end."],
-        ],
-        [0.8, 3.2, 5.0, 7.5], caption="Coverage of the nine required points", size=8.6, fills=fills,
-    )
-
-    # ------------------------------------------------------------------ 3
-    doc.h1("3. What a complete SRS adds: gap analysis")
-    srs = [
-        ["Introduction", "Purpose of the document", "Partly", "Executive Summary and Scope Decision", "Section 4.1.1"],
-        ["Introduction", "Scope of the product", "Yes", "Scope Decision, MVP exclusions", "Reuse; section 4.1.2 restates it"],
-        ["Introduction", "Definitions, acronyms, abbreviations (glossary)", "Missing", "none (0 mentions)", "Section 4.1.3"],
-        ["Introduction", "References", "Missing", "none", "Section 4.1.4"],
-        ["Overall description", "Product perspective and system context", "Partly", "Architecture is mentioned only in feasibility", "Section 4.2.1 with the context DFD"],
-        ["Overall description", "Product functions", "Yes", "Core and future features", "Section 4.2.2 maps them to processes"],
-        ["Overall description", "User classes and characteristics", "Yes", "User roles table", "Section 4.2.3 adds Verified Member, moderator, superadmin, ops"],
-        ["Overall description", "Operating environment", "Partly", "Portability row", "Section 4.2.4"],
-        ["Overall description", "Design and implementation constraints", "Missing", "none", "Section 4.2.5"],
-        ["Overall description", "Assumptions and dependencies", "Partly", "3 scattered mentions", "Section 4.2.6"],
-        ["Specific requirements", "External interface requirements (user, software, hardware, communications)", "Missing", "none", "Section 4.3"],
-        ["Specific requirements", "Functional requirements", "Yes", "FR01 to FR17", "Reuse; section 4.4 adds status as built"],
-        ["Specific requirements", "Non-functional requirements", "Yes", "Eight categories", "Reuse; section 4.8 adds evidence"],
-        ["Specific requirements", "Data requirements (data model, retention)", "Missing", "none", "Section 4.5 with the ER diagram"],
-        ["Specific requirements", "Use case specifications", "Partly", "Diagram and user stories only", "Section 4.6"],
-        ["Specific requirements", "Behaviour models (state, sequence)", "Missing", "none", "Sections 4.7 (state) and 4.8 (sequence)"],
-        ["Appendices", "Data flow diagram", "Missing", "none", "Abhijatri-DFD.docx"],
-        ["Appendices", "Requirements traceability matrix", "Partly", "User stories trace to FR", "Section 4.9: FR to use case to API to test"],
-        ["Appendices", "Verification plan", "Yes", "Formal testing table and phases", "Reuse"],
-        ["Appendices", "Revision history and approval", "Missing", "none", "Section 4.11"],
-    ]
-    fills = {}
-    for i, r in enumerate(srs):
-        fills[(i, 2)] = {"Yes": GREEN, "Partly": AMBER, "Missing": RED}[r[2]]
-    doc.table(["SRS part", "Element", "Status in the proposal", "What exists", "Supplied by"], srs, [2.6, 4.7, 2.0, 3.8, 3.5], caption="SRS elements: present, partly present, missing", size=8.4, fills=fills)
-    missing = sum(1 for r in srs if r[2] == "Missing")
-    partly = sum(1 for r in srs if r[2] == "Partly")
-    doc.p(f"Of {len(srs)} elements, {len(srs) - missing - partly} are present, {partly} are partly present and {missing} are missing. "
-          "The 14 gaps (missing plus partly present) are all filled by the sections that follow.")
-
-    # ------------------------------------------------------------------ 4
-    doc.page_break()
-    doc.h1("4. Paste-ready SRS sections")
-    doc.note("Numbering below is the section numbering of the SRS you would assemble: 4.1 is SRS section 1 and so on. Rename them when you paste.")
-
     # ---- 4.1
-    doc.h2("4.1 Introduction")
-    doc.h3("4.1.1 Purpose")
+    doc.h1("1. Introduction")
+    doc.h2("1.1 Purpose")
     doc.p("This Software Requirements Specification describes Abhijatri, a Bangla-first, offline-ready community travel platform for Bangladesh. It states what the system must do and the qualities it must have, "
           "so that the team, the instructor and the evaluators can judge the finished product against the same list. It is written for the four team members (frontend, backend, quality assurance and project leader), the course instructor and external evaluators.")
-    doc.h3("4.1.2 Scope")
+    doc.h2("1.2 Scope")
     doc.p("Abhijatri lets travellers explore destinations in Bangla or English, read dated advisories, write and read moderated reviews, and (in the semester plan) estimate trip cost and use destination packs without a connection. "
           "Staff moderate content, decide appeals, verify members and monitor the system.")
     doc.table(
@@ -157,57 +85,77 @@ def main() -> None:
         ],
         [8.2, 8.3], caption="Scope boundary",
     )
-    doc.h3("4.1.3 Definitions, acronyms and abbreviations")
+    doc.h2("1.3 Definitions, acronyms and abbreviations")
     gl = [
         ["API", "Application programming interface. Here, the FastAPI service under /api/v1."],
         ["Appeal", "A request to reconsider a rejection or hiding decision, allowed until the end of the 30th day (Asia/Dhaka)."],
+        ["AAL2", "Authenticator assurance level 2: a session that passed a second factor (TOTP). Staff routes require it."],
         ["Audit event", "An append-only record of a privileged action: who, what, when, and why."],
         ["BDT", "Bangladeshi taka."],
         ["CSRF", "Cross-site request forgery; prevented with a token that must accompany every signed-in write."],
         ["Draft id", "A random UUID created on the device for one review; the server keeps only one review per draft id, so retries are safe."],
         ["Guest", "A visitor without an account. Guest reviews never change the Community Rating."],
         ["Guest Feedback", "The average of published Guest ratings, shown separately from the Community Rating."],
-        ["Community Rating", "A Bayesian score built only from eligible Verified Member reviews."],
+        ["Guest tag", "A short random badge (for example 1C669-J0TDY) derived on the device from the scope secret; it names a Guest "
+                      "without an account and reveals no traffic volume."],
+        ["Idempotency-Key", "A request header on staff moderation decisions; replaying the same key returns the stored result instead "
+                            "of deciding twice."],
+        ["Community Rating", "A Bayesian score built only from eligible Verified Member reviews: (sum + 5 x 3.5) / (count + 5). "
+                             "It is shown only once a destination has at least five eligible reviews (the Bayesian threshold)."],
+        ["Consent version", "The version of the moderation and retention notice the author accepted; every submission records it."],
+        ["Dead letter", "An outbox event that failed six relay attempts; it stops retrying and is shown to the Superadmin and the ops panels."],
         ["IndexedDB", "The browser database planned for drafts and offline packs (not built yet)."],
         ["Lease", "A time-limited claim (300 seconds) a moderator holds on a task so two people do not decide the same item."],
         ["Member / Verified Member", "A signed-in user / a member whose identity evidence staff approved."],
         ["MFA / TOTP", "Multi-factor authentication / time-based one-time password from an authenticator app."],
         ["Moderator / Superadmin", "Staff roles. Both need TOTP; only a superadmin can grant roles."],
         ["MVP", "Minimum viable product: the semester deliverable."],
+        ["Ops operator", "A person holding the ops token who reads the separate monitoring site; not a staff role."],
         ["Outbox", "A database table of events written in the same transaction as the change they describe, processed later by a worker."],
         ["PWA", "Progressive web application: a website that can be installed and work offline."],
         ["RLS", "PostgreSQL row-level security, enabled on every public table."],
         ["Receipt", "A secret the Guest's browser generates (abr1_ plus 43 characters). The server stores only a keyed digest and never reissues it."],
+        ["Rating eligibility", "Whether a published review counts: ELIGIBLE (Verified Member), INELIGIBLE_GUEST (counts in Guest "
+                               "Feedback only), INELIGIBLE_UNVERIFIED, or INELIGIBLE_CONFLICT (author declared a conflict of interest)."],
         ["Revision", "One saved version of a review's content; revisions are append-only."],
+        ["Scope secret", "A 48-byte random secret kept in the Guest's browser; the server stores only a keyed digest. It links one "
+                         "browser's reviews and gives the guest tag."],
         ["Supabase", "Hosted PostgreSQL, identity and storage provider used by the project."],
         ["Turnstile", "Cloudflare's bot-check widget used on guest submissions."],
         ["Verified Visit", "A future, separate claim that a visit happened; not the same as Verified Member."],
         ["WP / R-number", "Work package and Gantt task identifiers (for example R07 = structured review CRUD)."],
     ]
     doc.table(["Term", "Meaning in this project"], gl, [3.4, 13.1], caption="Glossary", size=8.6, bold_first_col=True)
-    doc.h3("4.1.4 References")
+    doc.h2("1.4 References")
     doc.bullets([
         "Abhijatri Project Proposal, 12 October 2026 (`Docs/Abhijatri_Project_Proposal.pdf`).",
-        "`Docs/Architecture.md`, `Docs/Schema.md`, `Docs/Security.md`, `Docs/Decisions.md`, `Docs/Implemented.md`.",
+        "`Docs/Architecture.md`, `Docs/Schema.md`, `Docs/Security.md`, `Docs/Implemented.md`.",
+        "`Docs/Decisions.md`, in particular 27 October 2026: Supabase Auth (a recorded deviation from Platform Foundation 8.1), "
+        "account email sent by the API, and media for every signed-in member.",
         "`Docs/Backend-Implemented.md` and `Docs/Frontend-Implemented.md` (what is built and the evidence).",
         "`Docs/api/API.md` and `Docs/api/openapi-v1.json` (the API contract).",
         "`Features/Review.md`, `Features/Platform-Foundation.md`, `Features/Execution.md` (feature specifications).",
         "`Docs/Moderation-Dashboard-Specification.md`, `Docs/Notification-Documentation.md`, `Docs/System-Monitoring-Dashboard.md`.",
         "IEEE Std 29148-2018, Systems and software engineering: Life cycle processes: Requirements engineering (structure of this SRS).",
-        "Abhijatri-DFD.docx and Abhijatri-Venn-Diagram.docx (companion documents).",
+        "Abhijatri-DFD.docx (data flow diagrams, version 1.1) and Abhijatri-Venn-Diagram.docx (companion documents).",
     ])
-    doc.h3("4.1.5 Overview of the rest")
-    doc.p("Section 4.2 describes the product in context. Section 4.3 lists its interfaces. Sections 4.4 to 4.8 give functional, data and behaviour requirements. Section 4.9 traces requirements to code and tests. "
-          "Sections 4.10 and 4.11 compare the proposal with what was built and record revisions.")
+    doc.h2("1.5 Overview of the rest of this document")
+    doc.p("Section 2 describes the product in context, its users, constraints, dependencies and costs. Section 3 gives the specific "
+          "requirements: interfaces (3.1), features and their status (3.2), data (3.3), use cases (3.4), behaviour models (3.5) and "
+          "non-functional requirements (3.6). Section 4 traces requirements to code and tests. Section 5 compares the proposal with what "
+          "was built. Appendix A summarises the data flow model and Appendix B records revisions and approval.")
 
     # ---- 4.2
-    doc.h2("4.2 Overall description")
-    doc.h3("4.2.1 Product perspective")
+    doc.h1("2. Overall description")
+    doc.h2("2.1 Product perspective")
     doc.p("Abhijatri is a new, self-contained system with four deployable parts and a small number of external services. "
           "The public web app (React, TypeScript) talks only to the API; it holds no database key. The FastAPI service enforces all authorisation, moderation, receipt checks and rating arithmetic. "
           "PostgreSQL (hosted by Supabase) is the source of truth. A separate staff web app and a private operations app use the same API.")
-    doc.figure(HERE / "dfd-context.png", "System context (the context data flow diagram)", 15.8, 12.0)
-    doc.h3("4.2.2 Product functions")
+    doc.p("Figure 1 on the next page shows the system and the ten external entities around it (the context data flow diagram).")
+    doc.landscape()
+    doc.figure(HERE / "dfd-context.png", "System context (the context data flow diagram from Abhijatri-DFD.docx)", 24.5, 15.6)
+    doc.portrait()
+    doc.h2("2.2 Product functions")
     doc.table(
         ["Function group", "What the system does", "DFD process"],
         [
@@ -217,31 +165,33 @@ def main() -> None:
             ["Reviews", "Create, edit while unpublished, withdraw, view status and history, attach media, appeal, report", "4.0"],
             ["Notifications", "In-app inbox and email with preferences, retries and digests", "5.0"],
             ["Moderation", "Task queue, decisions, ratings, appeals, reports, enforcement, verification", "6.0"],
-            ["Operations", "Panels, audit log, visit counters, retention", "7.0"],
+            ["Operations", "Ops panels, daily visit rollup, audit log view, retention", "7.0"],
         ],
         [3.6, 10.5, 2.4], caption="Product functions and the data flow processes that realise them",
     )
-    doc.h3("4.2.3 User classes")
+    doc.h2("2.3 User classes")
     doc.table(
         ["User class", "Description", "Technical skill", "Can do"],
         [
-            ["Guest", "Traveller without an account; may use Bangla only and a low-end Android phone", "Low", "Browse, read reviews, submit one review with a receipt, check status, edit or withdraw it, appeal a rejection"],
+            ["Guest", "Traveller without an account; may use Bangla only and a low-end Android phone", "Low", "Browse, read reviews, submit reviews (each with its own receipt, within rate limits), check status, edit or withdraw them, appeal a rejection"],
             ["Member", "Signed-in user with a verified email", "Low to medium", "Everything a Guest can; also own review history, media upload, appeals, reports, notifications, verification request"],
             ["Verified Member", "Member whose evidence staff approved", "Low to medium", "Their reviews can count toward the Community Rating"],
             ["Moderator", "Staff with TOTP", "Medium", "Claim tasks, decide reviews, appeals and reports, review verification"],
-            ["Superadmin", "Staff with TOTP and a recent password check for sensitive actions", "High", "Everything a moderator can; grant roles, see dead letters and delivery records"],
+            ["Superadmin", "Staff with TOTP and a recent password check for sensitive actions", "High", "Everything a moderator can; grant roles, take enforcement action, administer notifications, read the audit log, see dead letters and delivery records"],
             ["Ops operator", "Holds the ops token", "High", "Read monitoring panels only"],
         ],
         [2.6, 5.4, 2.3, 6.2], caption="User classes",
     )
-    doc.h3("4.2.4 Operating environment")
+    doc.p("These six names are used in every Abhijatri document. The data flow diagrams draw Member and Verified Member as one "
+          "entity, because they exchange the same kinds of data; the use case diagram shows Verified Member separately.")
+    doc.h2("2.4 Operating environment")
     doc.bullets([
         "Client: current Chromium-based Android browsers and modern desktop browsers; Safari limitations are documented where a device is available.",
         "Server: Python 3.12 container running FastAPI behind HTTPS; PostgreSQL 17 (Supabase); Redis over TLS for counters only.",
         "Build: Node 22 for the three front-end apps; CI on every pull request (lint, type check, tests, migration check, dependency audit, secret scan, image build).",
         "Time zone: the server stores UTC; dates shown to users and appeal deadlines use Asia/Dhaka.",
     ])
-    doc.h3("4.2.5 Design and implementation constraints")
+    doc.h2("2.5 Design and implementation constraints")
     doc.table(
         ["ID", "Constraint", "Source"],
         [
@@ -255,16 +205,21 @@ def main() -> None:
             ["C8", "Personal data is minimised: no NID, no payment data; optional contacts stay on the device.", "Proposal privacy; Security.md"],
             ["C9", "Hosted free or low-cost tiers limit storage, email volume and request rates.", "Decisions.md"],
             ["C10", "Every schema change is a reversible migration; the API contract in openapi-v1.json is checked in CI.", "backend/migrations, tests/test_openapi_contract.py"],
+            ["C11", "Identity uses Supabase Auth through the API; the browser never calls Supabase. This deviates from Platform Foundation 8.1 "
+                    "(\"Supabase Auth shall not be used\"); the owner's decision is recorded and the Platform Foundation amendment is pending.",
+             "Decisions.md, 27 Oct 2026; Platform-Foundation.md 8.1"],
         ],
         [1.0, 11.2, 4.3], caption="Constraints", size=8.8,
     )
-    doc.h3("4.2.6 Assumptions and dependencies")
+    doc.h2("2.6 Assumptions and dependencies")
     doc.table(
         ["ID", "Assumption or dependency", "If it fails"],
         [
-            ["A1", "Supabase Auth, PostgreSQL and Storage are available.", "Sign-in, reviews or media are unavailable; the API answers SERVICE_UNAVAILABLE and readiness reports 503."],
+            ["A1", "Supabase Auth, PostgreSQL and Storage are available (Supabase Auth: see C11).", "Sign-in, reviews or media are unavailable; the API answers SERVICE_UNAVAILABLE and readiness reports 503."],
             ["A2", "Cloudflare Turnstile is reachable for guest submissions.", "New guest reviews cannot be submitted; reading and receipt operations continue."],
-            ["A3", "An email provider is configured and delivers.", "Email retries (1 min, 5 min, 30 min, 2 h) then fails; the in-app notification still exists."],
+            ["A3", "An email provider is configured and delivers verification, password reset and notification email (AUTH_EMAIL_DELIVERY=app).",
+             "New members cannot verify their email and reset links do not arrive. Notification email is retried (1 min, 5 min, 30 min, 2 h) "
+             "and then marked failed; the in-app notification still exists."],
             ["A4", "Users have a Chromium-based or modern browser.", "Some features degrade; documented limits apply."],
             ["A5", "At least two trained moderators are available (a decision on appeal needs a second person).", "Appeals wait in the queue."],
             ["A6", "Destination data is researched, sourced and dated by the team.", "Advisories become stale or expired and are labelled so."],
@@ -274,9 +229,42 @@ def main() -> None:
         [1.0, 7.5, 8.0], caption="Assumptions and dependencies", size=8.8,
     )
 
+    doc.h2("2.7 Hosting, costs and third-party risk")
+    doc.table(
+        ["Service", "Used for", "Plan on 31 October 2026", "Monthly cost"],
+        [
+            ["Railway", "API container (interim deployment, not in the approved plan)", "Account plan not recorded in the repository", "To confirm"],
+            ["Render (render.yaml)", "Prepared blueprint for the API in Singapore", "plan: free", "BDT 0"],
+            ["Vercel", "Public PWA (interim) and the private ops site", "Shared team account", "To confirm"],
+            ["Supabase", "PostgreSQL, Auth and Storage", "Projects abhijatri-staging and abhijatri-prod", "To confirm"],
+            ["Upstash Redis", "Visit and event counters", "Not recorded", "To confirm"],
+            ["Brevo or Gmail API", "Account and notification email", "Brevo free tier (300 emails a day); Gmail API about 500 a day", "BDT 0"],
+            ["Cloudflare Turnstile", "Bot check for guest submissions", "Free", "BDT 0"],
+        ],
+        [3.2, 5.2, 5.0, 3.1], caption="Hosting and services (sources: render.yaml, Docs/Architecture.md, Docs/Decisions.md)", size=8.4,
+    )
+    doc.p("The proposal's planning ceiling is BDT 6,000 for the semester (constraint C4). The repository does not record the paid "
+          "plans, if any; the team should fill in the \"To confirm\" cells from the account bills before submission.")
+    doc.table(
+        ["Risk", "Likelihood", "Impact", "Mitigation"],
+        [
+            ["A free tier ends, is paused for inactivity, or hits its limit (Supabase, Upstash, Vercel, Railway, email)", "Medium", "High",
+             "Keep the database portable (plain PostgreSQL migrations); readiness check reports 503; email has two providers; "
+             "document a paid fallback within the BDT 6,000 ceiling."],
+            ["Supabase Auth outage or policy change", "Low", "High", "Sessions continue until expiry; the API proxies Auth, so a swap "
+             "touches only the auth module."],
+            ["Email provider blocks or delays mail", "Medium", "Medium", "Switch EMAIL_PROVIDER (Brevo, Gmail API, SMTP, Resend); "
+             "retries; in-app notifications do not depend on email."],
+            ["Cloudflare Turnstile unavailable", "Low", "Medium", "Guest submissions pause; members and reading are unaffected; "
+             "GUEST_WRITES_PAUSED switch."],
+        ],
+        [5.0, 1.8, 1.6, 8.1], caption="Third-party dependency risk", size=8.4,
+    )
+
     # ---- 4.3
-    doc.h2("4.3 External interface requirements")
-    doc.h3("4.3.1 User interfaces")
+    doc.h1("3. Specific requirements")
+    doc.h2("3.1 External interface requirements")
+    doc.h3("3.1.1 User interfaces")
     doc.table(
         ["Application", "Main screens", "Notes"],
         [
@@ -286,36 +274,38 @@ def main() -> None:
         ],
         [3.2, 8.5, 4.8], caption="User interfaces", size=8.6,
     )
-    doc.h3("4.3.2 Software interface: the API")
+    doc.h3("3.1.2 Software interface: the API")
     doc.p("The contract is `Docs/api/openapi-v1.json` (checked against the code by a test) and `Docs/api/API.md`. All errors use one body, `{ error: { code, message, request_id, field_errors } }`, with Bangla and English messages. "
-          "Signed-in writes need a CSRF token; guest operations send the receipt in the JSON body only; lists use opaque cursors.")
+          "Signed-in writes need a CSRF token; guest operations send the receipt in the JSON body only; lists use opaque cursors. "
+          "The /staff group is legacy and is not part of the requirements.")
     doc.table(["Group", "Operations", "Purpose"], api_groups(), [3.2, 2.3, 11.0], caption="API operations by group (from openapi-v1.json)", size=8.6)
-    doc.h3("4.3.3 Third-party services")
+    doc.h3("3.1.3 Third-party services")
     doc.table(
         ["Service", "Purpose", "Data exchanged", "When unavailable"],
         [
-            ["Supabase Auth", "Identity, passwords, TOTP", "Credentials, tokens, user id", "Sign-in and registration fail with a clear error; existing sessions continue until expiry"],
+            ["Supabase Auth", "Identity, passwords, TOTP (constraint C11)", "Credentials, tokens, one-time tokens, user id", "Sign-in and registration fail with a clear error; existing sessions continue until expiry"],
             ["Supabase PostgreSQL", "System of record", "All application tables", "Readiness 503; the API does not accept writes"],
             ["Supabase Storage", "Private media and evidence", "Signed links, processed files", "Upload answers SERVICE_UNAVAILABLE with a Retry-After header"],
             ["Cloudflare Turnstile", "Bot check on guest submission", "One-time token", "Guest submissions refused; other features unaffected"],
-            ["Email provider (SMTP, Gmail, Brevo, Resend)", "Notification email", "Email address, message, delivery status webhooks", "Retried, then marked failed; alert raised after a threshold"],
+            ["Email provider (SMTP, Gmail, Brevo, Resend)", "Verification, password reset and notification email", "Email address, message, delivery status webhooks",
+             "Registration and password reset cannot complete; notification email is retried, then marked failed; alert raised after a threshold"],
             ["Upstash Redis", "Visit and event counters", "Counter increments and totals", "Counters lost; core flows unaffected"],
         ],
         [3.4, 3.4, 4.0, 5.7], caption="Third-party services", size=8.6,
     )
-    doc.h3("4.3.4 Hardware and communications interfaces")
+    doc.h3("3.1.4 Hardware and communications interfaces")
     doc.bullets([
         "No special hardware. Target device: a low-end Android phone on a slow mobile network; the proposal's measure is usable core text within 5 seconds on a throttled Fast 3G profile.",
         "All traffic uses HTTPS; cookies are HttpOnly and Secure in production; CORS allows only the configured origins.",
     ])
 
     # ---- 4.4
-    doc.landscape()
-    doc.h2("4.4 System features: use case model and requirement status")
-    doc.p("The use case model below is the proposal's own diagram (four actors; packages for supporting functions, cost estimator, offline, review, community, administration and verification; booking and payment are demonstration only).")
-    doc.figure(DOCS / "Abhijatri_UseCase_compressed.png", "Abhijatri use case model (from the proposal). Packages 4 and 6c are demonstration-only.", 24.0, 15.2)
-    doc.portrait()
-    doc.p("Status of each functional requirement as of 30 October 2026, from the repository (Docs/Implemented.md, Docs/Backend-Implemented.md, Docs/Frontend-Implemented.md and the tests):")
+    doc.h2("3.2 System features: use case model and requirement status")
+    doc.p("The use case diagram shows the system as built, with the six user classes of section 2.3. Each use case is marked built, "
+          "prototype or planned. It replaces the proposal's diagram, which used different actor names and showed unbuilt administration "
+          "features without a marker.")
+    doc.figure(HERE / "usecase-asbuilt.png", "Use case diagram of Abhijatri as built (31 October 2026)", 16.0, 21.0)
+    doc.p("Status of each functional requirement as of 31 October 2026, from the repository (Docs/Implemented.md, Docs/Backend-Implemented.md, Docs/Frontend-Implemented.md and the tests):")
     status = [
         ["FR01", "Destination catalogue", "Implemented", "Five destinations with sourced, dated content; R01 content review pending"],
         ["FR02", "Language selection", "Implemented", "Bangla default, English selectable; no test of the language switch was found"],
@@ -344,18 +334,18 @@ def main() -> None:
           "The offline group (FR10, FR11, FR12, FR14, FR17) and the estimator (FR08, FR09) are the main remaining work.")
 
     # ---- 4.5
-    doc.h2("4.5 Data requirements")
-    doc.landscape()
-    doc.figure(HERE / "erd.png", "Entity-relationship diagram of the main tables", 22.0, 14.6)
-    doc.portrait()
-    doc.p("The database has more than 35 tables; the diagram shows the ones needed to understand reviews, moderation and notifications. Every public table has row-level security enabled, and the application connects as the owner role.")
+    doc.h2("3.3 Data requirements")
+    doc.p("The database has more than 35 tables; the diagram shows the ones needed to understand reviews, moderation and notifications. "
+          "Line ends use crow's-foot notation (a bar is one, a circle is optional, a fork is many). Every public table has row-level "
+          "security enabled, and the application connects as the owner role.")
+    doc.figure(HERE / "erd.png", "Entity-relationship diagram of the main tables", 16.6, 22.0)
     doc.table(
         ["Data", "Where kept", "Retention or protection"],
         [
-            ["Review text and ratings", "reviews, review_revisions, review_category_ratings", "Kept while published; revisions append-only; personal content may be tombstoned by the retention job"],
+            ["Review text and ratings", "reviews, review_revisions, review_category_ratings", "Kept while published; revisions append-only. Tombstoning rejected content after 30 days (Review.md) is not built yet"],
             ["Guest receipt and scope secret", "Browser only; server holds keyed digests (review_receipts, reviews.guest_scope_hash)", "Raw values never stored or logged; receipts never reissued"],
             ["Account identity", "users, user_roles; passwords and TOTP in Supabase Auth", "Passwords never in the application database"],
-            ["Verification evidence", "Private storage; verification_cases, verification_evidence", "Files erased within 24 hours of a decision; rejected cases kept 30 days"],
+            ["Verification evidence", "Private storage; verification_cases, verification_evidence", "Files erased 24 hours after approval; files and the case row erased 30 days after rejection or withdrawal; nothing erased while an appeal is open"],
             ["Photos and videos", "review_media; private bucket", "Uploads not completed within 24 hours are purged; re-encoded images have EXIF and GPS removed"],
             ["Notifications", "notifications and delivery tables", "Standard items 90 days; critical items 24 months; open appeals preserved"],
             ["Outbox events", "outbox_events", "Processed rows removed after 30 days"],
@@ -366,7 +356,7 @@ def main() -> None:
     )
 
     # ---- 4.6
-    doc.h2("4.6 Use case specifications")
+    doc.h2("3.4 Use case specifications")
     doc.p("Six core use cases are specified in full. Each maps to a package in the use case model and to a flow in the data flow diagrams.")
 
     def uc(title, rows):
@@ -376,7 +366,7 @@ def main() -> None:
         ["Actors", "Guest or Member (primary); Cloudflare Turnstile (secondary)"],
         ["Trigger", "The user finishes the structured review form and presses Submit."],
         ["Preconditions", "A published destination exists. A Guest has a generated receipt, scope secret and draft id. A Member is signed in with a CSRF token."],
-        ["Main flow", "1. The client sends the review (title, note, overall rating, optional category ratings, language, traveller type, comfort tier, visit month, consent version).\n2. The server checks the schema and receipt format.\n3. If the draft id already exists with the same receipt, it returns the existing review (no charge).\n4. For a Guest it verifies the Turnstile token and durable rate limits and pending ceilings.\n5. It creates the review (PENDING), first revision, category ratings, receipt digest, moderation task and outbox event in one transaction.\n6. It answers 201 with review id and status."],
+        ["Main flow", "1. The client sends the review (title, note, overall rating, optional category ratings, language, traveller type, comfort tier, visit month, consent version).\n2. The server checks the schema and receipt format.\n3. If the draft id already exists with the same receipt, it returns the existing review (not counted against rate limits).\n4. For a Guest it verifies the Turnstile token and durable rate limits and pending ceilings.\n5. It creates the review (PENDING), first revision, category ratings, receipt digest, moderation task and outbox event in one transaction.\n6. It answers 201 with review id and status."],
         ["Alternative flows", "A member who already has an active review for the same destination and month gets MEMBER_REVIEW_EXISTS. A different receipt on an existing draft gets DRAFT_ALREADY_SUBMITTED."],
         ["Exceptions", "Turnstile failure (CHALLENGE_FAILED), rate limit (RATE_LIMITED with Retry-After), guest writes paused (GUEST_WRITES_PAUSED), validation errors with field codes."],
         ["Postconditions", "One PENDING review is queued for moderation; nothing is counted or public."],
@@ -398,10 +388,10 @@ def main() -> None:
         ["Actors", "Moderator or Superadmin"],
         ["Trigger", "A moderator opens the queue and takes a pending review."],
         ["Preconditions", "Staff signed in with TOTP; a moderation task exists; the moderator is not the author."],
-        ["Main flow", "1. Claim the task and receive a lease token (300 seconds; heartbeat extends it).\n2. Read the content and any media.\n3. Send the decision (PUBLISH, REJECT, REQUEST_CHANGES, HIDE, RESTORE) with the task id, lease token, the review's version and a reason code.\n4. In one transaction the server changes the status, updates rating totals exactly once, decides media, writes the moderation action, an audit event and an outbox event, and completes the task.\n5. The worker later notifies the author."],
+        ["Main flow", "1. Claim the task and receive a lease token (300 seconds; heartbeat extends it).\n2. Read the content and any media.\n3. Send the decision (PUBLISH, REJECT, REQUEST_CHANGES, HIDE, RESTORE) with the task id, lease token, the review's version and a reason code.\n4. In one transaction the server changes the status, updates rating totals exactly once, decides media, writes the moderation action, an audit event and an outbox event, and completes the task.\n5. The worker later notifies a member author in the inbox and by email; a Guest author has no account and sees the decision through the receipt status."],
         ["Alternative flows", "A decision can be replayed with the same Idempotency-Key and returns the stored result."],
         ["Exceptions", "Stale version (REVIEW_VERSION_CONFLICT); lost lease (LEASE_LOST); impossible move (TRANSITION_NOT_ALLOWED); own review (SELF_MODERATION_FORBIDDEN)."],
-        ["Postconditions", "Status and aggregates are consistent; the decision is auditable; the author is notified."],
+        ["Postconditions", "Status and aggregates are consistent; the decision is auditable; a member author is notified; a Guest sees the outcome in the receipt status."],
         ["Requirements", "FR05, FR07, FR16"],
         ["API and tests", "POST /admin/tasks/{id}/claim, POST /admin/submissions/{id}/moderation-actions; tests/test_admin.py, test_review_postgres.py, test_review_crud.py"],
     ])
@@ -434,8 +424,9 @@ def main() -> None:
 
     # ---- 4.7
     doc.landscape()
-    doc.h2("4.7 Review lifecycle (state diagram)")
-    doc.figure(HERE / "review-state.png", "Review states and the transitions the code allows", 24.0, 15.0)
+    doc.h2("3.5 Behaviour models")
+    doc.h3("3.5.1 Review lifecycle (state diagram)")
+    doc.figure(HERE / "review-state.png", "Review states and the transitions the code allows", 24.5, 15.2)
     doc.portrait()
     doc.table(
         ["Event", "From", "To", "Who", "Side effects"],
@@ -446,73 +437,93 @@ def main() -> None:
             ["REQUEST_CHANGES", "PENDING", "CHANGES_REQUESTED", "Moderator", "Author notified with the reason; no rating change"],
             ["Edit", "PENDING or CHANGES_REQUESTED", "PENDING", "Author", "New revision; old one SUPERSEDED; task re-queued"],
             ["HIDE", "PUBLISHED", "HIDDEN", "Moderator", "Rating removed in the same transaction"],
+            ["Enforcement takedown", "PUBLISHED", "HIDDEN", "Moderator or Superadmin (after a report)", "Rating removed; enforcement case and sanction recorded"],
             ["RESTORE", "HIDDEN", "PUBLISHED", "Moderator", "Rating added back"],
-            ["Withdraw", "PENDING, CHANGES_REQUESTED or PUBLISHED", "WITHDRAWN", "Author", "Rating removed; task cancelled; idempotent"],
+            ["Appeal overturned or enforcement lifted", "HIDDEN", "PUBLISHED", "A second moderator, or Superadmin", "Rating added back"],
+            ["Withdraw", "PENDING, CHANGES_REQUESTED, PUBLISHED, REJECTED or HIDDEN", "WITHDRAWN", "Author",
+             "A counted rating is removed; open tasks cancelled; repeating it on a WITHDRAWN review is a no-op"],
             ["Appeal overturned", "REJECTED", "PENDING", "A second moderator", "Back to the queue for a fresh review"],
         ],
         [2.6, 3.6, 2.9, 2.6, 4.8], caption="Transitions", size=8.4,
     )
     doc.p("The states UNDER_REVIEW and DELETED exist in the data model and are accepted by some checks, but no current code path sets them; a moderator's claim is held on the task, not on the review.")
+    doc.note("**Open product decision.** The code allows an author to withdraw a review while an appeal on it is still open "
+             "(services.withdraw_review checks only for WITHDRAWN and DELETED). Review.md 4.2 suggests an open appeal should block "
+             "withdrawal. The product owner should decide which rule applies; this SRS records the code as it is.")
 
     # ---- 4.8
-    doc.h2("4.8 Behaviour: sequence diagrams and non-functional evidence")
     doc.landscape()
-    doc.figure(HERE / "seq-submit-moderate.png", "Submit, moderate, publish and notify", 23.5, 14.5)
-    doc.figure(HERE / "seq-guest-edit.png", "Request changes, edit with the receipt, return to the queue", 23.0, 14.5)
+    doc.h3("3.5.2 Sequence diagrams")
+    doc.figure(HERE / "seq-submit-moderate.png", "A Guest submits, a moderator publishes, the Guest checks the receipt status", 24.0, 14.6)
+    doc.figure(HERE / "seq-guest-edit.png", "Request changes, edit with the receipt, return to the queue", 24.0, 14.6)
     doc.portrait()
-    doc.p("Non-functional requirements and the evidence available for them at 30 October 2026:")
+    doc.h2("3.6 Non-functional requirements")
+    doc.p("Targets come from the proposal's non-functional requirements table. The one target marked \"(v1.1)\" is new in this SRS "
+          "because the proposal gave no availability figure; the team should confirm it. Evidence is what the repository shows on 31 October 2026.")
     nf = [
-        ["Performance", "Core text usable within 5 s on throttled Fast 3G; pack opens within the stated time", "Not measured. Public lists are paginated (default 20, maximum 50) and public responses are cached for 60 seconds; no timing test is in the repository.", "Gap"],
-        ["Security and access control", "Server-side authority, CSRF, TOTP for staff, role checks, audit, rate limits, Turnstile, RLS", "Built and tested: tests/test_auth.py, test_admin.py, test_rls.py, test_abuse.py; dependency audit clean; committed-secret check in CI", "Met"],
-        ["Reliability and availability", "Identical retries create no duplicate; interrupted pack update keeps the last pack", "Retry safety built and tested; outbox is at-least-once and idempotent; pack update not applicable yet; no uptime measurement", "Partly"],
-        ["Scalability", "Stateless API, indexes, pagination, bounded queries", "Built; no load test", "Partly"],
-        ["Usability and accessibility", "Bangla default, labelled forms, keyboard access, Bengali conjunct rendering tested", "Bilingual UI built; QA notes list remaining accessibility items; no screen-reader test record", "Partly"],
-        ["Maintainability", "Modular code, migrations, API docs, tests, code review", "502 backend tests, 64, 24 and 19 front-end tests, lint and strict typing in CI, 18 migrations, contract tests", "Met"],
-        ["Portability", "Chromium Android, modern desktop", "Builds pass; no recorded real-device run", "Partly"],
+        ["Performance", "Usable core text within 5 s on a throttled Fast 3G profile on the target Android device; a downloaded pack opens "
+                        "within 2 s; catalogue, review and estimator APIs under 2 s at the 95th percentile in a 50-user load test", "Not measured. Lists are paginated (default 20, maximum 50) and public responses are cached "
+                        "for 60 seconds; no timing or load test is in the repository.", "Gap"],
+        ["Security and access control", "Server-side authority, CSRF, TOTP (AAL2) for staff, role checks, audit, rate limits, Turnstile, RLS",
+         "Built and tested: tests/test_auth.py, test_admin.py, test_rls.py, test_abuse.py; dependency audit clean; committed-secret check in CI", "Met"],
+        ["Reliability and availability", "No duplicate on an identical retry; an interrupted pack update keeps the last pack; one backup and one restore test for the "
+                                         "pilot; 99 % monthly availability of the API during the pilot (v1.1)",
+         "Retry safety built and tested; outbox is at-least-once and idempotent; pack update not applicable yet; no restore test or uptime measurement recorded", "Partly"],
+        ["Scalability", "Stateless API, indexes, pagination, bounded queries; semester load target of 50 concurrent virtual users", "Built; no load test", "Partly"],
+        ["Usability and accessibility", "Applicable WCAG 2.2 AA criteria evaluated with at least eight users; Bangla default; labelled forms; keyboard "
+                                        "access; Bengali conjuncts render correctly",
+         "Bilingual UI built; a real-Chrome end-to-end run passed 59 of 59 checks (30 Oct 2026, Docs/diagrams/e2e); QA notes list remaining "
+         "accessibility items; no screen-reader or WCAG audit record", "Partly"],
+        ["Maintainability", "Modular code, migrations, API docs, tests, code review",
+         "502 backend tests; 95 public-app, 28 staff-app and 19 ops-app unit tests (Frontend-Implemented.md, 30 Oct 2026); lint and strict "
+         "typing in CI; 18 migrations; contract tests", "Met"],
+        ["Portability", "Chromium on Android, modern desktop browsers", "All three apps build; the end-to-end run used desktop Chrome; no "
+                        "recorded run on a real Android device", "Partly"],
         ["Privacy", "Minimal data, consent, retention, deletion support", "Retention jobs and consent version built; account deletion request not found", "Partly"],
     ]
     fills = {(i, 3): {"Met": GREEN, "Partly": AMBER, "Gap": RED}[r[3]] for i, r in enumerate(nf)}
-    doc.table(["Category", "Requirement (proposal)", "Evidence in the repository", "Status"], nf, [3.0, 4.6, 7.4, 1.5], caption="Non-functional requirements: evidence", size=8.2, fills=fills)
+    doc.table(["Category", "Requirement and target", "Evidence in the repository", "Status"], nf, [3.0, 5.4, 6.6, 1.5],
+              caption="Non-functional requirements: targets and evidence", size=8.2, fills=fills)
 
     # ---- 4.9
-    doc.h2("4.9 Requirements traceability matrix")
+    doc.h1("4. Verification: requirements traceability")
     doc.table(
-        ["FR", "Use case package (diagram)", "API operations", "Automated tests", "Status"],
+        ["FR", "Use case (as-built diagram)", "API operations", "Automated tests", "Status"],
         [
-            ["FR01", "5.1 Explore Destination", "GET /destinations, /destinations/{id}", "test_destination_unit, test_destination_http, test_destination_postgres, test_seed_content", "Implemented"],
-            ["FR02", "Supporting: Switch Language", "Accept-Language on all routes", "No test of the language switch found", "Implemented"],
-            ["FR03", "Supporting; 6b Verification: Email and Account", "POST /auth/register, verify-email, login, logout, password-reset/*; GET /auth/session", "test_auth", "Partly"],
-            ["FR04", "3. Review: Fill Structured Review, Submit Review", "POST /reviews/guest, /reviews/member; GET /review-parameters", "test_review_postgres, test_review_unit, test_category_ratings, test_receipts, test_review_crud", "Implemented"],
-            ["FR05", "5. Community: Moderate Review", "GET /admin/queue; POST /admin/tasks/{id}/claim, /admin/submissions/{id}/moderation-actions", "test_admin, test_review_postgres, test_review_crud", "Implemented"],
-            ["FR06", "5. Community: Report Review", "POST /reviews/{id}/reports; POST /admin/reports/{id}/transition", "test_admin (report flow and rules)", "Implemented (member)"],
-            ["FR07", "5. Community: View Destination Rating", "GET /destinations/{id}/reviews; rating logic in services.py", "test_review_postgres, test_destination_postgres", "Implemented"],
-            ["FR08, FR09", "1. Cost Estimator", "None yet", "None yet", "Prototype / not implemented"],
-            ["FR10, FR14, FR17", "2. Offline", "None yet", "None yet", "Prototype / not implemented"],
-            ["FR11", "2. Offline: Save Local Trip Brief", "None (local)", "None yet", "Prototype"],
-            ["FR12", "3. Review: Save Offline Review Draft", "None (local)", "None yet", "Not implemented"],
-            ["FR13", "3. Review: Submit with Idempotency Key", "POST /reviews/guest (draft id), POST /reviews/member; Idempotency-Key on staff decisions", "test_review_postgres (retry deduplication), test_receipts, test_admin (idempotent decision)", "Partly"],
-            ["FR15", "6a Verification: Advisory and Offline Pack", "GET /destinations/{id} (advisory state)", "test_destination_unit (boundaries, Dhaka date)", "Implemented"],
-            ["FR16", "Administration", "GET /admin/staff, POST /admin/staff/{id}/role, GET /admin/audit-events, notification admin routes", "test_admin, test_notifications", "Partly"],
-            ["R07 (review CRUD)", "3. Review (edit, withdraw, history, appeal)", "PATCH /reviews/{id}/pending, GET /reviews/{id}, GET /reviews/mine, POST /reviews/{id}/withdraw, POST /review-receipts/appeals", "test_review_crud (16 tests)", "Implemented"],
-            ["Notifications", "Not in the proposal's diagram", "GET /notifications, PATCH /notifications/{id}, /notification-preferences", "test_notifications", "Implemented"],
+            ["FR01", "Browse destinations and advisories", "GET /destinations, /destinations/{id}", "test_destination_unit, test_destination_http, test_destination_postgres, test_seed_content", "Implemented"],
+            ["FR02", "All use cases (language switch)", "Accept-Language on all routes", "No test of the language switch found", "Implemented"],
+            ["FR03", "Register, sign in, reset password", "POST /auth/register, verify-email, login, logout, password-reset/*; GET /auth/session", "test_auth", "Partly"],
+            ["FR04", "Submit a review", "POST /reviews/guest, /reviews/member; GET /review-parameters", "test_review_postgres, test_review_unit, test_category_ratings, test_receipts, test_review_crud", "Implemented"],
+            ["FR05", "Moderate the review queue", "GET /admin/queue; POST /admin/tasks/{id}/claim, /admin/submissions/{id}/moderation-actions", "test_admin, test_review_postgres, test_review_crud", "Implemented"],
+            ["FR06", "Report a review; Decide appeals and reports", "POST /reviews/{id}/reports; POST /admin/reports/{id}/transition", "test_admin (report flow and rules)", "Implemented (member)"],
+            ["FR07", "Read published reviews and ratings; Count toward the Community Rating", "GET /destinations/{id}/reviews; rating logic in services.py", "test_review_postgres, test_destination_postgres", "Implemented"],
+            ["FR08, FR09", "Estimate trip cost (prototype)", "None yet", "None yet", "Prototype / not implemented"],
+            ["FR10, FR14, FR17", "Download offline pack, save trip (prototype)", "None yet", "None yet", "Prototype / not implemented"],
+            ["FR11", "Download offline pack, save trip (prototype)", "None (local)", "None yet", "Prototype"],
+            ["FR12", "Submit a review (offline draft not built)", "None (local)", "None yet", "Not implemented"],
+            ["FR13", "Submit a review", "POST /reviews/guest (draft id), POST /reviews/member; Idempotency-Key on staff decisions", "test_review_postgres (retry deduplication), test_receipts, test_admin (idempotent decision)", "Partly"],
+            ["FR15", "Browse destinations and advisories", "GET /destinations/{id} (advisory state)", "test_destination_unit (boundaries, Dhaka date)", "Implemented"],
+            ["FR16", "Manage staff roles; Administer notifications; Read the audit log; Edit destination content (planned)", "GET /admin/staff, POST /admin/staff/{id}/role, GET /admin/audit-events, notification admin routes", "test_admin, test_notifications", "Partly"],
+            ["R07 (review CRUD)", "Check, edit or withdraw a review; Appeal a decision", "PATCH /reviews/{id}/pending, GET /reviews/{id}, GET /reviews/mine, POST /reviews/{id}/withdraw, POST /review-receipts/appeals", "test_review_crud (16 tests)", "Implemented"],
+            ["Notifications", "Read notifications, set preferences", "GET /notifications, PATCH /notifications/{id}, /notification-preferences", "test_notifications", "Implemented"],
         ],
         [1.6, 3.6, 4.7, 4.0, 2.6], caption="Traceability: requirement to use case to API to test", size=7.8,
     )
-    doc.note("Two features are built but not drawn in the proposal's use case diagram: the notification system and the review edit and appeal flows. Add them to the diagram when the PDF is revised.")
+    doc.note("The as-built use case diagram includes notifications, appeals, verification, media and monitoring, which the proposal's diagram did not.")
 
     # ---- 4.10
-    doc.h2("4.10 As built versus proposed")
+    doc.h1("5. As built versus proposed")
     doc.table(
-        ["Topic", "Proposal (12 October 2026)", "As built (30 October 2026)", "Action"],
+        ["Topic", "Proposal (12 October 2026)", "As built (31 October 2026)", "Action"],
         [
-            ["Authentication", "Argon2id hashing and opaque server-side sessions", "Supabase Auth holds passwords and TOTP; the API verifies signed tokens and sets HttpOnly session cookies with a CSRF token", "Update the security row and the technical feasibility text"],
+            ["Authentication", "Argon2id hashing and opaque server-side sessions", "Supabase Auth holds passwords and TOTP; the API verifies signed tokens and sets HttpOnly session cookies with a CSRF token", "Recorded as a deviation from Platform Foundation 8.1 (Decisions.md, 27 Oct 2026); PF 8.1 amendment pending; update the proposal's security row"],
             ["Staff security", "Role-based access", "Staff need TOTP (AAL2); superadmin needs a recent password check for role changes; every action is audited", "Add to NFR text"],
             ["Guest identity", "Guest reviews with a draft id", "Client-generated receipt, keyed digests, durable rate limits, Turnstile, public pseudonymous guest tag", "Describe in the review section"],
             ["Review lifecycle", "Published, hidden, rejected or deleted", "Adds PENDING, CHANGES_REQUESTED, WITHDRAWN, SUPERSEDED revisions, appeals and edit-while-pending", "Update FR05 and the state model"],
-            ["Photos and video", "Image attachment for Verified Members", "Any signed-in member may attach up to 5 photos and 1 video; no transcoding", "Record as a scope decision (Decisions.md)"],
+            ["Photos and video", "Image attachment for Verified Members", "Any signed-in member may attach up to 5 photos and 1 video; no transcoding", "Recorded in Decisions.md (27 Oct 2026); Review.md 8 and 12.3 amendment pending"],
             ["Notifications", "Not in scope", "Full outbox, inbox, email, digests and webhooks", "Add as a feature"],
             ["Observability", "Not specified", "Ops dashboard, audit log, alerts", "Add to NFR"],
-            ["Hosting", "Optional short-term hosting, BDT 2,500", "Supabase, Upstash and hosted API and front-ends", "Update the cost table with actual costs"],
+            ["Hosting", "Optional short-term hosting, BDT 2,500", "API on Railway (interim; a Render free-plan blueprint is in render.yaml), PWA and ops site on Vercel, Supabase, Upstash", "Costs in section 2.7; fill in the unconfirmed plans"],
             ["Offline and PWA", "Core of the MVP", "Prototype screens only; no service worker or IndexedDB", "State the status; plan the remaining work"],
             ["Cost estimator", "Rule-based itemised estimate", "Prototype screen only", "State the status"],
             ["Booking and payment", "Demonstration only", "Not built", "Keep as demonstration or remove from the diagram"],
@@ -521,13 +532,26 @@ def main() -> None:
     )
 
     # ---- 4.11
-    doc.h2("4.11 Revision history and approval")
+    doc.h1("Appendix A. Data flow model")
+    doc.p("The complete data flow model is in Abhijatri-DFD.docx (version 1.1): a context diagram, a level 0 diagram with seven processes "
+          "on six sheets, level 1 diagrams for processes 3.0 to 7.0 and level 2 diagrams for 4.3 (edit) and 6.2 (decide). A script checks "
+          "the rules, the balancing between levels by flow name, and that every data store is written and read.")
+    doc.table(
+        ["Process", "Name", "Realises (section 2.2)"],
+        [["1.0", "Browse destinations and advice", "Destination guidance"], ["2.0", "Plan trips offline (prototype)", "Trip planning"],
+         ["3.0", "Authenticate and manage accounts", "Accounts"], ["4.0", "Submit and manage reviews", "Reviews"],
+         ["5.0", "Notify members and staff", "Notifications"], ["6.0", "Moderate, verify and rate", "Moderation"],
+         ["7.0", "Monitor, audit and retain data", "Operations"]],
+        [2.0, 7.5, 7.0], caption="Level 0 processes",
+    )
+    doc.h1("Appendix B. Revision history and approval")
     doc.table(
         ["Version", "Date", "Author", "Change"],
         [
             ["0.1", "12 October 2026", "Team ChoturMatra", "Project proposal"],
-            ["1.0", "30 October 2026", "Prepared for the team", "SRS completion sections, coverage check, traceability"],
-            ["", "", "", ""],
+            ["1.0", "30 October 2026", "Team ChoturMatra", "SRS completion sections, coverage check, traceability"],
+            ["1.1", "31 October 2026", "Team ChoturMatra", "Standalone SRS in IEEE 29148 order; as-built use case diagram; corrected state, "
+                                                          "sequence and ER diagrams; NFR targets; costs and third-party risk; Supabase Auth deviation cited"],
         ],
         [2.0, 3.4, 4.5, 6.6], caption="Revision history",
     )
@@ -538,7 +562,7 @@ def main() -> None:
             ["Frontend and offline", "Abdullah Bin Sorwar Choudhury", "", ""],
             ["Backend and data", "Syed Muhtasim Alam", "", ""],
             ["Quality assurance", "Md. Irfan Iqbal", "", ""],
-            ["Course instructor", "", "", ""],
+            ["Course instructor", "(to be completed at signing)", "", ""],
         ],
         [4.0, 6.0, 3.8, 2.7], caption="Approval",
     )

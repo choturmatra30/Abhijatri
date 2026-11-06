@@ -2,6 +2,21 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-06 (R14 offline destination packs)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Endpoint set | `GET /destinations/{id}/pack/manifest`, `GET /destinations/{id}/pack?version=N` and `GET /packs/freshness?destination_id=...` (API.md 5.23). The contract listed only the manifest; the download and the batch freshness check are additive v1 routes. | The SHA-256 in the manifest must describe bytes the device can fetch, and a device with several packs checks them all in one request on reconnect (PF 18.4). |
+| Content version | SHA-256 of the canonical JSON of the content alone, recomputed on every read. Not `max(updated_at)`. | No `updated_at` column is bumped automatically, so a timestamp version would miss edits; a review hidden by moderation also has to change the version. |
+| Pack version and rebuilds | A build counter per destination. Built on read under a per-destination advisory lock when the content version changes, the newest build is 24 hours old (`PACK_REBUILD_AFTER_HOURS`) or it expired. | No moderation or content code needs a hook. A fresh download always has at least six of its seven days left. |
+| Stored builds | Only the newest build of a destination is kept; `?version=` of an older one is `409 PACK_VERSION_SUPERSEDED`. | A removed review must not stay on the server in an old pack; the 409 keeps a device from mixing builds (FR14). |
+| Maximum age | 7 days (`PACK_MAX_AGE_DAYS`), the PF 18.4 default. **Step 8 stays open**; the value is configuration and changes nothing in the format. | No measurement yet. |
+| Advisories in a pack | Published, valid on or after today and effective no later than today plus the maximum age (Asia/Dhaka dates). Upcoming advisories are included with `NOT_YET_EFFECTIVE` in `advisory_states`; the device recomputes states from the dates. Expired advisories are left out. | An offline device must show an advisory on the day it starts; expired safety information is never shown as current (PF 18.4). The profile route keeps its own rule (5.13). |
+| Media in a pack | Id, kind, alt text and caption only; no link. | Signed links expire within the hour and would change the hash on every read (Review.md 7.3: "Open when online"). |
+| Archived destinations | `410 PACK_WITHDRAWN` and freshness `WITHDRAWN`; drafts and unknown ids are the same `404`. | The device must delete a pack of a withdrawn destination; a draft was never public, so its existence must not leak. |
+| Caching | `public, max-age=60` with an ETag on all three routes; the pack has a strong ETag equal to its SHA-256 and a `Content-Digest`. Not `immutable`. | Security 7.1 "versioned public destination packs"; a short TTL keeps a moderation removal from living long in shared caches. |
+| Package | New `app/offline/` package (PF 3.2). | The first offline backend feature; the other flat modules are unchanged. |
+
 ## 2026-11-06 (R12 offline shell)
 
 | Decision | Rule | Reason |

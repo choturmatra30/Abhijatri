@@ -179,7 +179,7 @@ Rules: Guest and Member credentials are different cookie names and scopes; a Ver
 
 | Data | Offline treatment |
 |---|---|
-| Public destination pages, advisories, contacts, pack manifest | Cacheable by the service worker and stored in IndexedDB with version and generated date. |
+| Public destination pages, advisories, contacts, pack manifest | Cacheable by the service worker and stored in IndexedDB with version and generated date. The pack API (R14, `app/offline/`, API.md 5.23) gives each pack a `pack_version`, a `content_version`, a SHA-256 of its bytes, `generated_at` and `expires_at`. |
 | Published review snapshot | Stored with its age; refreshed on reconnect; an over-age snapshot is not presented as current (maximum age is an open decision, Decisions.md Step 8). |
 | Review text drafts | IndexedDB only; user can delete per draft or clear all. An unsent Guest draft includes its receipt until acknowledgement. |
 | Submitted-review receipts, account, staff and moderation responses | Never cached by the service worker; submitted-review receipts are removed from IndexedDB under Platform Foundation 13.5. |

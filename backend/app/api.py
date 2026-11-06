@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import NoReturn
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app import abuse, media, visits
@@ -38,6 +38,7 @@ from app.models import (
 )
 from app.ops import events
 from app.redis_client import RedisDep
+from app.review_lists import published_review_rows
 from app.schemas import (
     CategoryParameter,
     ChoiceOption,
@@ -400,26 +401,9 @@ def public_reviews(
     session: Session = Depends(get_session),
     storage: StorageClient = Depends(get_storage),
 ) -> ReviewFeed:
-    statement = (
-        select(Review, ReviewRevision)
-        .join(ReviewRevision, ReviewRevision.id == Review.current_revision_id)
-        .where(
-            Review.destination_id == destination_id,
-            Review.status == ReviewStatus.PUBLISHED,
-            Review.published_at.is_not(None),
-        )
-        .order_by(Review.published_at.desc(), Review.id.desc())
-        .limit(limit + 1)
+    rows = published_review_rows(
+        session, destination_id, limit=limit + 1, after=_decode_cursor(after) if after else None
     )
-    if after:
-        published_at, review_id = _decode_cursor(after)
-        statement = statement.where(
-            or_(
-                Review.published_at < published_at,
-                and_(Review.published_at == published_at, Review.id < review_id),
-            )
-        )
-    rows = session.execute(statement).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
     categories = revision_category_ratings(session, [revision.id for _, revision in rows])

@@ -13,9 +13,9 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 from PIL import Image
 
-BLUE = RGBColor(0x00, 0x55, 0x8C)
+BLUE = RGBColor(0x1F, 0x6F, 0x5C)
 GREY = RGBColor(0x55, 0x55, 0x55)
-HEAD_FILL = "DCEBF7"
+HEAD_FILL = "DCEFE6"
 NOTE_FILL = "FFF4D6"
 CODE_FILL = "F1F1F1"
 GOOD_FILL = "E3F3EA"
@@ -227,7 +227,7 @@ class Doc:
 
     # ---------------------------------------------------------------- contents
     def contents(self) -> None:
-        self.h1("Contents")
+        self.p("Contents", bold=True, size=18, color=BLUE, after=8)  # not a heading, so the list does not list itself
         para = self.d.add_paragraph()
         self._field(para, 'TOC \\o "1-2" \\h \\z \\u', size=10.5,
                     placeholder="Contents appear here. If this line is still visible, right-click it and choose Update Field (or press F9).")
@@ -242,7 +242,7 @@ class Doc:
 
     # ---------------------------------------------------------------- tables
     def table(self, header: list[str], rows: list[list[str]], widths_cm: list[float], caption: str | None = None, size: float = 9.0,
-              fills: dict[tuple[int, int], str] | None = None, bold_first_col: bool = False) -> None:
+              fills: dict[tuple[int, int], str] | None = None, bold_first_col: bool = False, keep_together: bool = False) -> None:
         if caption:
             self.tab += 1
             cp = self.d.add_paragraph()
@@ -256,6 +256,8 @@ class Doc:
         t.style = "Table Grid"
         t.alignment = WD_TABLE_ALIGNMENT.CENTER
         t.autofit = False
+        for i, w in enumerate(widths_cm):  # grid widths too: LibreOffice and PDF export use the grid, not the cell widths
+            t.columns[i].width = Cm(w)
         for i, text in enumerate(header):
             c = t.rows[0].cells[i]
             self._cell(c, text, widths_cm[i], size, bold=True, fill=HEAD_FILL)
@@ -272,6 +274,11 @@ class Doc:
             cs = OxmlElement("w:cantSplit")
             cs.set(qn("w:val"), "true")
             trPr.append(cs)
+        if keep_together:  # keep every row with the next, so the whole table moves to the next page instead of splitting
+            for row in t.rows[:-1]:
+                for c in row.cells:
+                    for para in c.paragraphs:
+                        para.paragraph_format.keep_with_next = True
         self.d.add_paragraph().paragraph_format.space_after = Pt(4)
 
     def _table_borders(self, table) -> None:

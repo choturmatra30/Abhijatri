@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     max_request_body_bytes: int = Field(default=65536, ge=1024, le=1048576)
     advisory_stale_after_days: int = Field(default=30, ge=1, le=365)
     public_cache_max_age_seconds: int = Field(default=60, ge=0, le=3600)
+    # Offline destination packs (R14, PF 18.4). Seven days is the PF default maximum snapshot age
+    # until Decisions.md Step 8 records a measured value.
+    pack_max_age_days: int = Field(default=7, ge=1, le=30)
+    pack_rebuild_after_hours: int = Field(default=24, ge=1, le=168)
+    pack_review_snapshot_limit: int = Field(default=20, ge=0, le=50)
+    rate_limit_pack_manifest: str = "60/minute"  # in-memory burst pre-filter only
+    rate_limit_pack_download: str = "20/minute"
+    rate_limit_pack_freshness: str = "30/minute"
     allow_test_staff_header: bool = False
     rate_limit_enabled: bool = True
     # Storage for the in-memory-style burst pre-filter. The default is per-process memory; Upstash
