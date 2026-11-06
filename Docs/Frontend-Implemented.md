@@ -320,7 +320,7 @@ Evidence (6 Nov 2026), built app with its service worker in Edge, real destinati
 - Data Saver: only `*-480.webp` requested; normal: the open panel full size, closed panels 480 px.
 - `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean.
 
-**Open items.**
+**Open items.** Handoffs for other people: `Handoff-Backend.md` (B5, B6, DEP1, R14, R16) and `Handoff-Testing.md` (R12 test checklist).
 1. **Installability: resolved, no defect.** Chrome's check reported "no-acceptable-icon" only on plain-HTTP `localhost` under automation. A minimal test app with a plain solid icon failed the same way there, and over HTTPS both that app and the built Abhijatri app pass with no installability errors and the icon fetched (local HTTPS server, Chrome, 6 Nov 2026). Real users are on HTTPS. To check installability locally, serve `dist/` over HTTPS, not `vite preview`.
 2. **Live API sends `no-store`: see section 6, B5.** Until it is fixed, live destination pages are not saved for offline.
 3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display, draft export and the review-snapshot age label belong to R13 and R15.
