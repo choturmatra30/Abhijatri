@@ -93,6 +93,8 @@ Every error, including validation errors, uses one shape (PF 12.3). FastAPI's de
 | 409 | `IDEMPOTENCY_KEY_REUSED` | Same `Idempotency-Key` with a different request body. |
 | 409 | `DUPLICATE_OPEN_REPORT` | The same scope already has an open report on this review. |
 | 409 | `APPEAL_WINDOW_CLOSED` | Appeal sent after the 30-day window. |
+| 409 | `PACK_VERSION_SUPERSEDED` | `GET /destinations/{id}/pack?version=N` named a pack version that is no longer current. Read the manifest again (Section 5.23). |
+| 410 | `PACK_WITHDRAWN` | The destination of an offline pack was archived. The device deletes the pack (Section 5.23). |
 | 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds the configured limit. |
 | 422 | `TOKEN_INVALID_OR_EXPIRED` | An email verification or password-reset link is wrong, used or expired. |
 | 422 | `VALIDATION_FAILED` | Schema validation failed; see `field_errors`. |
@@ -155,7 +157,9 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 | `GET /destinations/{destination_id}/reviews` | none | Public, short TTL | Implemented (error body aside) |
 | `GET /destinations` | none | Public, short TTL | Implemented (R02) |
 | `GET /destinations/{destination_id}` | none | Public, short TTL | Implemented (R02) |
-| `GET /destinations/{destination_id}/pack/manifest` | none | Public, versioned | Planned (R14) |
+| `GET /destinations/{destination_id}/pack/manifest` | none | Public, versioned | Implemented 6 Nov 2026 (R14, section 5.23) |
+| `GET /destinations/{destination_id}/pack?version=` | none | Public, versioned (strong `ETag` = SHA-256) | Implemented 6 Nov 2026 (R14, section 5.23) |
+| `GET /packs/freshness?destination_id=` | none | Public, versioned | Implemented 6 Nov 2026 (R14, section 5.23) |
 | `GET /review-parameters` | none | Public, short TTL | Implemented 20 Oct 2026 (section 5.15) |
 
 Public responses vary by `Accept-Language` and are purged on moderation or deletion (Security 7.1).
@@ -786,6 +790,58 @@ Implements `Docs/Notification-Documentation.md`. Member routes need a session (w
 
 **Other changes in this release.** A posting restriction or suspension now blocks `POST /reviews/member`, `PATCH /reviews/{id}/pending` (member), the media routes and reporting with `403 ACCOUNT_RESTRICTED`; withdrawing, appeals and reading stay open. A sanction ends when its time passes, on the next request that meets it (audited `sanction.expired`), not only when the retention job runs. A staff member refused for their role is audited as `denied.role` with the route and the role that was needed. A database "data exception" (for example a NUL character in a text field) answers `422 VALIDATION_FAILED` instead of `503`. `POST /admin/enforcement-cases` now defaults `counts_toward_rating` to `false`: a hidden review leaves the rating unless the moderator says otherwise.
 
+### 5.23 Offline destination packs (R14, implemented 6 November 2026)
+
+A pack is the public content of one published destination for offline use (PF 18, Security 7.4, FR10, FR14, FR15). It holds the bilingual profile, published guide items and contacts, the advisories of the pack's lifetime, ratings, and the newest published reviews. It never holds researcher or reviewer names, account, receipt, staff or moderation data, or signed media links. The three routes are `GET`-only CORS simple requests with no credentials, and every success is `Cache-Control: public, max-age=60` with an `ETag` and a `304` on a matching `If-None-Match`. Errors are `no-store`. The body never varies with cookies, `Authorization` or `Accept-Language` (both languages are always present).
+
+**Versions.**
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Pack format, `1`. A change rebuilds every pack. |
+| `content_version` | SHA-256 (hex) of the canonical JSON of the content alone. It changes exactly when something a reader sees changes, including a review hidden or withdrawn. |
+| `pack_version` | Build counter per destination. A new build happens when the content version changes, when the newest build is older than 24 hours (`PACK_REBUILD_AFTER_HOURS`), or when it expired. A rebuild for age keeps the same `content_version`. |
+| `sha256` | SHA-256 (hex) of the exact bytes of `GET .../pack`. The device checks it before replacing a stored pack. |
+| `generated_at`, `expires_at`, `max_age_seconds` | UTC. `expires_at` is `generated_at` plus 7 days (`PACK_MAX_AGE_DAYS`, the PF 18.4 default until Decisions Step 8). After it, the pack is shown as out of date, never as current safety guidance. |
+
+Canonical JSON is UTF-8 (Bangla is not escaped), keys sorted, no whitespace.
+
+**`GET /destinations/{destination_id}/pack/manifest`** (60 a minute per network)
+
+```json
+{
+  "schema_version": 1, "destination_id": "...", "pack_version": 3,
+  "content_version": "<64 hex>", "sha256": "<64 hex>", "size_bytes": 18234,
+  "generated_at": "2026-11-06T04:00:00Z", "expires_at": "2026-11-13T04:00:00Z", "max_age_seconds": 604800,
+  "stale_after_days": 30, "advisories_verified_on": "2026-11-01", "languages": ["bn", "en"],
+  "review_snapshot": { "count": 20, "limit": 20 },
+  "pack_url": "/api/v1/destinations/.../pack?version=3"
+}
+```
+
+`advisories_verified_on` is the oldest verification date of the included advisories, or `null` when there are none.
+
+**`GET /destinations/{destination_id}/pack?version=N`** (20 a minute per network)
+
+The stored bytes, `Content-Type: application/json`, a strong `ETag: "<sha256>"` and `Content-Digest: sha-256=:<base64>:` (RFC 9530). `version` is optional (1 to 2147483647). When it is not the current version the answer is `409 PACK_VERSION_SUPERSEDED`, so a device never mixes two builds. Body:
+
+| Field | Content |
+|---|---|
+| Manifest fields | `schema_version`, `destination_id`, `pack_version`, `content_version`, `generated_at`, `generated_on` (the Asia/Dhaka date of generation), `expires_at`, `max_age_seconds`, `stale_after_days`, `advisories_verified_on`, `languages` |
+| `destination` | `id`, `name_*`, `region_*`, `summary_*`, `seasonality_*`, `restrictions_*`, `latitude`, `longitude`, `content_licence`, `content_verified_on`, `community_rating`, `guest_feedback` (as in 5.13) |
+| `guide_items`, `contacts` | As in 5.13, published rows only |
+| `advisories` | `id`, `severity`, `title_*`, `text_*`, `effective_on`, `valid_until`, `provenance`. Included when published, `valid_until` is today or later, and `effective_on` is no later than today plus `PACK_MAX_AGE_DAYS` (Dhaka dates). An advisory that starts during the pack's lifetime is therefore included. Expired advisories are not. |
+| `advisory_states` | `[{ id, state }]` in the order of `advisories`, evaluated on `generated_on`. Offline, the device recomputes the state from the dates with the 5.13 rules on the current Dhaka date. |
+| `reviews` | `{ limit, count, items }`: the newest `PACK_REVIEW_SNAPSHOT_LIMIT` (default 20) published reviews on `(published_at, id)` descending. Each item has `id`, `author_type`, `guest_tag`, `author_display_name`, `overall_rating`, `category_ratings`, `published_at`, `title`, `body`, `media: [{ id, kind, alt_text, caption }]`. Media has no link: it opens only when online. |
+
+**`GET /packs/freshness?destination_id=<id>&destination_id=<id>`** (1 to 20 distinct ids, 30 a minute per network)
+
+The reconnect check for every pack on a device. `{ items: [{ destination_id, status, pack_version, content_version, sha256, size_bytes, generated_at, expires_at, pack_url }] }` in request order. `status` is `AVAILABLE` (fields set), `WITHDRAWN` (archived: delete the pack; other fields `null`) or `NOT_FOUND` (unknown or draft; other fields `null`). Repeated ids are `422 VALIDATION_FAILED` with field code `DUPLICATE`.
+
+**Errors.** Unknown and draft destinations return the same `404 NOT_FOUND` body. An archived destination returns `410 PACK_WITHDRAWN`. Malformed ids or parameters return `422 VALIDATION_FAILED`, other methods `405`, and a burst over the limits `429 RATE_LIMITED` with `Retry-After`.
+
+**Client update flow (FR14).** Read the manifest (or freshness). When `content_version` differs from the stored one, download `pack_url`, check `sha256` and `schema_version`, then replace the stored pack in one IndexedDB transaction. When only `pack_version` changed, the content is the same and the new download only extends `expires_at`. A `409` means a newer build appeared during the download: read the manifest again.
+
 ## 6. Changes required in the current code
 
 The routes marked "Change required" in Section 4 differ from this contract as follows. Each item is a code defect, not a reason to change this contract.
@@ -822,6 +878,7 @@ Limits are configuration values. Starting values (PF 14.3):
 | Sign-in failures | 5 per email digest per 15 minutes | 100 per hour | Refused with `429` while exhausted; a wrong TOTP code or password in `/auth/reauth` also counts |
 | Password-reset and resend requests | 3 per email digest per hour | 30 per hour | Fresh Turnstile token on reset |
 | Email-link confirmations | n/a | 30 per hour | The one-time token is single use |
+| Offline pack manifest, download, freshness | n/a | 60, 20 and 30 per minute (`RATE_LIMIT_PACK_*`) | In-memory burst pre-filter only; responses are publicly cacheable for 60 seconds |
 
 The client address is the provider-appended entry only (PF 14.2). IPv6 is truncated to /64 and stored only as a keyed digest. Public reads and staff routes have independent limits. Hitting a pending ceiling returns `503 GUEST_WRITES_PAUSED` for guest submissions only.
 
@@ -840,6 +897,7 @@ The client address is the provider-appended entry only (PF 14.2). IPv6 is trunca
 | `AdvisoryState` | `CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE` (Section 5.13) |
 | `ContactKind` | `POLICE`, `TOURIST_POLICE`, `AMBULANCE`, `FIRE`, `HOSPITAL`, `COAST_GUARD`, `FOREST_OFFICE`, `LOCAL_GUIDE`, `OTHER` |
 | `SourceType` | `OFFICIAL`, `TEAM_RESEARCH`, `OPEN_LICENCE`, `VENDOR_LICENSED`, `OTHER` |
+| Pack freshness `status` | `AVAILABLE`, `WITHDRAWN`, `NOT_FOUND` (Section 5.23) |
 | Moderation `decision` | `PUBLISH`, `REJECT`, `HIDE`, `RESTORE` |
 | Report `reason` | Section 5.7 |
 | Platform roles | `MODERATOR`, `ADMINISTRATOR`, `SUPER_ADMINISTRATOR` |

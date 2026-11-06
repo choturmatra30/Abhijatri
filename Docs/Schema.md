@@ -13,6 +13,7 @@ erDiagram
     destinations ||--o{ destination_guide_items : "guide sections"
     destinations ||--o{ destination_advisories : "dated advisories"
     destinations ||--o{ destination_contacts : "public contacts"
+    destinations ||--o{ destination_pack_versions : "offline pack (newest build)"
     users ||--o{ reviews : "authors (Member)"
     users ||--o{ user_platform_roles : "holds"
     platform_roles ||--o{ user_platform_roles : "grants"
@@ -241,6 +242,7 @@ erDiagram
 | `destination_advisories` | Dated bilingual advisories: `effective_on`, `valid_until` (Asia/Dhaka dates), `verified_on`, source and licence. | FK `CASCADE`; enum `advisory_severity`; `ck_advisory_validity_window` (`valid_until >= effective_on`); index `ix_advisories_destination_valid_until`. State (`CURRENT`, `STALE`, `EXPIRED`, `NOT_YET_EFFECTIVE`) is derived at read time, never stored. | Public when published |
 | `destination_contacts` | Public institution and emergency contacts with coordinates and provenance. No personal contacts. | FK `CASCADE`; enum `contact_kind`; `ck_contact_phone_format`, `ck_contact_latitude_range`, `ck_contact_longitude_range`, `ck_contact_coordinates_pair`; index `ix_contacts_destination_kind`. | Public when published |
 | `rate_limit_buckets` | Durable fixed-window attempt counters for Guest submission and receipt operations, keyed by a keyed digest of the Guest scope, receipt or network address. Each increment commits in its own transaction; windows older than two days are purged. | Composite PK `(rule, key_digest, window_start)`; `ck_rate_limit_count_nonnegative`; index on `window_start`. | Internal, no raw identifiers |
+| `destination_pack_versions` | The newest built offline pack of a published destination (R14, migration `0021_destination_pack_versions`, PF 18.4): `pack_version` (build counter), `content_version` (SHA-256 of the content only), `sha256` (SHA-256 of `body`), `size_bytes`, `schema_version`, `generated_at`, `expires_at` and the exact served bytes in `body` (`bytea`). Only the newest build per destination is kept, so a review removed by moderation never survives in an old pack. | FK `destination_id` `CASCADE`; unique `uq_pack_versions_destination_version (destination_id, pack_version)`; index `ix_pack_versions_destination_latest (destination_id, pack_version DESC)`; checks `ck_pack_versions_version_positive`, `ck_pack_versions_size_positive`, `ck_pack_versions_schema_positive`, `ck_pack_versions_expiry_after_generation`, `ck_pack_versions_sha256_hex`, `ck_pack_versions_content_hex`. RLS on. | Public content |
 | `moderation_actions` | Append-only record of each moderation transition. | FK `RESTRICT` to review and actor. | Internal audit |
 | `outbox_events` | The shared outbox (Notification spec 7.1): `topic` is the event type, plus `dedupe_key` (unique), `aggregate_type`/`aggregate_version`, `recipient_policy`, `occurred_at`, status pending/processing/processed/retry/dead_letter, lease owner and expiry (`lease_until`), next attempt (`available_at`), error code. | Processed rows are deleted after 30 days unless a notification still refers to them. | Internal |
 
@@ -255,7 +257,7 @@ Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity
 | `review_reports`, `moderation_cases` | R11 | Duplicate-open-report control; queue priority and escalation. |
 | `audit_events` | R11, Security 4.4 | Append-only privileged activity; `UPDATE`/`DELETE` revoked from the app role. `moderation_actions` may be folded in. |
 | `idempotency_keys` | R16 | Unique `(scope, key)`, request hash, stored response, expiry. |
-| `destination_pack_versions` | R14 | Pack version, generated date, content hash, manifest. |
+| `destination_pack_versions` | **Implemented** (migration `0021_destination_pack_versions`, 6 Nov 2026) | See section 2. |
 | `review_media` | **Implemented** (migration `0016`, 27 Oct 2026) | Photos (up to 5) and one video per member review: `kind` image/video, `state` awaiting_upload → pending → approved/rejected (or removed), `quarantine_key`, `processed_key`, content type, size, width, height, `duration_ms`, alt text, caption, `ownership_declared` (must be true), decided by/at. RLS on, no grants to `anon`/`authenticated`. Any signed-in member may upload (owner decision, Decisions.md). |
 | `price_catalogue_items`, `estimates`, `saved_trip_briefs` | M2 (E06-E09) | Out of scope until M1. |
 

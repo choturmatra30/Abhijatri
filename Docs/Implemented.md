@@ -24,8 +24,9 @@ Claims here are limited to what is in the repository and evidenced by a test, mi
 | Standard error body, bilingual messages, field-error codes (WP2) | Implemented | `tests/test_errors.py`. |
 | Client-generated receipts, versioned HMAC keyring with rotation, `POST /review-receipts/status`, idempotent withdraw (WP3) | Implemented | `tests/test_receipts.py`; migration `0004_receipt_keyring`. |
 | Trusted client address, durable rate limits, progressive receipt block, pending ceilings, emergency switch, server-side Turnstile (WP5) | Implemented, **staging proof outstanding** | `tests/test_client_address.py`, `test_turnstile.py`, `test_abuse.py`; migration `0005_rate_limit_buckets`. The forged-header test against the real Render edge and a live Turnstile key have not been run. Historical: 181 backend tests passed on PostgreSQL 17 on 19 Oct 2026; see the current CI run for present status. |
-| `Idempotency-Key` replay (WP4), edit-pending, appeals, reports (WP6, WP7), CSRF and credentialed CORS (WP9), authentication (WP10), pack manifest (WP11) | Not implemented | `Docs/api/API.md` section 4. |
-| Redis, CDN, media pipeline, offline pack API | Deferred | Decisions.md scope control; Gantt R14. |
+| `Idempotency-Key` replay (WP4), edit-pending, appeals, reports (WP6, WP7), CSRF and credentialed CORS (WP9), authentication (WP10) | Not implemented | `Docs/api/API.md` section 4. |
+| Redis, CDN, media pipeline | Deferred | Decisions.md scope control. |
+| Offline pack API: manifest, versioned download, freshness (R14, WP11) | Implemented (6 Nov 2026) | `Docs/Backend-Implemented.md` section 5.23; `Docs/api/API.md` 5.23 |
 
 ## R02: Destination, advisory and contact data services (19 October 2026)
 

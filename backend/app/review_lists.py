@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.errors import ApiError
@@ -21,6 +21,41 @@ from app.models import (
     ReviewStatus,
 )
 from app.services import REOPEN_WINDOW
+
+
+def published_review_rows(
+    session: Session,
+    destination_id: uuid.UUID,
+    *,
+    limit: int,
+    after: tuple[datetime, uuid.UUID] | None = None,
+) -> list[tuple[Review, ReviewRevision]]:
+    """Published reviews of a destination with their current revision, newest first.
+
+    The one PUBLISHED-only query shared by the public review feed and the offline pack (R14), on
+    the stable ``(published_at, id)`` order of Review.md 9.3.
+    """
+    statement = (
+        select(Review, ReviewRevision)
+        .join(ReviewRevision, ReviewRevision.id == Review.current_revision_id)
+        .where(
+            Review.destination_id == destination_id,
+            Review.status == ReviewStatus.PUBLISHED,
+            Review.published_at.is_not(None),
+        )
+        .order_by(Review.published_at.desc(), Review.id.desc())
+        .limit(limit)
+    )
+    if after is not None:
+        published_at, review_id = after
+        statement = statement.where(
+            or_(
+                Review.published_at < published_at,
+                and_(Review.published_at == published_at, Review.id < review_id),
+            )
+        )
+    return [(review, revision) for review, revision in session.execute(statement).all()]
+
 
 DECISION_FOR_STATUS = {ReviewStatus.REJECTED: ModerationDecision.REJECT, ReviewStatus.HIDDEN: ModerationDecision.HIDE}
 REMOVED_TEXT = "[removed]"
