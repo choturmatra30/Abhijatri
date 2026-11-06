@@ -277,6 +277,18 @@ Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build 144.5 KB JS gzip. B
 
 The "System status" (`/health`) link was a development aid and is no longer in the sidebar (`Sidebar.tsx`). The `/health` route and page still exist, reachable from the server-status pill in the top bar and by URL.
 
+## 5h. Reviews split into two pages with a sidebar group (6 November 2026)
+
+| Route | Page | Contents |
+|---|---|---|
+| `/reviews/write` | `WriteReviewPage` | Guest review form, then the receipt after submitting; `?destination=<id>` preselects the destination |
+| `/reviews/receipt` | `ReviewReceiptPage` | Receipt status check and withdrawal (`ReceiptStatusPanel`), removal request (`RemovalRequestForm`) |
+| `/reviews` | `ReviewsRedirect` | Redirects to `/reviews/write`, keeping the query, so older links and bookmarks still work |
+
+Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
+
+Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build clean (145 KB JS gzip). Browser at 1280 px and 390 px (mobile menu): group starts closed with no sub-links; one click shows both; "Check with receipt" opens `/reviews/receipt` and the group stays open there; `/reviews?destination=<id>` lands on `/reviews/write?destination=<id>` with that destination selected; no page errors.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

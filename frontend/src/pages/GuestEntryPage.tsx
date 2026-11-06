@@ -183,7 +183,7 @@ export const GuestEntryPage: React.FC = () => {
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Link
-            to="/reviews"
+            to="/reviews/write"
             className={primaryButton}
           >
             <MessageSquarePlus size={16} aria-hidden="true" />

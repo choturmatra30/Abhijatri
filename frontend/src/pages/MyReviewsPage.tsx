@@ -147,7 +147,7 @@ export const MyReviewsPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 ref={heading} className="text-2xl font-bold font-title text-on-surface dark:text-on-dark">{t('আমার রিভিউ', 'My reviews')}</h1>
-        <Link to="/reviews" className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
+        <Link to="/reviews/write" className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
           <PenSquare size={16} aria-hidden="true" />
           {t('নতুন রিভিউ লিখুন', 'Write a review')}
         </Link>

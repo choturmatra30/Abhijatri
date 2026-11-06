@@ -93,7 +93,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
           )}
         </div>
         <Link
-          to={`/reviews?destination=${destinationId}`}
+          to={`/reviews/write?destination=${destinationId}`}
           className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title"
         >
           <MessageSquarePlus size={16} aria-hidden="true" />

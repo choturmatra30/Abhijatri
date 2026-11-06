@@ -42,7 +42,7 @@ export const OverviewPage: React.FC = () => {
             {t('গন্তব্য দেখুন', 'Browse destinations')}
             <ArrowRight size={14} aria-hidden="true" />
           </Link>
-          <Link to="/reviews" className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
+          <Link to="/reviews/write" className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
             <MessageSquarePlus size={14} aria-hidden="true" />
             {t('রিভিউ লিখুন', 'Write a review')}
           </Link>

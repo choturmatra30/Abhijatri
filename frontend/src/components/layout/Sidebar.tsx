@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   MapPin, 
@@ -7,6 +7,9 @@ import {
   DownloadCloud, 
   Bookmark, 
   MessageSquareText, 
+  ChevronDown,
+  PenSquare,
+  ReceiptText,
   Compass,
   LogIn,
   LogOut,
@@ -25,6 +28,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { t } = useLanguage();
   const { session, isVerifiedMember, signOut } = useSession();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // The Reviews group opens by itself whenever one of its pages is showing.
+  const inReviews = pathname.startsWith('/reviews');
+  const [reviewsOpen, setReviewsOpen] = useState(inReviews);
+  useEffect(() => {
+    if (inReviews) setReviewsOpen(true);
+  }, [inReviews]);
 
   const handleSignOut = () => {
     void signOut();
@@ -32,7 +43,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     navigate('/');
   };
 
-  const navItems: { to: string; labelBn: string; labelEn: string; icon: typeof Compass; soon?: boolean }[] = [
+  type NavChild = { to: string; labelBn: string; labelEn: string; icon: typeof Compass };
+  const navItems: { to: string; labelBn: string; labelEn: string; icon: typeof Compass; soon?: boolean; children?: NavChild[] }[] = [
     {
       to: '/overview',
       labelBn: 'সারসংক্ষেপ',
@@ -71,6 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelBn: 'রিভিউ',
       labelEn: 'Reviews',
       icon: MessageSquareText,
+      children: [
+        { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare },
+        { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
+      ],
     },
   ];
 
@@ -110,6 +126,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <nav className="flex flex-col gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
+              if (item.children) {
+                const groupId = 'sidebar-group-reviews';
+                return (
+                  <div key={item.to} className="flex flex-col gap-1">
+                    {/* A disclosure button, not a link: it shows the two review pages below it. */}
+                    <button
+                      type="button"
+                      aria-expanded={reviewsOpen}
+                      aria-controls={groupId}
+                      onClick={() => setReviewsOpen((open) => !open)}
+                      className={`flex w-full items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-left cursor-pointer transition-colors ${
+                        inReviews
+                          ? 'text-forest-primary dark:text-neon-lime font-semibold'
+                          : 'text-on-surface-variant dark:text-on-dark'
+                      } hover:bg-surface-container dark:hover:bg-dark-surface-2`}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span className="font-title text-[15px]">{t(item.labelBn, item.labelEn)}</span>
+                      <ChevronDown
+                        size={16}
+                        aria-hidden="true"
+                        className={`ml-auto shrink-0 motion-safe:transition-transform ${reviewsOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {reviewsOpen && (
+                      <ul id={groupId} className="ml-5 pl-3 border-l border-border flex flex-col gap-1">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          return (
+                            <li key={child.to}>
+                              <NavLink
+                                to={child.to}
+                                onClick={onClose}
+                                className={({ isActive }) =>
+                                  `flex items-center gap-2.5 px-3 py-2 min-h-11 rounded-xl text-sm transition-colors ${
+                                    isActive
+                                      ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-xs'
+                                      : 'text-on-surface-variant dark:text-on-dark hover:bg-surface-container dark:hover:bg-dark-surface-2'
+                                  }`
+                                }
+                              >
+                                <ChildIcon size={16} aria-hidden="true" />
+                                <span className="font-title">{t(child.labelBn, child.labelEn)}</span>
+                              </NavLink>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              }
               return (
                 <NavLink
                   key={item.to}

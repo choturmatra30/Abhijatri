@@ -26,7 +26,7 @@ import { DestinationDetailPage } from './pages/DestinationDetailPage';
 import { PlannerPage } from './pages/PlannerPage';
 import { OfflinePacksPage } from './pages/OfflinePacksPage';
 import { SavedTripsPage } from './pages/SavedTripsPage';
-import { ReviewsPage } from './pages/ReviewsPage';
+import { ReviewReceiptPage, ReviewsRedirect, WriteReviewPage } from './pages/ReviewsPage';
 import { HealthCheckPage } from './pages/HealthCheckPage';
 
 export const App: React.FC = () => {
@@ -56,7 +56,9 @@ export const App: React.FC = () => {
                 <Route path="planner" element={<PlannerPage />} />
                 <Route path="offline-packs" element={<OfflinePacksPage />} />
                 <Route path="trips" element={<SavedTripsPage />} />
-                <Route path="reviews" element={<ReviewsPage />} />
+                <Route path="reviews" element={<ReviewsRedirect />} />
+                <Route path="reviews/write" element={<WriteReviewPage />} />
+                <Route path="reviews/receipt" element={<ReviewReceiptPage />} />
                 <Route path="health" element={<HealthCheckPage />} />
                 <Route path="account/verification" element={<VerificationPage />} />
                 <Route path="account" element={<Navigate to="/account/reviews" replace />} />

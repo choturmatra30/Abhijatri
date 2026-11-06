@@ -18,7 +18,7 @@ export const SavedTripsPage: React.FC = () => (
     task="E09"
     alternatives={[
       { to: '/destinations', label: ['গন্তব্য গাইড দেখুন', 'Browse destination guides'] },
-      { to: '/reviews', label: ['রিভিউ লিখুন', 'Write a review'] },
+      { to: '/reviews/write', label: ['রিভিউ লিখুন', 'Write a review'] },
     ]}
   />
 );
