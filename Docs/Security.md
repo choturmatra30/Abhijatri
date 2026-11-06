@@ -215,6 +215,8 @@ Guest receipt requirements:
 
 ### 4.4 Database separation of duties
 
+**Status, 6 November 2026: not implemented, open.** The table below is the target. Today the API connects as `postgres`, which bypasses RLS, and no RLS policies exist. Nothing is exposed through the Supabase client APIs (RLS is on for every public table and `anon` and `authenticated` hold no grants), but a flaw in the API would not be contained by the database. This is why the Supabase advisor lists 43 tables under "RLS enabled, no policy". Closing it needs the roles, per-table policies and new Railway credentials, and is a separate piece of work.
+
 | Identity | Minimum privilege |
 |---|---|
 | `abhijatri_app` | Required application DML through per-table forced-RLS policies, including the in-process outbox worker; no DDL; `INSERT` and narrowly required `SELECT` on audit storage. |
@@ -231,6 +233,7 @@ Guest receipt requirements:
 
 - Receipt and Guest-scope secrets use keyed HMAC-SHA-256 digests with a versioned high-entropy keyring. The two credential classes use different fixed context labels.
 - Passwords use Argon2id; passwords are not encrypted reversibly.
+- Sign-up and password reset refuse passwords listed in known data breaches (`app/auth/breach.py`, implemented 6 November 2026). Only the first five characters of the SHA-1 leave the server (k-anonymity), and the check fails open so an outage of that service never blocks sign-up. It stands in for Supabase's leaked-password protection, which needs a paid plan; the Supabase advisor therefore keeps listing that warning.
 - Session, CSRF, password-reset, and email-verification secrets are generated with a cryptographically secure generator and have explicit expiries.
 - Secrets are injected by an environment or secret manager, separated by environment, and never committed to source control or container images.
 - Pepper or signing-key rotation has a documented migration and emergency-revocation procedure.

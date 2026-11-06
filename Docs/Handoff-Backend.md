@@ -4,15 +4,15 @@
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
-**Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 and R16 are built and tested (`Backend-Implemented.md` 5.23 and 5.24); R14 is in PR #37, which is not merged yet. B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
+**Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
 
 | ID | What | Owner | Blocks | Priority | Status (6 Nov 2026) |
 |---|---|---|---|---|---|
 | [B5](#b5-live-api-sends-no-store-on-public-destination-routes) | Live API sends `Cache-Control: no-store` on public destination routes | Railway owner | R12 acceptance, R13 | **High** | **Fixed**: all three routes answer `public, max-age=60`; the service worker now caches them |
 | [B6](#b6-shared-database-runs-out-of-connections) | Shared database runs out of connections (`EMAXCONNSESSION`) | Muhtasim, Supabase owner | Local development, possibly live | **High** | **Code done** (`DB_PREPARED_STATEMENTS`, auto-off on port 6543). Pending: set Railway `DATABASE_URL` to port 6543 and run the 10-minute check |
 | [DEP1](#dep1-the-live-site-does-not-have-the-abd-work) | Live site has none of the `abd` work | Abdullah (PR), Shahriar (merge) | R12 acceptance | **High** | **Fixed**: `/sw.js` is `application/javascript`, the manifest `application/manifest+json` (PR #38 merged) |
-| [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Built, CI green in PR #37; not merged, so not live.** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
-| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Built** (migration `0022`, API.md section 3); awaiting merge and deploy |
+| [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Merged and live (PR #37).** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
+| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Built, in PR #39** (migration `0022` applied to the shared database, API.md section 3); awaiting merge and deploy |
 
 ---
 

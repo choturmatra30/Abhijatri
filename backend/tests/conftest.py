@@ -13,6 +13,8 @@ from app.config import Settings, get_settings
 # This runs before any other app import, because importing app.db already caches the settings.
 Settings.model_config["env_file"] = None
 os.environ.setdefault("APP_ENV", "development")
+# Tests never call the live breach service; tests/test_breach.py exercises it with a fake transport.
+os.environ.setdefault("PASSWORD_BREACH_CHECK_ENABLED", "false")
 # The app's own engine (rate-limit buckets, counters) must hit the test database, never the dev one.
 if os.getenv("TEST_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]

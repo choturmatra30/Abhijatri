@@ -647,7 +647,7 @@ All responses are `no-store`. Identity is Supabase Auth, proxied by this API; no
 
 | Route | Request body | Response |
 |---|---|---|
-| `POST /auth/register` | `{ email, password, display_name, turnstile_token? }`; password at least 10 characters with a letter and a digit; display name 1 to 80 characters, not reserved | `202 { "status": "verification_sent" }`, identical for new and existing addresses. `409 RESERVED_DISPLAY_NAME`, `422 VALIDATION_FAILED` |
+| `POST /auth/register` | `{ email, password, display_name, turnstile_token? }`; password at least 10 characters with a letter and a digit, and not listed in a known data breach (`422` field `password`, code `BREACHED`; the same rule applies to `/auth/password-reset/confirm`, before the one-time link is spent; the check fails open and sends only a 5-character hash prefix to Have I Been Pwned); display name 1 to 80 characters, not reserved | `202 { "status": "verification_sent" }`, identical for new and existing addresses. `409 RESERVED_DISPLAY_NAME`, `422 VALIDATION_FAILED` |
 | `POST /auth/verify-email` | `{ token_hash }` from the emailed link | `200 { "status": "verified" }`; no session is created. `422 TOKEN_INVALID_OR_EXPIRED` |
 | `POST /auth/resend-verification` | `{ email }` | `202`, identical for any address |
 | `POST /auth/login` | `{ email, password }` | `200` session payload (below) and the two cookies. `401 INVALID_CREDENTIALS`, `403 EMAIL_NOT_VERIFIED`, `403 ACCOUNT_DISABLED`, `429` |

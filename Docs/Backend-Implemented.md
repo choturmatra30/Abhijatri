@@ -1299,6 +1299,64 @@ The tests cover: replay on every route, a different body, a malformed key, scope
 The Chrome **Offline** switch was not used (the extension cannot set it): stopping the servers stands in for it, so real airplane-mode and phone tests (R18) are still open. Member submit, member edit and withdraw, and the guest appeal were not driven in Chrome; they are covered by the PostgreSQL tests.
 
 
+
+### 5.25 CI repair and security pass (6 November 2026)
+
+#### 5.25.1 What failed
+
+CI's `security` job failed on `main` and on PR #39 for one reason: three new `Docs/internal/*.docx` files were not on the `check_committed_secrets.py` allowlist. Every XML part of each file was scanned (no credentials, keys, tokens, email addresses, media or embedded files) and they were allowlisted. The failing step also stopped the job before gitleaks ran, so "Secret scan" now runs even when an earlier step fails.
+
+`backend`, `frontend`, `staff` and `ops` were green on run 42199044039 (commit 4e26f40, which contains R16). That is the complete integration suite on R16, which the local run in 5.24.7 could not finish because the machine ran low on memory.
+
+#### 5.25.2 What changed
+
+| Change | Where |
+|---|---|
+| Allowlist entries with a dated scan note | `.github/scripts/check_committed_secrets.py` |
+| Secret scan always runs | `.github/workflows/ci.yml` |
+| `npm audit --audit-level=moderate` in the frontend, staff and ops jobs | `ci.yml` |
+| Dependabot watches npm in the three frontends | `.github/dependabot.yml` |
+| Actions moved off Node 20: checkout v7, setup-node v7, setup-uv v10, gitleaks v3 | `ci.yml` |
+| `workbox-build` override to `glob@14`, clearing the `glob` and `minimatch` moderates | `frontend/package.json`, lockfile |
+| Leaked-password check at sign-up and reset | `app/auth/breach.py`, `app/auth/routes.py`, `AccountUi.tsx`, `ResetPasswordPage.tsx` |
+
+The override is nested, not global, because `filelist` needs `minimatch` 5. npm's suggested fix (`vite-plugin-pwa@1.1.0`) was not usable: that version does not support Vite 8.
+
+#### 5.25.3 Leaked-password check
+
+Sign-up and password reset send the first five characters of the password's SHA-1 to the Have I Been Pwned range API with `Add-Padding`, and compare locally. A match is `422 VALIDATION_FAILED`, field `password`, code `BREACHED`; on reset this happens before the one-time link is spent. Any failure counts `breach_check.skipped` and lets the request continue. `PASSWORD_BREACH_CHECK_ENABLED` (default on) and `PASSWORD_BREACH_TIMEOUT_SECONDS` (default 2) control it; tests turn it off and inject a fake.
+
+Supabase's own switch needs a paid plan and the organisation is on Free, so the owner chose this backend check on 6 November.
+
+#### 5.25.4 Evidence
+
+| Check | Result |
+|---|---|
+| `check_committed_secrets.py` | Pass |
+| `ruff`, `mypy` (81 files) | Pass |
+| `pytest -m "not integration"` | 378 passed |
+| `tests/test_auth.py`, `tests/test_breach.py` on PostgreSQL | 47 and 17 passed |
+| Live range API | `password123` refused, a random password accepted, nothing skipped |
+| Frontend `npm ci`, build, tests, public-bundle guard | Pass; 40 precached entries on `glob@14` |
+| Frontend `npm audit` | 0 production; 4 low entries, all the single `deepmerge` advisory |
+| Staff and ops `npm audit` | 0 |
+| Chrome, production build on `glob@14` | Service worker active; destination saved; with backend and web server stopped the page and saved list still open |
+| Git history, 148 commits, all refs | The only password in a Supabase URL is the `pw` test placeholder; `Security_Abhijatra.pdf` scans clean |
+
+**Not run locally:** the full integration suite (memory), `pip-audit` and `docker build` (TLS interception), gitleaks (not installed). CI runs all of them. The action version bumps are proven only by CI.
+
+#### 5.25.5 Open, and accepted
+
+| Item | State |
+|---|---|
+| **Database separation of duties, Security.md 4.4** | **Open, a real gap.** The API connects as `postgres`, which bypasses RLS, and no policies exist. No exposure through the Supabase client APIs (RLS on every table, zero grants to `anon` and `authenticated`), but the database would not contain a flaw in the API. Needs roles, per-table policies and new Railway credentials. |
+| Supabase advisor: "RLS enabled, no policy" (43 tables, INFO) | Stays until the item above is done |
+| Supabase advisor: leaked password protection (WARN) | Stays listed; the switch needs a paid plan. Covered by the backend check |
+| `deepmerge` prototype-poisoning advisory (low) | Accepted: no patched release, build-time only, below the CI gate |
+| F-01 password rotation (5.12) | **No record that it was done.** Owner to confirm |
+| Dependabot alerts, secret scanning, push protection | Off; the repository is public; needs a repository admin |
+| `Docs/internal/` | Public, because the repository is; move it out if it is meant to be private |
+
 ## 6. Complete backend workflow (state on 6 November 2026)
 
 This section explains the whole backend in one place. Each part names where the detail lives.
@@ -1377,10 +1435,10 @@ CI (`.github/workflows/ci.yml`) runs on every pull request: backend (ruff, mypy,
 | R10 | Moderation queue, reason capture, audit view | Staff UI task | 5.14, 5.22 |
 | R11 | Reporting, moderation actions, audit log | Done | 5.22 |
 | R12 | Installable PWA shell, cached public views | Frontend; live, and checked in Chrome on 6 Nov | 5.24.7 |
-| R13 | Versioned pack in IndexedDB | **Not built** (frontend); its API is R14 | 5.23 |
-| R14 | Pack manifest, version, freshness | Built, CI green, in PR #37; **not merged, not live** | 5.23 |
-| R15 | Offline drafts, idempotent reconnect | **Not built** (frontend); its API is R16 | 5.24 |
-| R16 | Idempotency-key storage and expiry | Built and tested; **not committed, not deployed** | 5.24 |
+| R13 | Versioned pack in IndexedDB | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.23 |
+| R14 | Pack manifest, version, freshness | Done, merged and live | 5.23 |
+| R15 | Offline drafts, idempotent reconnect | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.24 |
+| R16 | Idempotency-key storage and expiry | Built, tested, CI green; **in PR #39, not deployed** | 5.24 |
 | R17 to R20 | QA and release | Not tracked in this record | |
 
 Open handoff item: B6 needs the Railway variable change and the 10-minute check (5.24). B1 was closed on 6 November by correcting API.md 5.10: `counted_rating` is the contribution currently in an aggregate, for Guest and Member reviews alike.

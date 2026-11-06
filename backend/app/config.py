@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Server-side prepared statements (psycopg). PgBouncer/Supavisor transaction mode (port 6543)
     # cannot keep them across transactions, so unset means "off on port 6543, on elsewhere" (B6).
     db_prepared_statements: bool | None = None
+    # Refuse passwords listed in public breaches at sign-up and reset (app/auth/breach.py). Fails open.
+    password_breach_check_enabled: bool = True
+    password_breach_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     # R16: how long a stored Idempotency-Key response is replayed (API.md section 3).
     idempotency_ttl_hours: int = Field(default=72, ge=1, le=720)
     request_timeout_seconds: int = Field(default=15, ge=1, le=120)

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app import abuse, visits
 from app.admin.cases import is_verified_member
-from app.auth import csrf, mail, validation
+from app.auth import breach, csrf, mail, validation
 from app.auth.gotrue import GoTrueClient, GoTrueError, GoTrueUnavailable, TokenPair, get_gotrue
 from app.auth.sessions import (
     MemberPrincipal,
@@ -159,6 +159,7 @@ def register(
     verify_challenge: TurnstileDep,
     gotrue: GoTrue,
     background: BackgroundTasks,
+    breach_check: breach.BreachCheckDep,
 ) -> dict[str, str]:
     settings = get_settings()
     email = validation.normalize_email(payload.email)
@@ -166,6 +167,7 @@ def register(
     abuse.enforce(sessions, abuse.register_checks(settings, network_digest(request)))
     verify_challenge(payload.turnstile_token, action=ACTION_AUTH_REGISTER, remote_address=_remote(request))
     validation.validate_registration(email, payload.password, name)
+    breach.ensure_not_breached(payload.password, breach_check)
     if settings.auth_skip_email_verification:
         try:
             _provider(gotrue.admin_create_confirmed_user, email, payload.password, {"display_name": name})
@@ -305,10 +307,16 @@ def password_reset_request(
 
 @router.post("/password-reset/confirm")
 def password_reset_confirm(
-    request: Request, payload: ResetConfirmRequest, sessions: abuse.CounterSessions, gotrue: GoTrue, session: DbSession
+    request: Request,
+    payload: ResetConfirmRequest,
+    sessions: abuse.CounterSessions,
+    gotrue: GoTrue,
+    session: DbSession,
+    breach_check: breach.BreachCheckDep,
 ) -> dict[str, str]:
     abuse.enforce(sessions, abuse.token_confirm_checks(get_settings(), network_digest(request)))
     validation.validate_new_password(payload.new_password)  # before the one-time token is spent
+    breach.ensure_not_breached(payload.new_password, breach_check)  # also before it is spent
     try:
         tokens: TokenPair = _provider(gotrue.verify_token_hash, payload.token_hash, "recovery")
         _provider(gotrue.update_password, tokens.access_token, payload.new_password)

@@ -49,6 +49,12 @@ export const ResetPasswordPage: React.FC = () => {
         );
         return;
       }
+      // Refused before the link is used, so the same link still works with a different password.
+      const breached = error instanceof ApiError && error.fieldErrors.some((f) => f.field === 'password' && f.code === 'BREACHED');
+      if (breached) {
+        setErrors({ password: problemMessage('password', 'BREACHED', t) });
+        return;
+      }
       if (error instanceof ApiError && error.code === 'TOKEN_INVALID_OR_EXPIRED') setLinkDead(true);
       setFormError(accountErrorMessage(error, t));
     } finally {
