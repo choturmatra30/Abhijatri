@@ -7,7 +7,6 @@ import {
   DownloadCloud, 
   Bookmark, 
   MessageSquareText, 
-  HeartPulse, 
   Compass,
   LogIn,
   LogOut,
@@ -72,12 +71,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelBn: 'রিভিউ',
       labelEn: 'Reviews',
       icon: MessageSquareText,
-    },
-    {
-      to: '/health',
-      labelBn: 'সিস্টেম স্ট্যাটাস',
-      labelEn: 'System status',
-      icon: HeartPulse,
     },
   ];
 

@@ -273,6 +273,10 @@ Changes from the original component: half resolution and at most 30 frames per s
 
 Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build 144.5 KB JS gzip. Browser (Edge, stubbed API): 28.5 to 29 draws per second, no page errors; landing, overview and destinations checked by eye in both themes. Contrast on the background's worst 0.5 percent of pixels (99.5th percentile, background alone): light (237,253,245): muted 7.25:1, primary 4.77:1, body 18.8:1; dark (12,58,38): muted 5.05:1, primary 5.59:1, body 12.2:1.
 
+## 5g. System status removed from the sidebar (6 November 2026)
+
+The "System status" (`/health`) link was a development aid and is no longer in the sidebar (`Sidebar.tsx`). The `/health` route and page still exist, reachable from the server-status pill in the top bar and by URL.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
