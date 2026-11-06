@@ -1316,7 +1316,7 @@ CI's `security` job failed on `main` and on PR #39 for one reason: three new `Do
 | Secret scan always runs | `.github/workflows/ci.yml` |
 | `npm audit --audit-level=moderate` in the frontend, staff and ops jobs | `ci.yml` |
 | Dependabot watches npm in the three frontends | `.github/dependabot.yml` |
-| Actions moved off Node 20: checkout v7, setup-node v7, setup-uv v10, gitleaks v3 | `ci.yml` |
+| Actions moved off Node 20: checkout v7, setup-node v7, setup-uv v10.3.3 (it publishes exact tags only, no `v10`), gitleaks v3 | `ci.yml` |
 | `workbox-build` override to `glob@14`, clearing the `glob` and `minimatch` moderates | `frontend/package.json`, lockfile |
 | Leaked-password check at sign-up and reset | `app/auth/breach.py`, `app/auth/routes.py`, `AccountUi.tsx`, `ResetPasswordPage.tsx` |
 
