@@ -34,10 +34,18 @@ export class ApiError extends Error {
 
 /** Raised when the request never produced an HTTP response (offline, DNS, CORS, aborted). */
 export const NETWORK_ERROR = 'NETWORK_ERROR';
+/** Raised when a request got no response before its deadline (slow or stalled network). */
+export const TIMEOUT_ERROR = 'TIMEOUT';
+/** Window event fired when the API answers 401 AUTH_REQUIRED (session expired or revoked). */
+export const AUTH_REQUIRED_EVENT = 'abhijatri:auth-required';
+/** Default deadline for GET requests. Slow 3G is the design target (PF 19.4), so this is generous. */
+export const READ_TIMEOUT_MS = 20_000;
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
   params?: Record<string, string | number | boolean | undefined | null>;
   body?: unknown;
+  /** Overrides the deadline in ms; GET defaults to READ_TIMEOUT_MS, other methods have none. */
+  timeoutMs?: number;
 }
 
 function isErrorBody(value: unknown): value is ApiErrorBody {
@@ -72,16 +80,45 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
   };
   if (body !== undefined) requestHeaders['Content-Type'] = 'application/json';
 
+  // Reads give up after a deadline so a stalled connection shows a clear "too slow" error instead of
+  // spinning forever. Writes have no default deadline: the server may still complete them, and the
+  // caller cannot tell (review submission is retry-safe through client_draft_id, others are not).
+  const method = (rest.method ?? 'GET').toUpperCase();
+  const timeoutMs = rest.timeoutMs ?? (method === 'GET' ? READ_TIMEOUT_MS : undefined);
+  const { timeoutMs: _ignored, signal: callerSignal, ...fetchOptions } = rest;
+  void _ignored;
+  const controller = new AbortController();
+  let timedOut = false;
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+  }
+  const timer =
+    timeoutMs === undefined
+      ? undefined
+      : globalThis.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+
   let response: Response;
   try {
     response = await fetch(url, {
-      ...rest,
+      ...fetchOptions,
+      signal: controller.signal,
       headers: { ...requestHeaders, ...(headers as Record<string, string> | undefined) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
+    if (timedOut) {
+      throw new ApiError(0, TIMEOUT_ERROR, `No response within ${Math.round((timeoutMs ?? 0) / 1000)} s`);
+    }
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
     throw new ApiError(0, NETWORK_ERROR, error instanceof Error ? error.message : 'Network request failed');
+  } finally {
+    if (timer !== undefined) globalThis.clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
 
   if (!response.ok) {
@@ -93,6 +130,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     }
     if (isErrorBody(parsed)) {
       const { code, message, request_id, field_errors } = parsed.error;
+      if (response.status === 401 && code === 'AUTH_REQUIRED') {
+        // A signed-in member's session ended on the server (expired or revoked). SessionContext
+        // listens and switches the page to the guest view with a "session expired" notice.
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+      }
       throw new ApiError(response.status, code, message, request_id, field_errors ?? []);
     }
     throw new ApiError(response.status, `HTTP_${response.status}`, response.statusText || `HTTP ${response.status}`);

@@ -4,18 +4,19 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { editMemberReview, getReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { LoadingState, describeError } from '../components/common/StatusViews';
+import { ErrorState, LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { ReviewEditForm } from '../components/reviews/ReviewEditForm';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { ReviewDetail, ReviewEditChanges } from '../types';
 import { canEdit, valuesFromDetail } from '../utils/reviewAuthor';
+import { SignInLink } from '../components/common/SignInLink';
 
 /** Edit one of the signed-in author's unpublished reviews (PENDING or CHANGES_REQUESTED). */
 export const ReviewEditPage: React.FC = () => {
   const { t } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
@@ -49,10 +50,11 @@ export const ReviewEditPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">{t('সম্পাদনা করতে সাইন ইন করুন।', 'Sign in to edit a review.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link></Notice>
+        <Notice tone="info">{t('সম্পাদনা করতে সাইন ইন করুন।', 'Sign in to edit a review.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink></Notice>
       </div>
     );
   }
@@ -68,8 +70,7 @@ export const ReviewEditPage: React.FC = () => {
   if (error !== null || !detail || !original) {
     return (
       <div className="max-w-xl mx-auto px-4 py-10 flex flex-col gap-3">
-        <Notice tone="error">{describeError(error, t)}</Notice>
-        <button type="button" onClick={() => void load()} className="self-start min-h-[44px] px-4 rounded-full border text-xs font-bold">{t('আবার চেষ্টা করুন', 'Retry')}</button>
+        <ErrorState error={error} onRetry={() => void load()} />
       </div>
     );
   }

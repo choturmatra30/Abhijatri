@@ -5,7 +5,7 @@ import { ApiError, NETWORK_ERROR } from '../api/client';
 import { listAllDestinations } from '../api/destinations';
 import { getMyReviews, withdrawMemberReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { EmptyState, LoadingState, describeError } from '../components/common/StatusViews';
+import { EmptyState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { STATUS_LABEL } from '../components/reviews/reviewLabels';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -13,6 +13,7 @@ import { useSession } from '../context/SessionContext';
 import type { DestinationSummary, ReviewStatus, ReviewSummary } from '../types';
 import { formatCalendarDate, formatTimestamp, pick } from '../utils/format';
 import { canEdit, canWithdraw } from '../utils/reviewAuthor';
+import { SignInLink } from '../components/common/SignInLink';
 
 const PAGE_SIZE = 20;
 const STATUSES = Object.keys(STATUS_LABEL) as ReviewStatus[];
@@ -20,7 +21,7 @@ const STATUSES = Object.keys(STATUS_LABEL) as ReviewStatus[];
 /** The signed-in member's own reviews: filters, newest first, "Show more" paging (Review.md 9.3, Gantt R09). */
 export const MyReviewsPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const [params, setParams] = useSearchParams();
   const statusFilter = (STATUSES.includes(params.get('status') as ReviewStatus) ? params.get('status') : '') as ReviewStatus | '';
   const destinationFilter = params.get('destination') ?? '';
@@ -130,11 +131,12 @@ export const MyReviewsPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
         <Notice tone="info">
-          {t('আপনার রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see your reviews.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link>
+          {t('আপনার রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see your reviews.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
         </Notice>
       </div>
     );
@@ -146,7 +148,7 @@ export const MyReviewsPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 ref={heading} className="text-2xl font-bold font-title text-on-surface dark:text-on-dark">{t('আমার রিভিউ', 'My reviews')}</h1>
-        <Link to="/reviews" className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
+        <Link to="/reviews/write" className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title">
           <PenSquare size={16} aria-hidden="true" />
           {t('নতুন রিভিউ লিখুন', 'Write a review')}
         </Link>
@@ -191,8 +193,17 @@ export const MyReviewsPage: React.FC = () => {
       )}
       {!loading && !error && items.length === 0 && (
         <EmptyState
+          variant={statusFilter || destinationFilter ? 'no-results' : 'empty'}
           title={statusFilter || destinationFilter ? t('এই ফিল্টারে কোনো রিভিউ নেই', 'No reviews match these filters') : t('আপনি এখনও কোনো রিভিউ লেখেননি', 'You have not written a review yet')}
-          action={<Link to="/destinations" className={linkClass}>{t('গন্তব্য দেখুন', 'Browse destinations')}</Link>}
+          action={
+            statusFilter || destinationFilter ? (
+              <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className={`${linkClass} min-h-[44px]`}>
+                {t('ফিল্টার মুছুন', 'Clear filters')}
+              </button>
+            ) : (
+              <Link to="/destinations" className={linkClass}>{t('গন্তব্য দেখুন', 'Browse destinations')}</Link>
+            )
+          }
         />
       )}
 

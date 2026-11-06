@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Compass, MessageSquarePlus, NotebookPen, PartyPopper, Star, UserRound } from 'lucide-react';
+import { ArrowRight, Compass, LogOut, MessageSquarePlus, NotebookPen, PartyPopper, Star, UserRound } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import { GUEST_NAME_MAX, normalizeGuestName } from '../api/guests';
@@ -9,6 +9,8 @@ import { REVIEW_CATEGORIES } from '../api/reviews';
 import { useApiResource } from '../hooks/useApiResource';
 import { CATEGORY_LABEL } from '../components/reviews/reviewLabels';
 import { formatNumber } from '../utils/format';
+import { LoadingState, SlowNetworkHint } from '../components/common/StatusViews';
+import { buttonVariants } from '@/components/ui/button';
 
 /**
  * Guest entry (Review.md 3.2 step 1): the guest gives a name, which stays on this device for 30 days
@@ -18,9 +20,14 @@ import { formatNumber } from '../utils/format';
  *
  * This is an entry point, never a gate: every app route still opens directly for guests.
  */
+// shadcn Button variants. Text may contain a person's name of any length; Button wraps it.
+const primaryButton = buttonVariants({ size: 'lg' });
+const outlineButton = buttonVariants({ variant: 'outline', size: 'lg' });
+const textButton = buttonVariants({ variant: 'link', size: 'sm', className: 'px-0 text-muted-foreground hover:text-primary text-xs' });
+
 export const GuestEntryPage: React.FC = () => {
   const { t } = useLanguage();
-  const { session, setGuestName, clearGuestName, startAsNewGuest, signOut } = useSession();
+  const { session, status, setGuestName, clearGuestName, startAsNewGuest, signOut } = useSession();
   const navigate = useNavigate();
   const storedName = session.kind === 'guest' ? session.displayName : null;
   const guestTag = session.kind === 'guest' ? session.guestTag : null;
@@ -28,6 +35,7 @@ export const GuestEntryPage: React.FC = () => {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [renewing, setRenewing] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +62,61 @@ export const GuestEntryPage: React.FC = () => {
     <p className="inline-flex items-center gap-2 text-sm font-semibold text-forest-primary dark:text-neon-lime">
       <UserRound size={16} aria-hidden="true" />
       {t('আপনি অতিথি', 'You are Guest')}{' '}
-      <code className="px-1.5 py-0.5 rounded bg-surface-container dark:bg-dark-surface-2 font-mono tracking-wide">{guestTag}</code>
+      <code className="px-1.5 py-0.5 rounded-sm bg-surface-container dark:bg-dark-surface-2 font-mono tracking-wide">{guestTag}</code>
     </p>
   );
+
+  // Until the server says who this is, show neither the guest form nor the member choice.
+  if (status === 'loading') return <LoadingState />;
+
+  // A signed-in member cannot be a guest at the same time: the server keeps treating this browser
+  // as the member while the session cookie exists. Offer the two honest choices instead of a guest
+  // form that could never take effect.
+  if (session.kind === 'member') {
+    const leaveAccount = async () => {
+      setLeaving(true);
+      try {
+        await signOut(); // the page then re-renders as a guest and shows the name form
+      } finally {
+        setLeaving(false);
+      }
+    };
+    return (
+      <div className="max-w-md mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark">
+            {t('অতিথি হিসেবে প্রবেশ', 'Continue as a guest')}
+          </h1>
+          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted wrap-anywhere">
+            {t(
+              `আপনি ${session.displayName} হিসেবে সাইন ইন করা আছেন। অতিথি হতে হলে আগে সাইন আউট করতে হবে; সাইন আউটের পর আপনার রিভিউ ও অ্যাকাউন্ট আগের মতোই থাকবে।`,
+              `You are signed in as ${session.displayName}. To use guest mode, sign out first; your account and reviews stay as they are.`,
+            )}
+          </p>
+        </div>
+        <div className="tonal-card p-6 flex flex-col gap-3">
+          <Link
+            to="/overview"
+            className={primaryButton}
+          >
+            {t(`${session.displayName} হিসেবে চালিয়ে যান`, `Continue as ${session.displayName}`)}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => void leaveAccount()}
+            disabled={leaving}
+            aria-busy={leaving}
+            className={outlineButton}
+          >
+            <LogOut size={16} aria-hidden="true" />
+            {leaving ? t('সাইন আউট হচ্ছে…', 'Signing out…') : t('সাইন আউট করে অতিথি হিসেবে চালিয়ে যান', 'Sign out and continue as a guest')}
+          </button>
+          <SlowNetworkHint active={leaving} />
+        </div>
+      </div>
+    );
+  }
 
   if (!storedName) {
     return (
@@ -65,7 +125,7 @@ export const GuestEntryPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark">
             {t('অতিথি হিসেবে প্রবেশ', 'Continue as a guest')}
           </h1>
-          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted">
+          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted wrap-anywhere">
             {t(
               'কোনো অ্যাকাউন্ট লাগবে না। নামটি শুধু এই ডিভাইসে ৩০ দিন থাকে; সার্ভারে পাঠানো হয় না।',
               'No account needed. Your name stays on this device for 30 days and is never sent to the server.',
@@ -87,7 +147,7 @@ export const GuestEntryPage: React.FC = () => {
               autoFocus
               aria-invalid={Boolean(error)}
               aria-describedby={error ? 'guest-name-error' : undefined}
-              className="w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-[invalid=true]:border-error-alert"
+              className="w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert"
             />
             {error && (
               <p id="guest-name-error" className="text-xs text-error-alert dark:text-red-400">
@@ -97,7 +157,7 @@ export const GuestEntryPage: React.FC = () => {
           </div>
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title disabled:opacity-60"
+            className={primaryButton}
           >
             {t('প্রবেশ করুন', 'Continue')}
             <ArrowRight size={16} aria-hidden="true" />
@@ -111,7 +171,7 @@ export const GuestEntryPage: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex flex-col gap-6">
       <section className="tonal-card p-6 sm:p-8 flex flex-col gap-3 bg-surface-sage/60 dark:bg-dark-surface-1" aria-live="polite">
         <PartyPopper size={28} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
-        <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark break-words">
+        <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark wrap-anywhere">
           {t(`স্বাগতম, ${storedName}!`, `Welcome, ${storedName}!`)}
         </h1>
         {tagBadge}
@@ -123,15 +183,15 @@ export const GuestEntryPage: React.FC = () => {
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Link
-            to="/reviews"
-            className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title"
+            to="/reviews/write"
+            className={primaryButton}
           >
             <MessageSquarePlus size={16} aria-hidden="true" />
             {t('রিভিউ লিখুন', 'Write a review')}
           </Link>
           <Link
             to="/overview"
-            className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-sm font-bold font-title"
+            className={outlineButton}
           >
             <Compass size={16} aria-hidden="true" />
             {t('গন্তব্য দেখুন', 'Explore destinations')}
@@ -141,17 +201,17 @@ export const GuestEntryPage: React.FC = () => {
           <button
             type="button"
             onClick={clearGuestName}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+            className={textButton}
           >
             {t(`${storedName} নন? নাম পরিবর্তন করুন`, `Not ${storedName}? Change name`)}
           </button>
           <button
             type="button"
             onClick={() => {
-              signOut();
+              void signOut();
               navigate('/');
             }}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2"
+            className={textButton}
           >
             {t('সাইন আউট', 'Sign out')}
           </button>
@@ -159,7 +219,7 @@ export const GuestEntryPage: React.FC = () => {
             type="button"
             onClick={handleNewGuest}
             disabled={renewing}
-            className="min-h-[44px] text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted underline underline-offset-2 disabled:opacity-60"
+            className={textButton}
           >
             {t('নতুন অতিথি হিসেবে শুরু করুন', 'Start as a new guest')}
           </button>

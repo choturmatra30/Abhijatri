@@ -6,6 +6,7 @@ import { confirmPasswordReset } from '../api/auth';
 import { Field, Notice, PasswordInput, accountErrorMessage, linkClass, primaryButtonClass, problemMessage } from '../components/auth/AccountUi';
 import { useLanguage } from '../context/LanguageContext';
 import { passwordProblem } from '../utils/authValidation';
+import { SlowNetworkHint } from '../components/common/StatusViews';
 
 /** The page behind the emailed reset link (`/reset-password?token_hash=...&type=recovery`). */
 export const ResetPasswordPage: React.FC = () => {
@@ -100,6 +101,7 @@ export const ResetPasswordPage: React.FC = () => {
           <KeyRound size={16} aria-hidden="true" />
           {busy ? t('অপেক্ষা করুন…', 'Please wait…') : t('পাসওয়ার্ড বদলান', 'Change password')}
         </button>
+        <SlowNetworkHint active={busy} />
       </form>
     </div>
   );

@@ -7,6 +7,7 @@ import { Field, Notice, PasswordInput, accountErrorMessage, inputClass, linkClas
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import { emailProblem, normalizeEmail } from '../utils/authValidation';
+import { SlowNetworkHint } from '../components/common/StatusViews';
 
 /**
  * Member sign-in (Gantt R05, API.md 5.17). The browser sends the email and password to this API,
@@ -128,6 +129,7 @@ export const SignInPage: React.FC = () => {
           <LogIn size={16} aria-hidden="true" />
           {busy ? t('অপেক্ষা করুন…', 'Please wait…') : t('সাইন ইন', 'Sign in')}
         </button>
+        <SlowNetworkHint active={busy} />
         <div className="flex flex-wrap justify-between gap-2 text-xs">
           <Link to="/forgot-password" className={linkClass}>
             {t('পাসওয়ার্ড ভুলে গেছেন?', 'Forgot your password?')}

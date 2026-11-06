@@ -93,7 +93,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
           )}
         </div>
         <Link
-          to={`/reviews?destination=${destinationId}`}
+          to={`/reviews/write?destination=${destinationId}`}
           className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-surface-sage dark:bg-dark-surface-2 text-forest-primary dark:text-neon-lime text-xs font-bold font-title"
         >
           <MessageSquarePlus size={16} aria-hidden="true" />
@@ -115,7 +115,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
               <label htmlFor="feed-rating" className="text-xs font-bold text-on-surface-variant dark:text-on-dark-muted">{t('রেটিং', 'Rating')}</label>
               <select id="feed-rating" value={filters.rating} onChange={(e) => setFilters({ ...filters, rating: Number(e.target.value) as ReviewFilters['rating'] })} className="min-h-[44px] px-3 rounded-xl bg-white dark:bg-dark-surface-1 text-sm">
                 <option value={0}>{t('সব রেটিং', 'All ratings')}</option>
-                {[5, 4, 3, 2, 1].map((n) => (<option key={n} value={n}>{t(`${n} তারকা`, `${n} star${n === 1 ? '' : 's'}`)}</option>))}
+                {[5, 4, 3, 2, 1].map((n) => (<option key={n} value={n}>{t(`${formatNumber(n, 'bn')} তারকা`, `${n} star${n === 1 ? '' : 's'}`)}</option>))}
               </select>
             </div>
             <div className="flex flex-col gap-1">
@@ -159,7 +159,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
       )}
 
       {!loading && !error && items.length > 0 && shown.length === 0 && (
-        <EmptyState title={t('এই ফিল্টারে কোনো রিভিউ মেলেনি', 'No loaded review matches these filters')} hint={cursor ? t('আরও রিভিউ লোড করুন বা ফিল্টার মুছুন।', 'Load more reviews or clear the filters.') : t('ফিল্টার মুছুন।', 'Clear the filters.')} />
+        <EmptyState variant="no-results" title={t('এই ফিল্টারে কোনো রিভিউ মেলেনি', 'No loaded review matches these filters')} hint={cursor ? t('আরও রিভিউ লোড করুন বা ফিল্টার মুছুন।', 'Load more reviews or clear the filters.') : t('ফিল্টার মুছুন।', 'Clear the filters.')} />
       )}
       {!loading && !error && shown.length > 0 && (
         <ul className="flex flex-col gap-3">

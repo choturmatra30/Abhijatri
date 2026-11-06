@@ -5,7 +5,7 @@ import { ApiError } from '../api/client';
 import { getDestination } from '../api/destinations';
 import { getReview, withdrawMemberReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { LoadingState, describeError } from '../components/common/StatusViews';
+import { ErrorState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { CATEGORY_LABEL, COMFORT_TIERS, REVIEW_LANGUAGES, TRAVELLER_TYPES } from '../components/reviews/reviewLabels';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -13,6 +13,7 @@ import { useSession } from '../context/SessionContext';
 import type { ReviewAppealState, ReviewCategory, ReviewDetail } from '../types';
 import { formatCalendarDate, formatTimestamp, pick } from '../utils/format';
 import { canEdit, canWithdraw } from '../utils/reviewAuthor';
+import { SignInLink } from '../components/common/SignInLink';
 
 const APPEAL_TEXT: Record<ReviewAppealState, [string, string]> = {
   received: ['আপিল গৃহীত', 'Appeal received'],
@@ -24,7 +25,7 @@ const APPEAL_TEXT: Record<ReviewAppealState, [string, string]> = {
 /** One review of the signed-in author, with its history and the controls that apply to its state. */
 export const ReviewDetailPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const location = useLocation();
   const flash = (location.state as { saved?: string } | null)?.saved;
@@ -75,10 +76,11 @@ export const ReviewDetailPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">{t('রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see this review.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link></Notice>
+        <Notice tone="info">{t('রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see this review.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink></Notice>
       </div>
     );
   }
@@ -94,8 +96,7 @@ export const ReviewDetailPage: React.FC = () => {
   if (error !== null || !detail) {
     return (
       <div className="max-w-xl mx-auto px-4 py-10 flex flex-col gap-3">
-        <Notice tone="error">{describeError(error, t)}</Notice>
-        <button type="button" onClick={() => void load()} className="self-start min-h-[44px] px-4 rounded-full border text-xs font-bold">{t('আবার চেষ্টা করুন', 'Retry')}</button>
+        <ErrorState error={error} onRetry={() => void load()} />
       </div>
     );
   }

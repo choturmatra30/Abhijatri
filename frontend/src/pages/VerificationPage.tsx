@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { BadgeCheck, FileUp, ShieldQuestion } from 'lucide-react';
 import { EVIDENCE_MAX_BYTES, EVIDENCE_TYPES, getMyVerification, requestVerification, respondToVerification, uploadEvidence, withdrawVerification } from '../api/account';
 import { Notice, accountErrorMessage, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { LoadingState } from '../components/common/StatusViews';
+import { LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { VerificationCaseView } from '../types';
+import { SignInLink } from '../components/common/SignInLink';
 
 const STATE_TEXT: Record<VerificationCaseView['state'], [string, string]> = {
   submitted: ['জমা হয়েছে, পর্যালোচনার অপেক্ষায়', 'Submitted, waiting for review'],
@@ -57,12 +58,13 @@ export const VerificationPage: React.FC = () => {
 
   if (status === 'loading') return <LoadingState />; // still reading the session
 
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
         <Notice tone="info">
           {t('যাচাইয়ের জন্য আগে সাইন ইন করুন।', 'Sign in first to request verification.')}{' '}
-          <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link>
+          <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
         </Notice>
       </div>
     );

@@ -1,6 +1,8 @@
 import { HealthStatus } from '../types';
 import { API_BASE_URL } from './client';
 
+const HEALTH_TIMEOUT_MS = 10_000;
+
 const ALLOWED_BACKEND_HOSTS = new Set([
   'localhost',
   '127.0.0.1',
@@ -60,6 +62,7 @@ export async function checkBackendHealth(customUrl?: string): Promise<HealthStat
       const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS), // a stalled network reports "unreachable", not "checking" forever
       });
       const latency = Math.round(performance.now() - start);
 
@@ -72,6 +75,7 @@ export async function checkBackendHealth(customUrl?: string): Promise<HealthStat
           const readyUrl = url.replace(/\/health$/, '/health/ready');
           const readyRes = await fetch(readyUrl, {
             headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
           });
           if (readyRes.ok) {
             dbStatus = 'database ready (SELECT 1 OK)';

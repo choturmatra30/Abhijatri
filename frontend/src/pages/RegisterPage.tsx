@@ -7,6 +7,7 @@ import { Field, Notice, PasswordInput, accountErrorMessage, inputClass, linkClas
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from '../components/reviews/TurnstileWidget';
 import { useLanguage } from '../context/LanguageContext';
 import { DISPLAY_NAME_MAX, displayNameProblem, emailProblem, normalizeEmail, passwordProblem } from '../utils/authValidation';
+import { SlowNetworkHint } from '../components/common/StatusViews';
 
 type Errors = { email?: string; display_name?: string; password?: string };
 
@@ -162,6 +163,7 @@ export const RegisterPage: React.FC = () => {
           <UserPlus size={16} aria-hidden="true" />
           {busy ? t('অপেক্ষা করুন…', 'Please wait…') : t('অ্যাকাউন্ট খুলুন', 'Create account')}
         </button>
+        <SlowNetworkHint active={busy} />
         <p className="text-xs text-on-surface-variant dark:text-on-dark-muted">
           {t('আগেই অ্যাকাউন্ট আছে?', 'Already have an account?')}{' '}
           <Link to="/login" className={linkClass}>

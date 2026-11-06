@@ -175,6 +175,7 @@ The Sajek advisory "Road blockade eased until 21 October" is time-bound and expi
 | D12 | A review's declared `language` followed the interface language, not the text: a Bangla note written in the English interface was sent as `EN`, and vice versa. The note text itself was always sent verbatim (never translated). | `GuestReviewForm` set `language` once from the interface when the form opened. | `detectReviewLanguage` (`src/api/reviews.ts`) labels the title and note by script: mostly Bengali `BN`, mostly Latin `EN`, at least 20 % of each `MIXED`. The dropdown follows it with a "Detected from your writing" hint until the reviewer picks a value, which then sticks (Banglish in Latin letters needs that override). | 6 Vitest tests; browser run 20 Oct 2026: English interface with Bangla text sent `BN`, Bangla interface with English text sent `EN`, a manual `MIXED` stayed `MIXED`; the body matched the typed text in every case. |
 | D13 | After a failed submit the page stayed where the Submit button is, so errors higher up the long form went unseen. | No scroll or focus handling on failure. | Every failed submit (client checks or server response) scrolls the topmost error to the centre of the screen (instant when reduced motion is requested) and focuses its field; a star rating focuses its first star; a form-level error with no field focuses the message itself. | Browser run 20 Oct 2026, submitting from the bottom of the page: empty form focused Destination; missing rating focused "1 star"; server `409 RESERVED_DISPLAY_NAME` focused Display name; server `503 GUEST_WRITES_PAUSED` focused the alert. Each was in view below the header. |
 | D14 | Large cards (the review form, detail panels) jittered when the cursor rested near their edge. | `.tonal-card:hover` lifted every card by 2 px; the lift moved the edge out from under the cursor, hover ended, the card dropped back, and the cycle repeated. Found because the test could not click a "stable" Submit button. | The lift now applies only to cards that are links (`a.tonal-card`). | Two consecutive browser runs clicked Submit without instability. |
+| D15 | A signed-in member could not enter guest mode: `/guest` showed the name form, accepted a name, then showed the same empty form again with no message. | `GuestEntryPage` reads the guest name only when the session is a guest, so for a member it was always empty; and a member cannot be a guest while the session cookie exists. | A member on `/guest` now sees "You are signed in as …" with **Continue as …** or **Sign out and continue as a guest** (waits for `/auth/logout`, then shows the guest name form); the page waits for the session instead of flashing the guest form; the landing page's guest card says sign-out is needed. `signOut()` now returns a promise. | Browser run 4 Nov 2026 with a stubbed Verified Member: landing hint shown; `/guest` showed the two choices and no name form; sign-out called `/auth/logout` once, then the name form appeared; "Welcome, Rafi!" after entering a name. 123 tests pass, build clean. |
 
 ## 5a. QA and F03 audit fixes (28 October 2026)
 
@@ -200,6 +201,154 @@ Evidence (28 Oct 2026): `npm test` 64 passed (8 files; 3 new for `safeStorage`);
 
 Open: U2 (self-hosted fonts, waits for decision Q2), U15 (review labels from `GET /review-parameters`), QA Frontend 4 (no browser E2E tests in CI).
 
+## 5b. UI states audit (4 November 2026)
+
+Every public-app screen was checked for ten states: empty, loading, error, no internet, slow network, no search result, permission denied, session expired, form validation and success. Empty, loading, error, no-result, validation and success already existed on almost every screen; the four that were app-wide gaps are now handled once, centrally.
+
+| State | Before | Now | Where |
+|---|---|---|---|
+| No internet | Only My reviews noticed it | App-wide banner while offline ("pages already open may still show, nothing new can load or be sent") and a short "back online" notice | `components/common/StatusBanners.tsx` (`NetworkBanner`), `hooks/useNetworkState.ts`; mounted in `AppLayout` and `PublicLayout` |
+| Slow network | A stalled request spun forever; the navbar could say "Checking" forever | GET requests stop after 20 s with a `TIMEOUT` error ("the connection is too slow", Try again); every spinner and busy submit button adds "taking longer than usual" after 8 s; the health check stops after 10 s. Writes get no default deadline, because the server may still complete them. | `api/client.ts` (`READ_TIMEOUT_MS`, `TIMEOUT_ERROR`), `SlowNetworkHint` in `StatusViews.tsx`, `api/health.ts` |
+| Session expired | None: after the server ended a session the app still showed the member as signed in and every request failed | A 401 `AUTH_REQUIRED` fires `AUTH_REQUIRED_EVENT`; `SessionContext` drops to the guest view and shows "Your session has expired" with "Sign in again", which returns to the same page | `api/client.ts`, `context/SessionContext.tsx`, `SessionExpiredBanner` |
+| Permission denied | Same look as any error, with a pointless Try again | Its own state ("No permission", shield icon, no retry). `AUTH_REQUIRED` shows "Sign in required" with a sign-in link instead of a retry | `failureKind()` and `ErrorState` in `StatusViews.tsx` |
+| Sign-in links | Account pages linked to `/login` and sign-in always went to `/overview` | `SignInLink` passes the current page, so sign-in returns there | `components/common/SignInLink.tsx`; My reviews, Review detail, Edit, Appeals, Reports, Notifications, Verification |
+| Empty | Overview showed zero counts and an empty grid | "No published destinations yet" | `OverviewPage.tsx` |
+| No search result | Present, but looked like an empty list and had no way out | `EmptyState variant="no-results"` (search icon); destination search names the query and offers "Clear search"; My reviews offers "Clear filters" | `DestinationsPage.tsx`, `MyReviewsPage.tsx`, `ReviewFeedSection.tsx` |
+| Form validation | Appeal button silently stayed disabled under 10 characters | Live counter says how many characters are still needed | `AppealsPage.tsx` |
+| Loading, error, success | Present | Loading is `aria-busy` and the spinner respects reduced motion; empty and no-result states are `role="status"` | `StatusViews.tsx` |
+
+Evidence (4 Nov 2026): `npm test` 123 passed (13 files; 13 new in `api/client.test.ts`: read timeout, no write timeout, caller abort, network error, session-expired event, wrong credentials not treated as expiry, error classification); `tsc` clean; `npm run build` clean. Browser run in Edge with the API stubbed: overview empty state; destination no-result with Clear search restoring the list; offline banner and back-online notice (Playwright offline mode); slow hint absent at 3 s and present at 9 s with a held request; a 25 s response became "The connection is too slow" with Try again; 403 showed "No permission" with no retry; a signed-in member whose next request got 401 saw "Your session has expired", the sidebar returned to the guest view, and "Sign in again" carried `/account/reviews` to the sign-in page. No page errors.
+
+Not covered: the staff and ops apps (separate builds owned by others) were not changed; real-device and screen-reader passes are still outstanding.
+
+## 5c. Interactive destination selector on the landing page (4 November 2026)
+
+| Item | Location |
+|---|---|
+| Generic selector (from the 21st.dev "interactive-selector", adapted) | `frontend/src/components/ui/interactive-selector.tsx` |
+| Licensed photos and their credits | `frontend/src/data/destinationImages.ts`, `frontend/public/images/destinations/*.webp`, `Docs/Image-Credits.md` |
+| Credit line on each photo | `frontend/src/components/common/ImageCredit.tsx` |
+| Entry motion | `@keyframes selector-in` in `frontend/src/global.css` (motion-safe only) |
+| Placement | `LandingPage.tsx`: replaces the destination chips under the hero |
+
+Behaviour: the live `GET /destinations` list becomes expanding photo panels; the open panel shows the name, summary, an **Open guide** link and the photo credit. Panels are real buttons (`aria-expanded`), arrow keys, Home and End move between them and focus opens a panel. Desktop shows a wide open panel and slim tabs; phones stack the panels, with names visible on the closed ones. A destination without a licensed photo still gets a panel (dark background, map-pin icon). Images are self-hosted: about 509 KB for all five, only the open one loads eagerly.
+
+Evidence (4 Nov 2026): `npm test` 123 passed; `npm run build` clean. Browser run in Edge at 1280 px and 390 px with five stubbed destinations: five panels; clicking Sylhet opened it with "Photo: Sumon Mallick · CC BY-SA 4.0 · resized"; ArrowRight wrapped to the first panel and Home returned to it; the Open guide link pointed at `/destinations/<id>`; the open image had its alt text; every image request went to the app's own origin; no horizontal overflow; no page errors.
+
+## 5d. shadcn/ui, Tailwind 4 and the new theme (4 November 2026)
+
+| Item | Location |
+|---|---|
+| Tailwind 4 (CSS-first config, `@tailwindcss/postcss`) | `src/global.css`, `postcss.config.js`; `tailwind.config.js` removed |
+| shadcn/ui setup | `components.json`, `src/lib/utils.ts`, `@/` alias in `tsconfig.json` and `vite.config.ts` |
+| Components | `src/components/ui/{button,card,input,label,textarea,badge,separator,select,dialog,sonner}.tsx` (44 px targets, wrapping buttons) |
+| Theme tokens (stone + green, light and dark) and aliases for the old colour names | `src/global.css` |
+| Migrated to shadcn `Button` variants | `AccountUi` (all account pages), `PreferenceToggles`, `Sidebar`, `GuestEntryPage`, `StatusViews`, `FeatureUnavailable`, `LandingPage` |
+
+Not yet migrated: page-specific buttons, chips and inputs on destination, review and moderation pages (they already take the new colours through the aliases); dialogs and toasts are installed but not yet used.
+
+Evidence (4 Nov 2026): `tsc -b` clean; `npm test` 123 passed; `npm run build` clean, JS 142 KB gzip (was 129 KB; budget 200 KB), CSS 13.7 KB gzip. Screenshots of landing, overview, destinations, reviews, guest and sign-in pages in light and dark at 1280 px checked by eye.
+
+## 5e. Scroll smoothness and state gaps (5 November 2026)
+
+| Change | Where | Why |
+|---|---|---|
+| Removed `backdrop-blur` from the sticky top bar, the sidebar overlay and the selector's icon and credit pills; the top bar and sidebar are now solid | `Navbar.tsx`, `Sidebar.tsx`, `ui/interactive-selector.tsx` | A blur under a sticky bar is recomputed by the GPU on every scroll frame; on a 144 Hz laptop screen running on integrated graphics that leaves too little time per frame, so scrolling stuttered. Main-thread work while scrolling was measured at about 20 ms per 120 frames, so JavaScript was not the cause. |
+| Removed the page-wide `transition-colors duration-300` on `<body>` and `transition-all` on the main column | `index.html`, `AppLayout.tsx` | Theme changes animated every colour on the page for 300 ms. |
+| Landing destinations: loading placeholder of the selector's exact height; `ErrorState` with retry on failure | `LandingPage.tsx` | Previously blank while loading, then the page jumped; a failure hid the section silently. |
+| Review detail and edit pages use `ErrorState` for load failures | `ReviewDetailPage.tsx`, `ReviewEditPage.tsx` | They showed a generic message, unlike other pages; now offline, slow, signed-out and no-permission each get their own wording and next step. |
+
+Evidence: `tsc -b` clean, 123 tests pass, build clean. Browser (stubbed API): landing shows the placeholder while the request is pending and the "No connection" state with "Try again" when it fails. The review detail/edit change was type-checked only.
+
+## 5f. App-wide animated background (6 November 2026)
+
+`frontend/src/components/ui/velaris.tsx` (adapted from the 21st.dev "Velaris" WebGL gradient) is the background of the whole app. `components/layout/AppBackground.tsx` mounts it once at the app root as a fixed, full-screen layer behind everything (`aria-hidden`), so it keeps running across page changes. The layouts no longer paint their own background; the top bars and sidebar are 80 to 90 percent opaque (no blur) and cards stay solid.
+
+| Theme | Page colour | Gradient colours |
+|---|---|---|
+| Light | white | pale mint: green-100, green-50, emerald-100 |
+| Dark | stone-950 | deep green: green-950, a darker green-900, emerald-950 |
+
+Changes from the original component: half resolution and at most 30 frames per second; stops while off-screen or in a hidden tab; speed 3.5 (about three times the first setting); grain cut from 0.3 to 0.04 (at half resolution each grain dot is upscaled and flickers per frame, which looked grainy); one still frame under reduced motion; edges fade to the page colour instead of black (needed for the light theme); without WebGL the solid page colour shows; colours parsed once; GL resources released; no `cn()` (it would add `tailwind-merge`, about 10 KB gzip). Light-theme muted text moved from stone-500 to stone-600 to keep 4.5:1 on the mint.
+
+Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build 144.5 KB JS gzip. Browser (Edge, stubbed API): 28.5 to 29 draws per second, no page errors; landing, overview and destinations checked by eye in both themes. Contrast on the background's worst 0.5 percent of pixels (99.5th percentile, background alone): light (237,253,245): muted 7.25:1, primary 4.77:1, body 18.8:1; dark (12,58,38): muted 5.05:1, primary 5.59:1, body 12.2:1.
+
+## 5g. System status removed from the sidebar (6 November 2026)
+
+The "System status" (`/health`) link was a development aid and is no longer in the sidebar (`Sidebar.tsx`). The `/health` route and page still exist, reachable from the server-status pill in the top bar and by URL.
+
+## 5h. Reviews split into two pages with a sidebar group (6 November 2026)
+
+| Route | Page | Contents |
+|---|---|---|
+| `/reviews/write` | `WriteReviewPage` | Guest review form, then the receipt after submitting; `?destination=<id>` preselects the destination |
+| `/reviews/receipt` | `ReviewReceiptPage` | Receipt status check and withdrawal (`ReceiptStatusPanel`), removal request (`RemovalRequestForm`) |
+| `/reviews` | `ReviewsRedirect` | Redirects to `/reviews/write`, keeping the query, so older links and bookmarks still work |
+
+Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
+
+Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build clean (145 KB JS gzip). Browser at 1280 px and 390 px (mobile menu): group starts closed with no sub-links; one click shows both; "Check with receipt" opens `/reviews/receipt` and the group stays open there; `/reviews?destination=<id>` lands on `/reviews/write?destination=<id>` with that destination selected; no page errors.
+
+## 5i. R12: installable PWA shell and offline destination pages (6 November 2026)
+
+| Item | Location |
+|---|---|
+| Service worker (Workbox, injectManifest): app shell precache, public destination API cache, font cache | `frontend/src/sw.ts`, `vite.config.ts` (`VitePWA`), `tsconfig.sw.json` |
+| Web app manifest and icons (192, 512, maskable 512, Apple 180) | `vite.config.ts` (`manifest`), `frontend/public/icons/` |
+| Registration, "new version" prompt, first-install note, persistent-storage request | `components/common/UpdatePrompt.tsx`, `offline/savedDestinations.ts` |
+| Saved-destination list read straight from the cache | `offline/savedDestinations.ts`, `offline/cacheNames.ts`, `hooks/useDestinationCatalog.ts` |
+| Image policy (offline / low-data / full) | `hooks/useNetworkState.ts` (`useImagePolicy`), `ui/interactive-selector.tsx`, `reviews/ReviewMediaGallery.tsx` |
+| Route code splitting | `App.tsx` (`lazy`), `Suspense` in `AppLayout.tsx` and `PublicLayout.tsx` |
+
+**What is cached (Platform Foundation 18.1, Security.md 7.4).** Precache: the built JavaScript, CSS, `index.html`, manifest and icons (40 files, 605 KiB, under the 1 MiB shell budget). Runtime, network first with a 4-second timeout: `GET /api/v1/destinations`, `/destinations/{id}` and `/destinations/{id}/reviews` only, status 200 only, refusing any response with `no-store` or `private`, never a request with an `Authorization` header, entries expire after 7 days (PF 18.4 default). Google Fonts stylesheet and files (CORS responses only). Never cached: photos, review media, session, account, receipts, reports, notifications, staff routes.
+
+**Offline behaviour.** Every in-app address opens the cached shell. Overview, Destinations and the landing selector list only the destinations whose page this device has saved, with a notice; with none saved they say how saving works. Opening an unsaved destination says it is not saved on this device and links to the saved ones. Any failure while the browser reports no connection, and any 502/503/504, is shown as "No connection", never "Something went wrong". Overview hides its site-wide counts offline because they cannot be known.
+
+**Images.** No connection: no photos are requested; panels keep their icon and dark background, review media shows a "back online" note. Data Saver or 2G/3G: only the 480 px variants (`*-480.webp`, about 104 KB for all five against 509 KB), review media on request. Normal: closed panels use 480 px, the open panel picks by width. The precache excludes `images/`.
+
+**Speed.** Pages other than landing, guest entry, overview and destinations load on first visit: initial JavaScript fell from 147.6 KB to 110.8 KB gzip; the worker precaches the rest in the background.
+
+**Updates.** A new deploy waits until the reader presses Reload in the prompt, so a half-filled form is never lost; open tabs check for updates hourly. `sw.js` and the manifest are served `no-cache` (`vercel.json`).
+
+**Development.** The worker is off in `npm run dev`. Test offline with `npm run preview:offline` (build plus preview on port 4173); the preview proxies `/api` to the local backend, whose public routes send `public, max-age=60`.
+
+Evidence (6 Nov 2026), built app with its service worker in Edge, real destination data served with the backend's public headers, fake API removed before going offline:
+- Offline before opening any destination: Destinations says "No destinations saved on this device"; opening Bandarban says it is not saved and links to saved destinations.
+- Bandarban opened online, then Overview, then offline: Destinations and Overview show only Bandarban with the offline notice, three rounds in a row; after 70 seconds offline (past the 60-second browser cache) and in a new tab, Bandarban still lists and opens; Cox's Bazar, never opened, says it is not saved.
+- A destination response sent with `no-store` was not cached and showed "No connection" offline.
+- No session, account, receipt, notification, report or guest URL in any cache.
+- Data Saver: only `*-480.webp` requested; normal: the open panel full size, closed panels 480 px.
+- `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean.
+
+**Open items.** Handoffs for other people: `Handoff-Backend.md` (B5, B6, DEP1, R14, R16) and `Handoff-Testing.md` (R12 test checklist).
+1. **Installability: resolved, no defect.** Chrome's check reported "no-acceptable-icon" only on plain-HTTP `localhost` under automation. A minimal test app with a plain solid icon failed the same way there, and over HTTPS both that app and the built Abhijatri app pass with no installability errors and the icon fetched (local HTTPS server, Chrome, 6 Nov 2026). Real users are on HTTPS. To check installability locally, serve `dist/` over HTTPS, not `vite preview`.
+2. **Live API sends `no-store`: see section 6, B5.** Until it is fixed, live destination pages are not saved for offline.
+3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display, draft export and the review-snapshot age label belong to R13 and R15.
+4. The real-phone airplane-mode acceptance test (Gantt R12) needs the HTTPS deployment.
+5. **Not deployed: see section 6, DEP1.** The live site still runs `main` from 1 Nov 2026.
+
+## 5j. Persistence, load-weight and state audit in Chrome (6 November 2026)
+
+Method: the production build with its service worker in Chrome (Claude in Chrome), through a test-only relay to the live API that restores the `public, max-age=60` header `main` sends (B5 simulated as fixed). A server outage was simulated by stopping the relay (browser still online), and a network loss by stopping the web server (requests fail at the network level).
+
+| # | Finding | Fix | Where |
+|---|---|---|---|
+| A1 | During a server outage (5xx), a saved destination page said "not saved on this device": the worker passed the 502 through instead of the saved copy. | 5xx counts as a failed fetch, so the saved copy is served. | `sw.ts` (`serverErrorIsFailure`) |
+| A2 | With the browser online but the server unreachable, lists showed all destinations (the list itself was cached), including ones that cannot be opened. | The list is no longer cached by the worker (old entries are deleted on activation) and is requested with `cache: 'no-cache'` (a 304 when unchanged), so offline lists come only from saved pages. | `sw.ts`, `api/destinations.ts` |
+| A3 | Outage wording said "You are offline" / "No internet" while the device was online. | "The server cannot be reached" when the browser is online; "You are offline" only when it is not. | `StatusViews.tsx` (`OfflineSavedNotice`, `ErrorState`) |
+| A4 | Latin digits in Bangla text: "1টি" in the saved notice, "5 তারকা" in the rating filter and star labels. | `formatNumber(n, 'bn')`. | `StatusViews.tsx`, `ReviewFeedSection.tsx`, `GuestReviewForm.tsx`, `CategoryRatings.tsx`, `ReviewEditForm.tsx` |
+| A5 | When the session check failed, a signed-in member was shown as a guest, account pages asked them to sign in, and the sidebar offered "Sign in". | Session status `unreachable` (offline, timeout, 502/503/504): account pages show "Account pages need a connection" with retry, the sidebar says the sign-in cannot be checked, and the session is re-checked on reconnect and every 30 s. Session data is still never stored offline (PF 18.1). | `SessionContext.tsx`, `StatusViews.tsx` (`AccountNeedsConnection`), 7 account pages, `Sidebar.tsx` |
+| A6 | The review form opened offline with no warning; anything typed could not be sent and was lost on reload. | Offline the page says sending a review needs a connection. Offline drafts remain R15. | `ReviewsPage.tsx` |
+| A7 | Fonts: about 330 KB on first load (Hind Siliguri in 4 weights, about 70 KB each, plus Inter), against the PF 19.3 Bangla font budget. | Hind Siliguri 400 and 700 only (500 renders as 400, 600 as 700 by CSS font matching): about 187 KB. Still above the 40 KiB single-weight budget; a self-hosted subset is the remaining step. | `index.html` |
+| A8 | The animated background runs at 30 frames per second on every page, also on low-end phones. | One still frame when device memory is under 4 GB, 4 or fewer CPU cores, or Data Saver is on. | `layout/AppBackground.tsx`, `ui/velaris.tsx` (`animate`) |
+| A9 | After an invalid receipt check, focus stayed on the page. | Focus moves to the first wrong field. | `ReceiptStatusPanel.tsx` |
+
+**Checked and fine.** Saved destination pages survived an app update and a new tab; `localStorage` holds only language, theme, the guest name with its date and the guest scope secret (as Guest-Identity-and-Visits specifies); no session, account, receipt, notification or report data in any cache; quota about 10 GB, about 1.7 MB used. Initial JavaScript 111 KB gzip, the review form's code (47 KB) loads only on its page; the open landing panel loads full size and the closed ones 480 px. Online states: no-results search, member empty "My reviews", receipt format validation, overview tiles.
+
+**Noted, not changed.** `navigator.storage.persisted()` is `false` (the browser decides; the status display is R13). The top bar asks `/health` and `/notifications` on each full page load. Cookies named `sb-…-auth-token` on `localhost` come from another local project (cookies are shared across localhost ports); this app has no Supabase client code.
+
+Evidence: `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean (JS 111 KB gzip, precache 40 files, 608 KiB). Each fix above was re-checked in Chrome on the rebuilt app after activating the new worker.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
@@ -208,6 +357,9 @@ Open: U2 (self-hosted fonts, waits for decision Q2), U15 (review labels from `GE
 | B2 | `tests/test_config.py::test_unset_environment_fails_closed` fails unless `DATABASE_URL` is set in the shell. | Backend (Muhtasim) | The test does not clear `DATABASE_URL`, and production now requires an explicit one. CI passes only because CI sets the variable. |
 | B4 | The Railway deployment (`https://abhijatri-backend.up.railway.app`) runs backend code from before the `backend-dev` merge. | Railway owner (Muhtasim or Shahriar) | Checked 19 Oct 2026: `/health` and `/health/ready` return `200` and CORS allows `http://localhost:5173`, but `GET /destinations` is `404`, `POST /review-receipts/exchange` (removed) still exists, `POST /review-receipts/status` is `404`, errors use the old `{"detail": ...}` shape, and `GET /destinations/{id}/reviews` returns `500` for every valid id. Redeploy from current code. If it shares the Supabase database migrated to `0005` on 19 Oct, its old receipt routes will also fail (`0004` renamed `review_receipts.token_hash` to `digest`). The current frontend cannot use this deployment until then. |
 | B3 | The local `backend/.env` lists `https://abhijatri-backend.up.railway.app/` as an allowed CORS origin. | Whoever owns that `.env` | That is the API's own address, not a browser origin. The architecture also names Render, not Railway; the deployment target needs one answer. |
+| B5 | **Open (6 Nov 2026).** The live API answers the public destination routes with `Cache-Control: no-store`, so the R12 service worker refuses to save them and offline destination pages do not work on the live site. | Railway owner (Muhtasim or Shahriar) | Checked 6 Nov 2026: `GET /api/v1/destinations`, `/destinations/{id}` and `/destinations/{id}/reviews` on `https://abhijatri-backend.up.railway.app` (and through `https://abhijatri.vercel.app/api`) all return `Cache-Control: no-store`. The code on `main` and `abd` sends `public, max-age=60` for exactly these three routes (`app/destination_api.py` `public_cache_headers`, applied in `app/api.py`; `app/main.py` adds `no-store` only with `setdefault`, so it never overrides a route's own header). Verified locally with FastAPI's `TestClient`: all three return `public, max-age=60` and no `Set-Cookie`. So Railway is running older code or something in front of it rewrites the header. **Fix:** redeploy Railway from current `main`; check `PUBLIC_CACHE_MAX_AGE_SECONDS` is unset or a positive number in Railway's variables (0 gives `max-age=0`, which also defeats offline). **Done when** `curl -sI https://abhijatri-backend.up.railway.app/api/v1/destinations \| grep -i cache-control` prints `public, max-age=60`. Do **not** make the service worker ignore `no-store`: Security.md 7.4 requires honouring it. |
+| DEP1 | **Open (6 Nov 2026).** The live site does not have any `abd` work: R12 (offline, install), shadcn/ui and the new theme, the review split, the destination selector. | Abdullah (pull request `abd` to `main`); whoever reviews and merges (Shahriar deploys Vercel) | Vercel builds `main`, last changed 1 Nov 2026 (PR #34). On `https://abhijatri.vercel.app`, `/sw.js`, `/manifest.webmanifest` and `/icons/icon-192.png` return the web page (`text/html`) instead of the files, because they do not exist in that build and the SPA rewrite answers. **Fix:** open and merge a pull request from `abd` to `main`; Vercel redeploys. No Vercel setting changes are needed: `frontend/vercel.json` already serves `sw.js` and the manifest with `no-cache`. **Done when** `curl -sI https://abhijatri.vercel.app/sw.js` shows `content-type: application/javascript` (or `text/javascript`) and `/manifest.webmanifest` shows `application/manifest+json`. Then, with B5 fixed, run the R12 acceptance on a real phone: open a destination online, switch on airplane mode, reopen it. |
+| B6 | **Open (6 Nov 2026).** The shared Supabase database refuses connections: `FATAL: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15`. The local backend then answers 503 to everything. | Backend (Muhtasim); whoever manages the Supabase project | `DATABASE_URL` uses the session-mode pooler (`aws-0-ap-southeast-1.pooler.supabase.com:5432`), capped at 15 clients for everyone together. Each backend process may hold `DB_POOL_SIZE` 5 + `DB_MAX_OVERFLOW` 2 = 7 (`app/config.py`), so Railway plus two local backends already exceed the cap. **Options:** (a) local `.env`: `DB_POOL_SIZE=2`, `DB_MAX_OVERFLOW=0`; (b) use the transaction-mode pooler (port 6543), which needs psycopg prepared statements off (`prepare_threshold=None` in the engine's `connect_args`) and a test pass; (c) give local development its own database (the test database on `127.0.0.1:54322` already exists). **Done when** two local backends and Railway run together without the error. |
 
 ## 7. Verification evidence (19 October 2026)
 
