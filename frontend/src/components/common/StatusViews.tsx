@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, Clock, Inbox, Loader2, LogIn, RefreshCw, SearchX, ShieldX, WifiOff, type LucideIcon } from 'lucide-react';
+import { AlertCircle, Clock, CloudOff, Inbox, Loader2, LogIn, RefreshCw, SearchX, ShieldX, WifiOff, type LucideIcon } from 'lucide-react';
 import { ApiError, NETWORK_ERROR, TIMEOUT_ERROR } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSlowFlag } from '../../hooks/useNetworkState';
@@ -14,7 +14,11 @@ export type FailureKind = 'offline' | 'timeout' | 'signin' | 'forbidden' | 'othe
 const FORBIDDEN_CODES = new Set(['FORBIDDEN', 'ACCOUNT_RESTRICTED', 'ACCOUNT_DISABLED', 'EMAIL_NOT_VERIFIED']);
 
 export function failureKind(error: unknown): FailureKind {
+  // With no connection every failure is "offline", whatever the error says (a dev proxy, for one,
+  // answers 502 instead of failing). 502/503/504 mean the server could not be reached.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
   if (!(error instanceof ApiError)) return 'other';
+  if (error.status === 502 || error.status === 503 || error.status === 504) return 'offline';
   if (error.code === NETWORK_ERROR) return 'offline';
   if (error.code === TIMEOUT_ERROR) return 'timeout';
   if (error.code === 'AUTH_REQUIRED') return 'signin';
@@ -82,7 +86,13 @@ const KIND_LOOK: Record<FailureKind, { icon: LucideIcon; title: [string, string]
   other: { icon: AlertCircle, title: ['কিছু একটা ভুল হয়েছে', 'Something went wrong'] },
 };
 
-export const ErrorState: React.FC<{ error: unknown; onRetry?: () => void }> = ({ error, onRetry }) => {
+export const ErrorState: React.FC<{
+  error: unknown;
+  onRetry?: () => void;
+  /** Replaces the message when the failure is a lost connection, e.g. "this page is not saved". */
+  offlineHint?: string;
+  offlineAction?: React.ReactNode;
+}> = ({ error, onRetry, offlineHint, offlineAction }) => {
   const { t } = useLanguage();
   const kind = failureKind(error);
   const { icon: Icon, title } = KIND_LOOK[kind];
@@ -96,7 +106,10 @@ export const ErrorState: React.FC<{ error: unknown; onRetry?: () => void }> = ({
         aria-hidden="true"
       />
       <p className="text-base font-bold font-title text-on-surface dark:text-on-dark">{t(...title)}</p>
-      <p className="text-sm font-body text-on-surface dark:text-on-dark max-w-md">{describeError(error, t)}</p>
+      <p className="text-sm font-body text-on-surface dark:text-on-dark max-w-md">
+        {kind === 'offline' && offlineHint ? offlineHint : describeError(error, t)}
+      </p>
+      {kind === 'offline' && offlineAction}
       {error instanceof ApiError && error.requestId && (
         <p className="text-[11px] font-en text-on-surface-variant dark:text-on-dark-muted">
           {t('রেফারেন্স', 'Reference')}: {error.requestId}
@@ -131,6 +144,44 @@ export const EmptyState: React.FC<{ title: string; hint?: string; action?: React
       <p className="text-base font-bold font-title text-on-surface dark:text-on-dark">{title}</p>
       {hint && <p className="text-xs font-body text-on-surface-variant dark:text-on-dark-muted max-w-md">{hint}</p>}
       {action}
+    </div>
+  );
+};
+
+/** Shown above lists that, offline, contain only what this device has saved (Frontend-Implemented 5i). */
+export const OfflineSavedNotice: React.FC<{ count: number }> = ({ count }) => {
+  const { t } = useLanguage();
+  return (
+    <p
+      role="status"
+      className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+    >
+      <CloudOff size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
+      <span>
+        {t(
+          `আপনি অফলাইনে আছেন। এই ডিভাইসে সংরক্ষিত ${count}টি গন্তব্য দেখানো হচ্ছে; সংযোগ ফিরলে সব দেখা যাবে।`,
+          `You are offline. Showing the ${count} destination(s) saved on this device; the full list returns when you are back online.`,
+        )}
+      </span>
+    </p>
+  );
+};
+
+/** Offline with nothing saved yet: says how saving works instead of a generic error. */
+export const OfflineEmptyState: React.FC = () => {
+  const { t } = useLanguage();
+  return (
+    <div role="status" className="tonal-card p-10 flex flex-col items-center gap-3 text-center">
+      <CloudOff size={28} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
+      <p className="text-base font-bold font-title text-on-surface dark:text-on-dark">
+        {t('এই ডিভাইসে কোনো গন্তব্য সংরক্ষিত নেই', 'No destinations saved on this device')}
+      </p>
+      <p className="text-xs font-body text-on-surface-variant dark:text-on-dark-muted max-w-md">
+        {t(
+          'অনলাইনে থাকার সময় যে গন্তব্য খুলবেন, তা ৭ দিন পর্যন্ত অফলাইনে দেখা যাবে।',
+          'Destinations you open while online stay readable offline for up to 7 days.',
+        )}
+      </p>
     </div>
   );
 };

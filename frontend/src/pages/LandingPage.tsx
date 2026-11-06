@@ -20,8 +20,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
-import { listAllDestinations } from '../api/destinations';
-import { useApiResource } from '../hooks/useApiResource';
+import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
 import { ErrorState } from '../components/common/StatusViews';
 import { pick } from '../utils/format';
 import { InteractiveSelector, type SelectorOption } from '../components/ui/interactive-selector';
@@ -83,10 +82,9 @@ export const LandingPage: React.FC = () => {
   const { language, t } = useLanguage();
   const { session } = useSession();
   // Optional teaser: the page is fully usable even if this request fails.
-  const { data: destinations, loading: destinationsLoading, error: destinationsError, reload: reloadDestinations } = useApiResource(
-    (signal) => listAllDestinations(signal),
-    [],
-  );
+  // Offline, the selector shows only destinations saved on this device (Frontend-Implemented 5i).
+  const { data: catalog, loading: destinationsLoading, error: destinationsError, reload: reloadDestinations } = useDestinationCatalog();
+  const destinations = catalog?.items ?? null;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col gap-12">

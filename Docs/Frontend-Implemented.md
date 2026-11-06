@@ -289,6 +289,43 @@ Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) tha
 
 Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build clean (145 KB JS gzip). Browser at 1280 px and 390 px (mobile menu): group starts closed with no sub-links; one click shows both; "Check with receipt" opens `/reviews/receipt` and the group stays open there; `/reviews?destination=<id>` lands on `/reviews/write?destination=<id>` with that destination selected; no page errors.
 
+## 5i. R12: installable PWA shell and offline destination pages (6 November 2026)
+
+| Item | Location |
+|---|---|
+| Service worker (Workbox, injectManifest): app shell precache, public destination API cache, font cache | `frontend/src/sw.ts`, `vite.config.ts` (`VitePWA`), `tsconfig.sw.json` |
+| Web app manifest and icons (192, 512, maskable 512, Apple 180) | `vite.config.ts` (`manifest`), `frontend/public/icons/` |
+| Registration, "new version" prompt, first-install note, persistent-storage request | `components/common/UpdatePrompt.tsx`, `offline/savedDestinations.ts` |
+| Saved-destination list read straight from the cache | `offline/savedDestinations.ts`, `offline/cacheNames.ts`, `hooks/useDestinationCatalog.ts` |
+| Image policy (offline / low-data / full) | `hooks/useNetworkState.ts` (`useImagePolicy`), `ui/interactive-selector.tsx`, `reviews/ReviewMediaGallery.tsx` |
+| Route code splitting | `App.tsx` (`lazy`), `Suspense` in `AppLayout.tsx` and `PublicLayout.tsx` |
+
+**What is cached (Platform Foundation 18.1, Security.md 7.4).** Precache: the built JavaScript, CSS, `index.html`, manifest and icons (40 files, 605 KiB, under the 1 MiB shell budget). Runtime, network first with a 4-second timeout: `GET /api/v1/destinations`, `/destinations/{id}` and `/destinations/{id}/reviews` only, status 200 only, refusing any response with `no-store` or `private`, never a request with an `Authorization` header, entries expire after 7 days (PF 18.4 default). Google Fonts stylesheet and files (CORS responses only). Never cached: photos, review media, session, account, receipts, reports, notifications, staff routes.
+
+**Offline behaviour.** Every in-app address opens the cached shell. Overview, Destinations and the landing selector list only the destinations whose page this device has saved, with a notice; with none saved they say how saving works. Opening an unsaved destination says it is not saved on this device and links to the saved ones. Any failure while the browser reports no connection, and any 502/503/504, is shown as "No connection", never "Something went wrong". Overview hides its site-wide counts offline because they cannot be known.
+
+**Images.** No connection: no photos are requested; panels keep their icon and dark background, review media shows a "back online" note. Data Saver or 2G/3G: only the 480 px variants (`*-480.webp`, about 104 KB for all five against 509 KB), review media on request. Normal: closed panels use 480 px, the open panel picks by width. The precache excludes `images/`.
+
+**Speed.** Pages other than landing, guest entry, overview and destinations load on first visit: initial JavaScript fell from 147.6 KB to 110.8 KB gzip; the worker precaches the rest in the background.
+
+**Updates.** A new deploy waits until the reader presses Reload in the prompt, so a half-filled form is never lost; open tabs check for updates hourly. `sw.js` and the manifest are served `no-cache` (`vercel.json`).
+
+**Development.** The worker is off in `npm run dev`. Test offline with `npm run preview:offline` (build plus preview on port 4173); the preview proxies `/api` to the local backend, whose public routes send `public, max-age=60`.
+
+Evidence (6 Nov 2026), built app with its service worker in Edge, real destination data served with the backend's public headers, fake API removed before going offline:
+- Offline before opening any destination: Destinations says "No destinations saved on this device"; opening Bandarban says it is not saved and links to saved destinations.
+- Bandarban opened online, then Overview, then offline: Destinations and Overview show only Bandarban with the offline notice, three rounds in a row; after 70 seconds offline (past the 60-second browser cache) and in a new tab, Bandarban still lists and opens; Cox's Bazar, never opened, says it is not saved.
+- A destination response sent with `no-store` was not cached and showed "No connection" offline.
+- No session, account, receipt, notification, report or guest URL in any cache.
+- Data Saver: only `*-480.webp` requested; normal: the open panel full size, closed panels 480 px.
+- `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean.
+
+**Open items.**
+1. Chrome reports the app not installable ("no-acceptable-icon") although the manifest parses, the icons are valid 192/512 PNGs served as `image/png`, and Chrome requests the 192 px icon. A known-good PWA passes the same check, so the cause is on our side; not found yet.
+2. The live Railway backend answers the public destination routes with `Cache-Control: no-store`, although `main` sends `public, max-age=60` (verified locally). The worker honours `no-store`, so live destination pages are not saved for offline until the deployment is fixed (backend owner).
+3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display, draft export and the review-snapshot age label belong to R13 and R15.
+4. The real-phone airplane-mode acceptance test (Gantt R12) needs the HTTPS deployment.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

@@ -2,17 +2,17 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, MapPin, MessageSquarePlus, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { listAllDestinations } from '../api/destinations';
-import { useApiResource } from '../hooks/useApiResource';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
+import { EmptyState, ErrorState, LoadingState, OfflineEmptyState, OfflineSavedNotice } from '../components/common/StatusViews';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { formatNumber, pick } from '../utils/format';
 
 export const OverviewPage: React.FC = () => {
   const { language, t } = useLanguage();
-  const { data, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
-
-  const destinations = data ?? [];
+  const { data: catalog, error, loading, reload } = useDestinationCatalog();
+  // Offline the list holds only saved destinations, so site-wide counts are not shown.
+  const savedOnly = catalog?.saved ?? false;
+  const destinations = catalog?.items ?? [];
   const advisoryTotal = destinations.reduce((sum, d) => sum + d.active_advisory_count, 0);
   const guestReviewTotal = destinations.reduce((sum, d) => sum + d.guest_feedback.count, 0);
   const withAdvisories = destinations.filter((d) => d.active_advisory_count > 0);
@@ -52,7 +52,8 @@ export const OverviewPage: React.FC = () => {
       {loading && <LoadingState />}
       {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}
 
-      {!loading && !error && destinations.length === 0 && (
+      {!loading && !error && savedOnly && (destinations.length === 0 ? <OfflineEmptyState /> : <OfflineSavedNotice count={destinations.length} />)}
+      {!loading && !error && !savedOnly && destinations.length === 0 && (
         <EmptyState
           title={t('এখনো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations yet')}
           hint={t('গাইড প্রকাশিত হলে এখানে সংখ্যা ও সতর্কতা দেখা যাবে।', 'Counts and advisories appear here once guides are published.')}
@@ -60,6 +61,7 @@ export const OverviewPage: React.FC = () => {
       )}
       {!loading && !error && destinations.length > 0 && (
         <>
+          {!savedOnly && (
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {metrics.map(({ icon: Icon, value, label }) => (
               <li key={label} className="tonal-card p-5 flex items-center gap-4">
@@ -73,6 +75,7 @@ export const OverviewPage: React.FC = () => {
               </li>
             ))}
           </ul>
+          )}
 
           {withAdvisories.length > 0 && (
             <section aria-labelledby="safety-heading" className="tonal-card p-6 flex flex-col gap-3 border-amber-200 dark:border-amber-900/50">

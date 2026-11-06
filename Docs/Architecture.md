@@ -201,7 +201,7 @@ Browser (Vite + React 18 + TypeScript)
   ├── Context Layer: LanguageContext (Bangla default / English), ThemeContext (Sage / Neon), SessionContext (guest until R04; interface only, never authorization)
   ├── Route Layer: React Router v6. Public shell: / (landing), /login. App shell: /overview, /destinations, /destinations/:id, /planner, /offline-packs, /trips, /reviews, /health
   ├── Styling: Tailwind CSS + global.css (Design tokens: Hind Siliguri, Noto Serif Bengali, Inter -0.06em)
-  ├── Cache Layer: planned (R12 service worker, R13/R15 IndexedDB packs and drafts); not built yet
+  ├── Cache Layer: R12 service worker built (src/sw.ts: shell precache, public destination API network-first, 7-day limit, honours no-store); R13/R15 IndexedDB packs and drafts not built yet
   └── API Client: src/api/* calling /api/v1 on VITE_API_BASE_URL (Vite also proxies /api in dev)
 ```
 

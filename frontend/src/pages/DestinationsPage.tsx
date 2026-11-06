@@ -2,16 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, MapPin, Search } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { listAllDestinations } from '../api/destinations';
-import { useApiResource } from '../hooks/useApiResource';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
+import { EmptyState, ErrorState, LoadingState, OfflineEmptyState, OfflineSavedNotice } from '../components/common/StatusViews';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { formatNumber, pick } from '../utils/format';
 
 export const DestinationsPage: React.FC = () => {
   const { language, t } = useLanguage();
   const [query, setQuery] = useState('');
-  const { data, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
+  const { data: catalog, error, loading, reload } = useDestinationCatalog();
+  const data = catalog?.items ?? null;
+  const savedOnly = catalog?.saved ?? false;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -51,7 +52,9 @@ export const DestinationsPage: React.FC = () => {
 
       {loading && <LoadingState label={t('গন্তব্যের তালিকা লোড হচ্ছে…', 'Loading destinations…')} />}
       {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}
-      {!loading && !error && data && data.length === 0 && (
+      {!loading && !error && savedOnly && data && data.length === 0 && <OfflineEmptyState />}
+      {!loading && !error && savedOnly && data && data.length > 0 && <OfflineSavedNotice count={data.length} />}
+      {!loading && !error && !savedOnly && data && data.length === 0 && (
         <EmptyState
           title={t('এখনো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations yet')}
           hint={t('কনটেন্ট প্রকাশিত হলে এখানে দেখা যাবে।', 'Destinations appear here once their content is published.')}

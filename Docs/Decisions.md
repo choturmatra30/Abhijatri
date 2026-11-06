@@ -2,6 +2,17 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-06 (R12 offline shell)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Service worker | `vite-plugin-pwa` with a hand-written Workbox worker (`injectManifest`, `src/sw.ts`), not the generated one. | Security.md 7.4 needs rules the generated worker cannot express plainly: refuse `no-store`/`private`, skip `Authorization` requests, path allowlist. |
+| What R12 saves | A destination is saved for offline when its page is opened online (network first, 4-second timeout), for at most 7 days (PF 18.4 default). Deliberate download, delete and freshness labels are R13. | Meets the R12 acceptance ("selected page reopens in airplane mode") without inventing pack features ahead of R14. |
+| Offline lists | Offline, lists show only destinations saved on this device; global counts are hidden. | Requested by the frontend owner: nothing shown offline that cannot be opened. |
+| Images offline | Photos and review media are never cached and never requested offline; 480 px variants on Data Saver or 2G/3G; user media on request there. | PF 18.1 (packs are text), PF 19.3 (no eager full-resolution media, 1 MiB shell). |
+| Updates | Prompt, never silent: a new version activates when the reader presses Reload. | Avoids losing a form being filled in. |
+| Dev | Worker disabled in `npm run dev`; `npm run preview:offline` for offline testing. | Keeps development fast and avoids stale-cache confusion. |
+
 ## 2026-11-04 (shadcn/ui, Tailwind 4 and a new theme)
 
 | Decision | Rule | Reason |

@@ -16,12 +16,12 @@ import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategi
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import type { WorkboxPlugin } from 'workbox-core/types';
+import { CACHE_VERSION, PUBLIC_API_CACHE } from './offline/cacheNames';
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Bump when the caching rules change; old caches are removed once this worker activates.
-const VERSION = 'v1';
-const PUBLIC_API_CACHE = `abj-public-api-${VERSION}`;
+// Bump CACHE_VERSION (offline/cacheNames.ts) when the caching rules change; old caches are removed on activation.
+const VERSION = CACHE_VERSION;
 const SEVEN_DAYS = 7 * 24 * 60 * 60;
 
 // 1. App shell. The precache list is generated per build, so each deploy gets a fresh, versioned cache.

@@ -3,6 +3,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { CloudOff, RefreshCw, X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { buttonVariants } from '@/components/ui/button';
+import { requestPersistentStorage } from '../../offline/savedDestinations';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -23,6 +24,8 @@ export const UpdatePrompt: React.FC = () => {
     onRegisteredSW(_url, registration) {
       // Long-open tabs still learn about new deploys.
       if (registration) window.setInterval(() => void registration.update(), HOUR);
+      // Saved destinations should survive storage pressure; a refusal is fine (PF 18.2).
+      void requestPersistentStorage();
     },
   });
 
