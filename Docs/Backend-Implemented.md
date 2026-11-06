@@ -286,6 +286,10 @@ Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` secti
 
 ---
 
+### 2.6 Open deployment defect found by the frontend (6 November 2026)
+
+The live Railway API sends `Cache-Control: no-store` on `GET /destinations`, `/destinations/{id}` and `/destinations/{id}/reviews`, while this code sends `public, max-age=60` (section 1.11 evidence; `PUBLIC_CACHE_MAX_AGE_SECONDS`). The R12 service worker honours `no-store`, so offline destination pages cannot work on the live site until Railway runs current `main`. Details, fix and the one-line check: `Frontend-Implemented.md` section 6, B5.
+
 ## 3. Not implemented in the backend
 
 | Area | Contract reference | Planned work |
