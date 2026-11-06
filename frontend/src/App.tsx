@@ -1,33 +1,49 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SessionProvider } from './context/SessionContext';
 import { AppBackground } from './components/layout/AppBackground';
+import { UpdatePrompt } from './components/common/UpdatePrompt';
 import { AppLayout } from './components/layout/AppLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { LandingPage } from './pages/LandingPage';
-import { SignInPage } from './pages/SignInPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { VerifyEmailPage } from './pages/VerifyEmailPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { VerificationPage } from './pages/VerificationPage';
-import { AppealsPage } from './pages/AppealsPage';
-import { MyReportsPage } from './pages/MyReportsPage';
-import { MyReviewsPage } from './pages/MyReviewsPage';
-import { ReviewDetailPage } from './pages/ReviewDetailPage';
-import { ReviewEditPage } from './pages/ReviewEditPage';
-import { NotificationsPage } from './pages/NotificationsPage';
 import { GuestEntryPage } from './pages/GuestEntryPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DestinationsPage } from './pages/DestinationsPage';
 import { DestinationDetailPage } from './pages/DestinationDetailPage';
-import { PlannerPage } from './pages/PlannerPage';
-import { OfflinePacksPage } from './pages/OfflinePacksPage';
-import { SavedTripsPage } from './pages/SavedTripsPage';
-import { ReviewReceiptPage, ReviewsRedirect, WriteReviewPage } from './pages/ReviewsPage';
-import { HealthCheckPage } from './pages/HealthCheckPage';
+
+/*
+ * Code splitting (Frontend-Implemented 5i): the landing, guest entry, overview and destination pages
+ * are in the first download; every other page loads when first opened. The service worker precaches
+ * all of them in the background, so later visits and offline use do not wait.
+ */
+const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
+const SignInPage = page(() => import('./pages/SignInPage'), 'SignInPage');
+const RegisterPage = page(() => import('./pages/RegisterPage'), 'RegisterPage');
+const VerifyEmailPage = page(() => import('./pages/VerifyEmailPage'), 'VerifyEmailPage');
+const ForgotPasswordPage = page(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
+const VerificationPage = page(() => import('./pages/VerificationPage'), 'VerificationPage');
+const AppealsPage = page(() => import('./pages/AppealsPage'), 'AppealsPage');
+const MyReportsPage = page(() => import('./pages/MyReportsPage'), 'MyReportsPage');
+const MyReviewsPage = page(() => import('./pages/MyReviewsPage'), 'MyReviewsPage');
+const ReviewDetailPage = page(() => import('./pages/ReviewDetailPage'), 'ReviewDetailPage');
+const ReviewEditPage = page(() => import('./pages/ReviewEditPage'), 'ReviewEditPage');
+const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage');
+const PlannerPage = page(() => import('./pages/PlannerPage'), 'PlannerPage');
+const OfflinePacksPage = page(() => import('./pages/OfflinePacksPage'), 'OfflinePacksPage');
+const SavedTripsPage = page(() => import('./pages/SavedTripsPage'), 'SavedTripsPage');
+const HealthCheckPage = page(() => import('./pages/HealthCheckPage'), 'HealthCheckPage');
+const WriteReviewPage = page(() => import('./pages/ReviewsPage'), 'WriteReviewPage');
+const ReviewReceiptPage = page(() => import('./pages/ReviewsPage'), 'ReviewReceiptPage');
+
+/** Old `/reviews` links (including `?destination=`) open the writing page. */
+const ReviewsRedirect: React.FC = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/reviews/write${search}`} replace />;
+};
 
 export const App: React.FC = () => {
   return (
@@ -35,6 +51,7 @@ export const App: React.FC = () => {
       <LanguageProvider>
         <SessionProvider>
           <AppBackground />
+          <UpdatePrompt />
           <BrowserRouter>
             <Routes>
               {/* Public entry: choose guest or sign in. It is an entry point, never a gate:

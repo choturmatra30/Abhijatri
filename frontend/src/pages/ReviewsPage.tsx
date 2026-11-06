@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, MessageSquareText, ReceiptText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { listAllDestinations } from '../api/destinations';
@@ -97,9 +97,3 @@ export const ReviewReceiptPage: React.FC = () => (
     <SwitchLink to={REVIEW_WRITE_PATH} text={['নতুন রিভিউ লিখুন', 'Write a new review']} />
   </div>
 );
-
-/** Old `/reviews` links (including `?destination=`) open the writing page. */
-export const ReviewsRedirect: React.FC = () => {
-  const { search } = useLocation();
-  return <Navigate to={`${REVIEW_WRITE_PATH}${search}`} replace />;
-};

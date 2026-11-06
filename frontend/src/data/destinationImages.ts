@@ -2,7 +2,7 @@
  * Licensed destination photographs (Platform Foundation 17; Decisions 2026-11-04).
  *
  * Each image is a Wikimedia Commons photograph under a Creative Commons licence, resized to 1024 px
- * and re-encoded as WebP (which also removes EXIF and GPS metadata), and self-hosted under
+ * (plus a 480 px variant) and re-encoded as WebP (which also removes EXIF and GPS metadata), and self-hosted under
  * /images/destinations so the site never hotlinks. CC BY-SA requires the author, the licence with a
  * link, the source and a note of the change; `ImageCredit` renders all four, and
  * Docs/Image-Credits.md lists them. Never add an image here without its licence record.
@@ -12,6 +12,8 @@
 
 export interface DestinationImage {
   src: string;
+  /** 480 px variant (about a fifth of the bytes) for closed panels and low-data connections. */
+  srcSmall: string;
   width: number;
   height: number;
   alt: { bn: string; en: string };
@@ -26,6 +28,7 @@ export interface DestinationImage {
 const IMAGES: Record<string, DestinationImage> = {
   "Cox's Bazar": {
     src: '/images/destinations/coxs-bazar.webp',
+    srcSmall: '/images/destinations/coxs-bazar-480.webp',
     width: 1024,
     height: 682,
     alt: {
@@ -41,6 +44,7 @@ const IMAGES: Record<string, DestinationImage> = {
   },
   'Sajek Valley': {
     src: '/images/destinations/sajek-valley.webp',
+    srcSmall: '/images/destinations/sajek-valley-480.webp',
     width: 1024,
     height: 683,
     alt: {
@@ -56,6 +60,7 @@ const IMAGES: Record<string, DestinationImage> = {
   },
   Sylhet: {
     src: '/images/destinations/sylhet.webp',
+    srcSmall: '/images/destinations/sylhet-480.webp',
     width: 1024,
     height: 682,
     alt: {
@@ -71,6 +76,7 @@ const IMAGES: Record<string, DestinationImage> = {
   },
   Sundarbans: {
     src: '/images/destinations/sundarbans.webp',
+    srcSmall: '/images/destinations/sundarbans-480.webp',
     width: 1024,
     height: 682,
     alt: {
@@ -86,6 +92,7 @@ const IMAGES: Record<string, DestinationImage> = {
   },
   Bandarban: {
     src: '/images/destinations/bandarban.webp',
+    srcSmall: '/images/destinations/bandarban-480.webp',
     width: 1024,
     height: 576,
     alt: {

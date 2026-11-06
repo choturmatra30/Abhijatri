@@ -1,5 +1,6 @@
-import React from 'react';
-import { PlayCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { ImageOff, Images, PlayCircle } from 'lucide-react';
+import { useImagePolicy } from '../../hooks/useNetworkState';
 import { useLanguage } from '../../context/LanguageContext';
 import type { PublicMedia } from '../../types';
 
@@ -12,12 +13,38 @@ function duration(ms: number | null): string | null {
 /**
  * Approved photos and video of a published review (Review.md 7.4 and 8). Photos load lazily; the
  * video never autoplays and downloads nothing until the reader presses play.
+ * Offline, media is replaced by a note: the links are short-lived signed URLs and the service worker
+ * never caches user media (PF 18.1). With Data Saver or a 2G/3G connection, media loads only when the
+ * reader asks for it (PF 19.3, no eager user media).
  */
 export const ReviewMediaGallery: React.FC<{ media?: PublicMedia[] }> = ({ media }) => {
   const { t } = useLanguage();
+  const policy = useImagePolicy();
+  const [requested, setRequested] = useState(false);
   if (!media || media.length === 0) return null;
   const photos = media.filter((m) => m.kind === 'image');
   const videos = media.filter((m) => m.kind === 'video');
+
+  if (policy === 'none') {
+    return (
+      <p className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant dark:text-on-dark-muted">
+        <ImageOff size={14} aria-hidden="true" />
+        {t(`${media.length}টি ছবি বা ভিডিও ইন্টারনেট সংযোগ ফিরলে দেখা যাবে`, `${media.length} photo or video item(s) will show when you are back online`)}
+      </p>
+    );
+  }
+  if (policy === 'small' && !requested) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRequested(true)}
+        className="self-start inline-flex items-center gap-1.5 min-h-11 px-3 rounded-full border border-border text-xs font-semibold text-on-surface dark:text-on-dark hover:bg-muted"
+      >
+        <Images size={14} aria-hidden="true" />
+        {t(`${media.length}টি ছবি বা ভিডিও দেখুন (ডেটা লাগবে)`, `Show ${media.length} photo or video item(s) (uses data)`)}
+      </button>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">

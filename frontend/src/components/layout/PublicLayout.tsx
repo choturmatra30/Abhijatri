@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Link, Outlet } from 'react-router-dom';
+import { LoadingState } from '../common/StatusViews';
 import { Compass } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { PreferenceToggles } from './PreferenceToggles';
@@ -26,7 +27,9 @@ export const PublicLayout: React.FC = () => {
       <NetworkBanner />
       <SessionExpiredBanner />
       <main className="flex-1 w-full">
-        <Outlet />
+        <Suspense fallback={<LoadingState />}>
+            <Outlet />
+          </Suspense>
       </main>
 
       <footer className="bg-background/80 border-t border-surface-muted/30 dark:border-dark-surface-2">

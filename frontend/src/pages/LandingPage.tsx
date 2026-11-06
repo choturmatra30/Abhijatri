@@ -129,7 +129,7 @@ export const LandingPage: React.FC = () => {
                 title: pick(language, d.name_bn, d.name_en),
                 description: pick(language, d.summary_bn, d.summary_en),
                 icon: DESTINATION_ICON[d.name_en] ?? MapPin,
-                image: image && { src: image.src, width: image.width, height: image.height, alt: image.alt[language] },
+                image: image && { src: image.src, srcSmall: image.srcSmall, width: image.width, height: image.height, alt: image.alt[language] },
                 action: (
                   <Link
                     to={`/destinations/${d.id}`}

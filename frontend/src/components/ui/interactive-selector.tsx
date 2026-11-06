@@ -1,5 +1,6 @@
 import React, { useId, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { useImagePolicy } from '../../hooks/useNetworkState';
 
 /**
  * Expanding image panels: one panel is open and shows its text, the others are slim tabs.
@@ -15,7 +16,8 @@ export interface SelectorOption {
   title: string;
   description?: string;
   icon: LucideIcon;
-  image?: { src: string; alt: string; width: number; height: number };
+  /** `srcSmall` is a ~480 px variant used for closed panels and on low-data connections. */
+  image?: { src: string; srcSmall?: string; alt: string; width: number; height: number };
   /** Language of title and description when it differs from the page (e.g. a fallback). */
   lang?: string;
   /** Shown only on the open panel, e.g. a link to the destination guide. */
@@ -34,6 +36,9 @@ interface InteractiveSelectorProps {
 
 export const InteractiveSelector: React.FC<InteractiveSelectorProps> = ({ options, label, initialIndex = 0, className = '' }) => {
   const [active, setActive] = useState(Math.min(initialIndex, Math.max(options.length - 1, 0)));
+  // Offline, or a photo that fails to load, leaves the panel's dark background and icon.
+  const imagePolicy = useImagePolicy();
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const baseId = useId();
 
@@ -79,9 +84,18 @@ export const InteractiveSelector: React.FC<InteractiveSelectorProps> = ({ option
               ${isActive ? 'flex-[7_1_0%] border-white/90 dark:border-neon-lime shadow-2xl' : 'flex-[1_1_0%] border-transparent'}`}
             style={{ animationDelay: `${index * 120}ms` }}
           >
-            {option.image && (
+            {option.image && imagePolicy !== 'none' && !failed.has(option.id) && (
               <img
-                src={option.image.src}
+                // Closed panels are slim strips: the small variant is enough. The open panel lets the
+                // browser pick by width, unless the connection is constrained.
+                src={isActive && imagePolicy === 'full' ? option.image.src : (option.image.srcSmall ?? option.image.src)}
+                srcSet={
+                  isActive && imagePolicy === 'full' && option.image.srcSmall
+                    ? `${option.image.srcSmall} 480w, ${option.image.src} ${option.image.width}w`
+                    : undefined
+                }
+                sizes={isActive && imagePolicy === 'full' ? '(min-width: 768px) 60vw, 100vw' : undefined}
+                onError={() => setFailed((prev) => new Set(prev).add(option.id))}
                 alt={isActive ? option.image.alt : ''}
                 width={option.image.width}
                 height={option.image.height}

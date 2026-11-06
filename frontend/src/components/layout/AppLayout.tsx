@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
+import { LoadingState } from '../common/StatusViews';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -24,7 +25,9 @@ export const AppLayout: React.FC = () => {
         <NetworkBanner />
         <SessionExpiredBanner />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
+          <Suspense fallback={<LoadingState />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

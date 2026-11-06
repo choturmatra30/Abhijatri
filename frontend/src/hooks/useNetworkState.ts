@@ -32,3 +32,39 @@ export function useSlowFlag(active: boolean, ms: number = SLOW_AFTER_MS): boolea
   }, [active, ms]);
   return slow;
 }
+
+/**
+ * How much image data to fetch (Platform Foundation 18.1 and 19.3; Frontend-Implemented 5i).
+ * - `none`: offline. Photos are never cached by the service worker, so nothing would load.
+ * - `small`: Data Saver is on or the connection is 2G/3G class: small variants only, user media on request.
+ * - `full`: normal connection; still sized to the slot, never eager full-resolution user media.
+ */
+export type ImagePolicy = 'none' | 'small' | 'full';
+
+interface NetworkInformationLike extends EventTarget {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+function connection(): NetworkInformationLike | undefined {
+  return typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
+}
+
+function lowData(): boolean {
+  const c = connection();
+  return Boolean(c && (c.saveData || (c.effectiveType && ['slow-2g', '2g', '3g'].includes(c.effectiveType))));
+}
+
+export function useImagePolicy(): ImagePolicy {
+  const online = useOnlineStatus();
+  const [constrained, setConstrained] = useState(lowData);
+  useEffect(() => {
+    const c = connection();
+    if (!c) return undefined;
+    const update = () => setConstrained(lowData());
+    c.addEventListener('change', update);
+    return () => c.removeEventListener('change', update);
+  }, []);
+  if (!online) return 'none';
+  return constrained ? 'small' : 'full';
+}
