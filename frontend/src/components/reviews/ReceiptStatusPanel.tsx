@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FilePenLine, Scale, Search, Undo2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useIdempotencyKeys } from '../../hooks/useIdempotencyKeys';
 import { appealRejectedReview, editGuestReview, getReceiptStatus, isReceiptFormat, withdrawGuestReview } from '../../api/reviews';
 import type { ReceiptStatus, ReviewAppealState, ReviewEditChanges } from '../../types';
 import { currentDisplayMonth, formatTimestamp } from '../../utils/format';
@@ -34,6 +35,10 @@ const BLANK: EditableValues = {
 /** Receipt-scoped status check and withdrawal (API.md 5.3, 5.4). Inputs are never persisted. */
 export const ReceiptStatusPanel: React.FC = () => {
   const { language, t } = useLanguage();
+  // One Idempotency-Key per action, reused while the same request is retried (R16).
+  const withdrawKeys = useIdempotencyKeys();
+  const editKeys = useIdempotencyKeys();
+  const appealKeys = useIdempotencyKeys();
   const [reviewId, setReviewId] = useState('');
   const [receipt, setReceipt] = useState('');
   const [status, setStatus] = useState<ReceiptStatus | null>(null);
@@ -77,7 +82,10 @@ export const ReceiptStatusPanel: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      setStatus(await withdrawGuestReview(status.review_id, receipt.trim(), status.version));
+      // A retry of the same withdrawal reuses its Idempotency-Key (R16); the receipt is not part of the request key.
+      const key = withdrawKeys.keyFor({ review: status.review_id, version: status.version });
+      setStatus(await withdrawGuestReview(status.review_id, receipt.trim(), status.version, key));
+      withdrawKeys.reset();
       setConfirmWithdraw(false);
     } catch (err: unknown) {
       setError(describeError(err, t));
@@ -88,7 +96,9 @@ export const ReceiptStatusPanel: React.FC = () => {
 
   const saveEdit = async (changes: ReviewEditChanges) => {
     if (!status) return;
-    await editGuestReview(status.review_id, receipt.trim(), status.version, changes);
+    const key = editKeys.keyFor({ review: status.review_id, version: status.version, changes });
+    await editGuestReview(status.review_id, receipt.trim(), status.version, changes, key);
+    editKeys.reset();
     setStatus(await getReceiptStatus(status.review_id, receipt.trim()));
     setEditing(false);
     setNotice(t('সংরক্ষিত হয়েছে। রিভিউটি আবার মডারেটরের অপেক্ষায়।', 'Saved. Your review is waiting for moderation again.'));
@@ -109,7 +119,9 @@ export const ReceiptStatusPanel: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      await appealRejectedReview(status.review_id, receipt.trim(), statement);
+      const key = appealKeys.keyFor({ review: status.review_id, statement: statement.trim() });
+      await appealRejectedReview(status.review_id, receipt.trim(), statement, key);
+      appealKeys.reset();
       setStatus(await getReceiptStatus(status.review_id, receipt.trim()));
       setAppealing(false);
       setStatement('');

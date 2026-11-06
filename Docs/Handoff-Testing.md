@@ -8,8 +8,8 @@
 
 | Needed | Why | Status |
 |---|---|---|
-| `abd` merged to `main` and deployed (DEP1 in `Handoff-Backend.md`) | The live site does not have offline mode yet | **Not done** |
-| Live API sends `public, max-age=60` on destination routes (B5) | Otherwise nothing is saved for offline on the live site | **Not done** |
+| `abd` merged to `main` and deployed (DEP1 in `Handoff-Backend.md`) | The live site does not have offline mode yet | **Done, 6 Nov 2026** |
+| Live API sends `public, max-age=60` on destination routes (B5) | Otherwise nothing is saved for offline on the live site | **Done, 6 Nov 2026** |
 | An Android phone with Chrome (Android 10+), and if possible an iPhone with Safari (iOS 16.4+) | PF 19.1 targets | |
 
 Until both blockers are fixed, sections A to F can be run **locally** on a computer: `cd frontend && npm run preview:offline`, then open `http://localhost:4173`. The local backend must be running with a working database (see B6). Offline mode is **off** in `npm run dev` on purpose, so do not test offline there.

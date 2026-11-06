@@ -5,6 +5,7 @@ import { useSession } from '../../context/SessionContext';
 import { ApiError } from '../../api/client';
 import { getReviewParameters } from '../../api/reviewParameters';
 import { useApiResource } from '../../hooks/useApiResource';
+import { useIdempotencyKeys } from '../../hooks/useIdempotencyKeys';
 import {
   CATEGORY_RATINGS_ENABLED,
   buildGuestReviewPayload,
@@ -90,6 +91,8 @@ export const GuestReviewForm: React.FC<{
   const [consent, setConsent] = useState(false);
   // One identity per draft: every retry reuses it so the server can recover a lost response.
   const [identity, setIdentity] = useState<DraftIdentity>(newIdentity);
+  // Idempotency-Key (R16): kept while the request is unchanged, renewed when the draft changes.
+  const submitKeys = useIdempotencyKeys();
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -184,7 +187,7 @@ export const GuestReviewForm: React.FC<{
       const mediaFailed: string[] = [];
       if (isMember) {
         const { guest_scope_secret: _scope, guest_display_name: _name, ...memberPayload } = guestPayload;
-        created = await submitMemberReview(memberPayload);
+        created = await submitMemberReview(memberPayload, submitKeys.keyFor(memberPayload));
         // The review exists now; a refused file does not undo it, it is reported on the receipt.
         if (!created.duplicate_recovered) {
           for (const [index, photo] of photos.entries()) {
@@ -200,9 +203,12 @@ export const GuestReviewForm: React.FC<{
           }
         }
       } else {
-        created = await submitGuestReview({ ...guestPayload, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) });
+        // The single-use Turnstile token is not part of the key's request, as on the server.
+        const key = submitKeys.keyFor(guestPayload);
+        created = await submitGuestReview({ ...guestPayload, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) }, key);
       }
       onSubmitted({ ...created, receipt: identity.receipt, destinationId, mediaUploaded, mediaFailed });
+      submitKeys.reset();
       setIdentity(newIdentity());
       setTitle('');
       setBody('');
@@ -223,7 +229,8 @@ export const GuestReviewForm: React.FC<{
         if (error.code === 'RESERVED_DISPLAY_NAME') {
           setFieldErrors({ guest_display_name: error.message });
         }
-        if (error.code === 'DRAFT_ALREADY_SUBMITTED') {
+        if (error.code === 'DRAFT_ALREADY_SUBMITTED' || error.code === 'IDEMPOTENCY_KEY_REUSED') {
+          submitKeys.reset();
           setIdentity(newIdentity()); // this draft identity is spent; start a fresh one
         }
       }

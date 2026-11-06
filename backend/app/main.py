@@ -163,6 +163,8 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "Idempotency-Key", "Authorization", "X-CSRF-Token"],
+        # A cross-origin client may read whether a write was replayed (R16) and how long to wait.
+        expose_headers=["Idempotent-Replayed", "Retry-After"],
         allow_credentials=True,  # cookie sessions (R04); origins stay an explicit list, never "*"
         max_age=600,
     )

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
+from app import idempotency as idem
 from app import media
 from app.admin import cases
 from app.auth.sessions import MemberPrincipal, Principal, require_csrf
@@ -130,22 +131,45 @@ def request_verification(body: VerificationBody, principal: Writer, session: DbS
 
 @router.post("/reviews/member", response_model=GuestReviewCreated, status_code=201)
 @limiter.limit("20/hour")
-def create_member_review(request: Request, response: Response, payload: MemberReviewCreate, principal: Writer, session: DbSession) -> GuestReviewCreated:
-    """A signed-in member's review. No Turnstile: the session, CSRF token and rate limit stand in for it."""
+def create_member_review(
+    request: Request,
+    response: Response,
+    payload: MemberReviewCreate,
+    principal: Writer,
+    session: DbSession,
+    idempotency_key: idem.KeyHeader = None,
+) -> GuestReviewCreated | Response:
+    """A signed-in member's review. No Turnstile: the session, CSRF token and rate limit stand in for it.
+
+    Retry safety has two layers: the same ``client_draft_id`` and receipt recover the stored review
+    (200, ``duplicate_recovered``), and an ``Idempotency-Key`` replays the first response (R16).
+    """
+    key = idem.parse_key(idempotency_key)
     cases.ensure_not_restricted(session, principal.user.id)  # a restricted or suspended member cannot post (spec 6.4)
     try:
+        claim = idem.begin(
+            session,
+            key=key,
+            scope=idem.member_scope(principal.user.id),
+            endpoint=idem.Endpoint.MEMBER_REVIEW_CREATE,
+            request_fingerprint=idem.request_fingerprint(method="POST", path={}, body=payload),
+        )
+        if isinstance(claim, idem.Replay):
+            return idem.replay_response(claim)
         result = submit_member_review(session, payload, principal.user.id)
+        created = GuestReviewCreated(
+            review_id=result.review.id, status=result.review.status, version=result.review.version, duplicate_recovered=result.duplicate_recovered
+        )
+        code = 200 if result.duplicate_recovered else 201
+        idem.finish(session, claim, code, created)
         session.commit()
     except ReviewError as error:
         session.rollback()
         raise ApiError(error.code) from error
-    if result.duplicate_recovered:
-        response.status_code = 200
-    else:
+    response.status_code = code
+    if not result.duplicate_recovered:
         events.count("reviews.submitted")
-    return GuestReviewCreated(
-        review_id=result.review.id, status=result.review.status, version=result.review.version, duplicate_recovered=result.duplicate_recovered
-    )
+    return created
 
 
 def _storage_down(error: StorageUnavailable) -> ApiError:

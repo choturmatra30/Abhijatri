@@ -4,6 +4,7 @@ import { FilePenLine, Loader2, PenSquare, Undo2, WifiOff } from 'lucide-react';
 import { ApiError, NETWORK_ERROR } from '../api/client';
 import { listAllDestinations } from '../api/destinations';
 import { getMyReviews, withdrawMemberReview } from '../api/reviews';
+import { useIdempotencyKeys } from '../hooks/useIdempotencyKeys';
 import { Notice, linkClass } from '../components/auth/AccountUi';
 import { EmptyState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { STATUS_LABEL } from '../components/reviews/reviewLabels';
@@ -21,6 +22,8 @@ const STATUSES = Object.keys(STATUS_LABEL) as ReviewStatus[];
 /** The signed-in member's own reviews: filters, newest first, "Show more" paging (Review.md 9.3, Gantt R09). */
 export const MyReviewsPage: React.FC = () => {
   const { t, language } = useLanguage();
+  // A retried action reuses its Idempotency-Key, so a lost response is replayed, not repeated (R16).
+  const withdrawKeys = useIdempotencyKeys();
   const { session, status: sessionStatus, status, refresh } = useSession();
   const [params, setParams] = useSearchParams();
   const statusFilter = (STATUSES.includes(params.get('status') as ReviewStatus) ? params.get('status') : '') as ReviewStatus | '';
@@ -112,7 +115,9 @@ export const MyReviewsPage: React.FC = () => {
     setBusyId(review.id);
     setMessage(null);
     try {
-      const result = await withdrawMemberReview(review.id, review.version);
+      const key = withdrawKeys.keyFor({ review: review.id, version: review.version });
+      const result = await withdrawMemberReview(review.id, review.version, key);
+      withdrawKeys.reset();
       setItems((prev) => prev.map((item) => (item.id === review.id ? { ...item, status: result.status, version: result.version } : item)));
       setMessage({ tone: 'success', text: t('রিভিউ প্রত্যাহার করা হয়েছে।', 'Review withdrawn.') });
       setConfirming(null);

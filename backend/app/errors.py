@@ -53,6 +53,7 @@ CATALOGUE: dict[str, tuple[int, str, str]] = {
     "MEMBER_REVIEW_EXISTS": (409, "এই গন্তব্যে এই মাসের জন্য আপনার একটি রিভিউ ইতিমধ্যে আছে।", "You already have a review of this destination for that month."),
     "RESERVED_DISPLAY_NAME": (409, "এই প্রদর্শন নামটি ব্যবহার করা যাবে না।", "This display name is reserved."),
     "IDEMPOTENCY_KEY_REUSED": (409, "একই কী ভিন্ন অনুরোধে ব্যবহার করা হয়েছে।", "This idempotency key was used with a different request."),
+    "IDEMPOTENCY_REQUEST_IN_PROGRESS": (409, "একই অনুরোধ এখনও চলছে। এক মুহূর্ত পরে আবার চেষ্টা করুন।", "The same request is still being processed. Try again in a moment."),
     "DUPLICATE_OPEN_REPORT": (409, "এই রিভিউয়ের জন্য আপনার একটি রিপোর্ট ইতিমধ্যে খোলা আছে।", "You already have an open report on this review."),
     "REOPEN_WINDOW_CLOSED": (409, "এই রিভিউটি আর পুনরায় খোলা যাবে না।", "This review can no longer be reopened."),
     "APPEAL_WINDOW_CLOSED": (409, "আপিলের সময় শেষ হয়ে গেছে।", "The appeal window has closed."),

@@ -91,6 +91,7 @@ Every error, including validation errors, uses one shape (PF 12.3). FastAPI's de
 | 409 | `MEMBER_REVIEW_EXISTS` | A member already has an active review of that destination for that visit month (Section 5.20). |
 | 409 | `RESERVED_DISPLAY_NAME` | Display name is reserved (for example `Admin`, `Moderator`). |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | Same `Idempotency-Key` with a different request body. |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | A request with the same `Idempotency-Key` is still running. `Retry-After: 1`; retry with the same key. |
 | 409 | `DUPLICATE_OPEN_REPORT` | The same scope already has an open report on this review. |
 | 409 | `APPEAL_WINDOW_CLOSED` | Appeal sent after the 30-day window. |
 | 409 | `PACK_VERSION_SUPERSEDED` | `GET /destinations/{id}/pack?version=N` named a pack version that is no longer current. Read the manifest again (Section 5.23). |
@@ -110,11 +111,15 @@ Every error, including validation errors, uses one shape (PF 12.3). FastAPI's de
 
 ## 3. Idempotency
 
-Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
+Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4). **Implemented 6 November 2026 (R16, migration `0022`).**
 
-- The server stores a digest of the key scoped by actor or guest scope, the endpoint, a request fingerprint, a result reference, the creation time and an expiry 72 hours later.
-- A unique constraint on (scope, endpoint, key digest) enforces uniqueness.
-- The same key with the same body returns the stored response. The same key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`.
+- Routes: `POST /reviews/guest`, `POST /reviews/member`, `POST /reviews/{id}/withdraw`, `PATCH /reviews/{id}/pending` and `POST /review-receipts/appeals`. The header is optional; without it the route behaves as before. A key that is not a UUID returns `422 VALIDATION_FAILED` with field `Idempotency-Key`, code `INVALID_VALUE`.
+- The server stores, in `request_idempotency`, a keyed digest of the caller (member id, guest scope or receipt), the endpoint, the SHA-256 of the key, a request fingerprint, the success response, the creation time and an expiry 72 hours later (`IDEMPOTENCY_TTL_HOURS`). The raw key and every secret are never stored.
+- The primary key (scope digest, endpoint, key digest) is the unique constraint. The reservation is written in the business transaction, so a concurrent request with the same key waits for the first and then replays it, or runs itself if the first failed. A twin that waits longer than the lock timeout gets `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` with `Retry-After: 1`.
+- The same key with the same request returns the stored status and body with `Idempotent-Replayed: true` (readable by browsers through CORS `Access-Control-Expose-Headers`). On `POST /reviews/guest` a replay spends no durable counter and no Turnstile check (only the in-memory burst limit applies). On the receipt routes the receipt is checked first, so a replay counts as a receipt operation and a wrong receipt never reaches a stored response. Member routes keep their session, CSRF and burst checks. The same key with a different request returns `409 IDEMPOTENCY_KEY_REUSED`. On `POST /reviews/guest`, a retry of a stored draft is recovered at step 2 of Section 5.2 (`200`, `duplicate_recovered: true`) before the key is looked up, so a key reused with the same `client_draft_id` and receipt is not refused.
+- The request fingerprint covers the method, the path parameters (so the review id) and the body, without the single-use `turnstile_token`.
+- Only successful (2xx) responses are stored. An error rolls the reservation back, so a retry after a failure runs again.
+- The retention job deletes expired rows.
 - Idempotency only replays recent responses. Permanent duplicate prevention for reviews is the `client_draft_id` uniqueness in RV 4.1.
 
 ## 4. Endpoints
@@ -144,11 +149,11 @@ Retryable writes accept `Idempotency-Key: <UUID>` (PF 12.4).
 
 | Method and path | Credential | Cache | Status |
 |---|---|---|---|
-| `POST /reviews/guest` | guest scope + receipt + Turnstile | no-store | Change required: only `Idempotency-Key` replay (order-of-checks step 3, WP4) is pending. Client receipt, `201`/`200`, `409`, Turnstile, durable limits, ceilings and the emergency switch are done (WP3, WP5). |
+| `POST /reviews/guest` | guest scope + receipt + Turnstile | no-store | Implemented, including `Idempotency-Key` replay (order-of-checks step 3, R16, 6 Nov 2026). Client receipt, `201`/`200`, `409`, Turnstile, durable limits, ceilings and the emergency switch are done (WP3, WP5). |
 | `POST /review-receipts/status` | receipt | no-store | Implemented (WP3). Replaced the legacy `POST /review-receipts/exchange`, which is removed. |
-| `POST /reviews/{review_id}/withdraw` | receipt | no-store | Implemented (WP3, WP5 receipt limits). Idempotency-Key replay is added with WP4. |
-| `PATCH /reviews/{review_id}/pending` | receipt or owner | no-store | Implemented 29 Oct 2026 (R07, section 5.5) |
-| `POST /review-receipts/appeals` | receipt | no-store | Implemented 29 Oct 2026 (R07, section 5.6) |
+| `POST /reviews/{review_id}/withdraw` | receipt or owner | no-store | Implemented (WP3, WP5 receipt limits); `Idempotency-Key` replay since 6 Nov 2026 (R16) |
+| `PATCH /reviews/{review_id}/pending` | receipt or owner | no-store | Implemented 29 Oct 2026 (R07, section 5.5); `Idempotency-Key` replay since 6 Nov 2026 (R16) |
+| `POST /review-receipts/appeals` | receipt | no-store | Implemented 29 Oct 2026 (R07, section 5.6); `Idempotency-Key` replay since 6 Nov 2026 (R16) |
 
 ### 4.3 Public reads
 
@@ -260,7 +265,7 @@ The response contains no receipt. The client already holds it.
 
 1. Validate the schema and the receipt format.
 2. Look up an existing review for (guest scope digest, `client_draft_id`). If found, compare receipt digests: a match returns `200` with the existing review and `duplicate_recovered: true`; a mismatch returns `409 DRAFT_ALREADY_SUBMITTED` without the review id. Turnstile is not checked and nothing is counted.
-3. Look up an `Idempotency-Key` replay. If found, return the stored response without counting it.
+3. Look up an `Idempotency-Key` replay (R16, implemented). If a stored response exists for the same request, return it with `Idempotent-Replayed: true` without counting it or checking the challenge; the same key with a different request is `409 IDEMPOTENCY_KEY_REUSED`.
 4. Validate the Turnstile token (hostname and action checked).
 5. Increment rate-limit counters in their own committed transaction.
 6. Check limits and pending ceilings.
@@ -437,10 +442,10 @@ Allowed transitions: `PUBLISH` and `REJECT` from `PENDING` or `UNDER_REVIEW`; `H
 Response `200`:
 
 ```json
-{ "review_id": "...", "status": "PUBLISHED", "version": 2, "counted_rating": null }
+{ "review_id": "...", "status": "PUBLISHED", "version": 2, "counted_rating": 4 }
 ```
 
-`counted_rating` is `null` for guest reviews and the 1 to 5 value for an eligible Verified Member review. Every decision records actor, reason, note, previous state, new state and time in the audit log, in the same transaction as the rating delta.
+`counted_rating` is the contribution of this review currently present in a rating aggregate (Security.md, Schema.md): the 1 to 5 value when it counts, in Guest Feedback for a Guest review or in the Community score for an eligible Verified Member review, and `null` when it counts nowhere (never published, rejected, or excluded). It can stay set on a `HIDDEN` review whose rating was kept. Corrected 6 November 2026 (B1): this text used to say `null` for every Guest review, which contradicted the rating model. It is a staff-only field and is not in public review responses. Every decision records actor, reason, note, previous state, new state and time in the audit log, in the same transaction as the rating delta.
 
 ### 5.11 `PUT /staff/moderation/reviews/{review_id}/conflict`
 
@@ -713,7 +718,7 @@ Owner decisions, 27 Oct 2026: any signed-in member (confirmed email) may attach 
 
 | Route | Who | Body and result |
 |---|---|---|
-| `POST /reviews/member` | member (CSRF), 20/hour | The 5.2 body without `guest_scope_secret`, `guest_display_name` and `turnstile_token`. The author and public name come from the session. `201 { review_id, status, version, duplicate_recovered }`; the same `client_draft_id` and receipt return `200` with `duplicate_recovered: true`. `409 MEMBER_REVIEW_EXISTS` for a second active review of the same destination and visit month |
+| `POST /reviews/member` | member (CSRF), 20/hour | The 5.2 body without `guest_scope_secret`, `guest_display_name` and `turnstile_token`. The author and public name come from the session. `201 { review_id, status, version, duplicate_recovered }`; the same `client_draft_id` and receipt return `200` with `duplicate_recovered: true`; an `Idempotency-Key` (Section 3) replays the first response. `409 MEMBER_REVIEW_EXISTS` for a second active review of the same destination and visit month |
 | `POST /reviews/{review_id}/media-intents` | the author, while the review is `PENDING`, 30/hour | `{ content_type: image/jpeg\|image/png\|image/webp\|video/mp4, size_bytes, alt_text (1-250), caption? (<=300), ownership_declared: true }` -> `201 { media_id, kind, upload_url, max_bytes }`. The browser `PUT`s the file to `upload_url` (one-time, private bucket `review-media`, `quarantine/`). At most 5 images (8 MiB each) and 1 video (50 MiB); field errors `TYPE`, `TOO_LARGE`, `TOO_MANY`. Someone else's review is `404`; after the moderator's decision `422 TRANSITION_NOT_ALLOWED` |
 | `POST /reviews/{review_id}/media/{media_id}/complete` | the author | The server reads the object: images must really be JPEG, PNG or WebP of at most 20 megapixels and are re-encoded to WebP (long edge <= 2048 px) with no EXIF/GPS; videos must be MP4 with H.264 video, AAC audio and at most 60 s, and their metadata boxes and extra tracks are blanked in place (no transcoding). `200 { id, kind, state: "pending", content_type, width, height, duration_ms, size_bytes }`. A bad file is deleted and answers `422` with field `file` and code `BROKEN`, `TYPE`, `TOO_MANY_PIXELS`, `TOO_LARGE`, `TOO_LONG`, `VIDEO_CODEC` or `NOT_UPLOADED` |
 | `POST /reviews/{review_id}/media/{media_id}/remove` | the author, while `PENDING` | `204`; deletes the objects and frees the place |
@@ -849,7 +854,7 @@ The routes marked "Change required" in Section 4 differ from this contract as fo
 | Route | Current behaviour | Required | Source |
 |---|---|---|---|
 | All | ~~`{"detail": ...}` errors and FastAPI's default 422 body~~ Done 19 Oct (WP2): every error uses the Section 2 body, `app/errors.py` | Section 2 format | PF 12.3 |
-| All writes | `Idempotency-Key` allowed by CORS but ignored | Section 3 | PF 12.4 |
+| All writes | ~~`Idempotency-Key` allowed by CORS but ignored~~ Done 6 Nov 2026 (R16) for the five review write routes of Section 3 | Section 3 | PF 12.4 |
 | `POST /reviews/guest` | ~~Server generates `receipt_token`, returns it, and issues a new one on every duplicate retry~~ Done 19 Oct (WP3): client `receipt_secret`, nothing returned, never reissued, match `200` / mismatch `409`. Order-of-checks steps 3 to 6 (idempotency, Turnstile, counters, limits) pending WP4/WP5 | Client `receipt_secret`, nothing returned, never reissued, Section 5.2 order of checks | PF 13.1 to 13.3, 14.4 |
 | `POST /reviews/guest` | ~~No Turnstile; limits keyed on remote address only~~ Done 19 Oct (WP5): server-side Turnstile, durable per-scope and per-network limits, pending ceilings, emergency switch | Turnstile plus Section 7 limits | PF 14.1, 14.3 |
 | Receipt and scope digests | ~~One pepper, no `key_id`, no context labels~~ Done 19 Oct (WP3): versioned keyring (`RECEIPT_KEYS`, `RECEIPT_KEY_CURRENT`), labels, `key_id`/`guest_scope_key_id`, unique `(key_id, digest)`, re-digest on use | Keyring with `key_id` and labels | PF 13.4 |

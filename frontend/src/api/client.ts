@@ -46,7 +46,15 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Overrides the deadline in ms; GET defaults to READ_TIMEOUT_MS, other methods have none. */
   timeoutMs?: number;
+  /**
+   * Sent as `Idempotency-Key` (API.md section 3, R16). Reuse the same key for every retry of one user
+   * action: the server then returns the first response instead of acting twice.
+   */
+  idempotencyKey?: string;
 }
+
+/** A fresh key for one user action (one draft, one withdraw, one edit, one appeal). */
+export const newIdempotencyKey = (): string => crypto.randomUUID();
 
 function isErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null || !('error' in value)) return false;
@@ -62,7 +70,7 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
  *   preflight round trip on slow networks (Platform Foundation 16.1).
  */
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers, body, ...rest } = options;
+  const { params, headers, body, idempotencyKey, ...rest } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
   if (params) {
@@ -79,10 +87,12 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     'Accept-Language': document.documentElement.lang === 'en' ? 'en' : 'bn',
   };
   if (body !== undefined) requestHeaders['Content-Type'] = 'application/json';
+  if (idempotencyKey) requestHeaders['Idempotency-Key'] = idempotencyKey;
 
   // Reads give up after a deadline so a stalled connection shows a clear "too slow" error instead of
   // spinning forever. Writes have no default deadline: the server may still complete them, and the
-  // caller cannot tell (review submission is retry-safe through client_draft_id, others are not).
+  // caller cannot tell. Review writes are retry-safe: a retry with the same Idempotency-Key gets the
+  // stored response (R16), and review submission is also recovered through client_draft_id.
   const method = (rest.method ?? 'GET').toUpperCase();
   const timeoutMs = rest.timeoutMs ?? (method === 'GET' ? READ_TIMEOUT_MS : undefined);
   const { timeoutMs: _ignored, signal: callerSignal, ...fetchOptions } = rest;

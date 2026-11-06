@@ -43,6 +43,14 @@ See `.env.example` and `Docs/Architecture.md` section 5. Copy `.env.example` to 
 Generate a pepper with `python -c "import secrets;print(secrets.token_urlsafe(48))"`.
 If a local PostgreSQL service already owns port 5432, run `POSTGRES_PORT=55432 docker compose up -d postgres` and use that port in the URLs.
 
+### Database connections (shared Supabase pooler)
+
+The session-mode pooler (`...pooler.supabase.com:5432`) allows **15 clients for everyone**; each backend process can
+hold `DB_POOL_SIZE + DB_MAX_OVERFLOW` (default 7). For a shared deployment use the **transaction-mode** pooler (port
+`6543`): the backend then turns psycopg prepared statements off by itself (`DB_PREPARED_STATEMENTS` overrides this).
+For a local backend set `DB_POOL_SIZE=2` and `DB_MAX_OVERFLOW=0`, or develop against the local database
+(`127.0.0.1:54322`). Retention (`python -m app.jobs.retention`) also deletes expired `Idempotency-Key` rows (R16).
+
 ## Checks (same as CI)
 
 ```bash

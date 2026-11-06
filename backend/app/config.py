@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_PEPPER = "development-only-change-me"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://abhijatri:abhijatri_dev@localhost:5432/abhijatri"
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "postgres"}
+TRANSACTION_POOLER_PORT = 6543  # Supabase Supavisor transaction mode (B6)
 
 
 def normalize_database_url(value: str) -> str:
@@ -44,6 +45,11 @@ class Settings(BaseSettings):
     db_statement_timeout_ms: int = Field(default=5000, ge=100, le=60000)
     db_lock_timeout_ms: int = Field(default=3000, ge=100, le=60000)
     db_idle_in_transaction_timeout_ms: int = Field(default=15000, ge=1000, le=120000)
+    # Server-side prepared statements (psycopg). PgBouncer/Supavisor transaction mode (port 6543)
+    # cannot keep them across transactions, so unset means "off on port 6543, on elsewhere" (B6).
+    db_prepared_statements: bool | None = None
+    # R16: how long a stored Idempotency-Key response is replayed (API.md section 3).
+    idempotency_ttl_hours: int = Field(default=72, ge=1, le=720)
     request_timeout_seconds: int = Field(default=15, ge=1, le=120)
     max_request_body_bytes: int = Field(default=65536, ge=1024, le=1048576)
     advisory_stale_after_days: int = Field(default=30, ge=1, le=365)
@@ -251,6 +257,13 @@ class Settings(BaseSettings):
     @property
     def docs_are_enabled(self) -> bool:
         return self.docs_enabled if self.docs_enabled is not None else not self.is_production
+
+    @property
+    def uses_prepared_statements(self) -> bool:
+        """False for a transaction-mode pooler (port 6543) unless DB_PREPARED_STATEMENTS says otherwise."""
+        if self.db_prepared_statements is not None:
+            return self.db_prepared_statements
+        return urlparse(self.database_url).port != TRANSACTION_POOLER_PORT
 
     @property
     def effective_migration_url(self) -> str:

@@ -6,8 +6,6 @@ decision leaves no key behind and can be retried. Idempotency does not replace t
 constraints or the version and lease checks.
 """
 
-import hashlib
-import json
 import re
 import uuid
 from collections.abc import Callable
@@ -18,14 +16,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.errors import ApiError
+from app.idempotency import fingerprint
 from app.models import IdempotencyKey
 
 KEY_PATTERN = re.compile(r"^[A-Za-z0-9_\-]{8,100}$")
-
-
-def fingerprint(payload: dict[str, Any]) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def run(

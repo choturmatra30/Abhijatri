@@ -11,6 +11,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app import abuse, media, visits
+from app import idempotency as idem
 from app import review_parameters as rp
 from app.abuse import CounterSessions
 from app.admin import cases
@@ -68,6 +69,7 @@ from app.schemas import (
     WithdrawRequest,
 )
 from app.services import (
+    EditResult,
     ReviewError,
     category_averages,
     edit_pending_review,
@@ -156,10 +158,12 @@ def create_guest_review(
     payload: GuestReviewCreate,
     sessions: CounterSessions,
     verify_challenge: TurnstileDep,
+    idempotency_key: idem.KeyHeader = None,
     session: Session = Depends(get_session),
-) -> GuestReviewCreated:
+) -> GuestReviewCreated | Response:
     """Order of checks (API.md 5.2, PF 14.4)."""
     settings = get_settings()
+    key = idem.parse_key(idempotency_key)  # 1. a malformed header is a validation error
     try:
         # 1-2. Schema and receipt format are validated; a recoverable draft returns here,
         #      free of charge: no challenge, no counters.
@@ -172,7 +176,16 @@ def create_guest_review(
                 version=recovered.version,
                 duplicate_recovered=True,
             )
-        # 3. Idempotency-Key replay: WP4.
+        # 3. Idempotency-Key replay (R16): a stored success returns before any challenge or counter.
+        claim = idem.begin(
+            session,
+            key=key,
+            scope=idem.guest_scope(payload.guest_scope_secret),
+            endpoint=idem.Endpoint.GUEST_REVIEW_CREATE,
+            request_fingerprint=idem.request_fingerprint(method="POST", path={}, body=payload),
+        )
+        if isinstance(claim, idem.Replay):
+            return idem.replay_response(claim)
         # Emergency switch: stop new Guest writes before spending a challenge.
         abuse.ensure_guest_writes_allowed(settings)
         # 4. Turnstile (hostname and action checked; single use).
@@ -190,21 +203,23 @@ def create_guest_review(
             ),
         )
         abuse.check_pending_ceilings(session, payload.destination_id)
-        # 7. Business transaction.
+        # 7. Business transaction; the stored replay commits with it.
         result = submit_guest_review(session, payload)
+        created = GuestReviewCreated(
+            review_id=result.review.id,
+            status=result.review.status,
+            version=result.review.version,
+            duplicate_recovered=result.duplicate_recovered,
+        )
+        code = status.HTTP_200_OK if result.duplicate_recovered else status.HTTP_201_CREATED
+        idem.finish(session, claim, code, created)
         session.commit()
         events.count("reviews.submitted")
     except ReviewError as error:
         session.rollback()
         _raise_service_error(error)
-    if result.duplicate_recovered:
-        response.status_code = status.HTTP_200_OK
-    return GuestReviewCreated(
-        review_id=result.review.id,
-        status=result.review.status,
-        version=result.review.version,
-        duplicate_recovered=result.duplicate_recovered,
-    )
+    response.status_code = code
+    return created
 
 
 def _text(pair: tuple[str, str]) -> LocalizedText:
@@ -514,14 +529,27 @@ def withdraw_guest_review(
     payload: WithdrawRequest,
     sessions: CounterSessions,
     principal: OptionalPrincipal,
+    idempotency_key: idem.KeyHeader = None,
     session: Session = Depends(get_session),
-) -> ReceiptStatus:
+) -> ReceiptStatus | Response:
     """A Guest sends the receipt; a signed-in member omits it and uses the session (API.md 5.4)."""
+    key = idem.parse_key(idempotency_key)
+    fingerprint = idem.request_fingerprint(method="POST", path={"review_id": str(review_id)}, body=payload)
     if payload.receipt_secret is None:
         owner = _owner_session(request, principal)
         try:
+            claim = idem.begin(
+                session,
+                key=key,
+                scope=idem.member_scope(owner.user.id),
+                endpoint=idem.Endpoint.REVIEW_WITHDRAW,
+                request_fingerprint=fingerprint,
+            )
+            if isinstance(claim, idem.Replay):
+                return idem.replay_response(claim)
             review = withdraw_review(session, review_id, payload.expected_version, author_id=owner.user.id)
             result = _receipt_status(session, review)
+            idem.finish(session, claim, status.HTTP_200_OK, result)
             session.commit()
         except ReviewError as error:
             session.rollback()
@@ -530,8 +558,18 @@ def withdraw_guest_review(
     receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
     try:
         verify_receipt(session, review_id, payload.receipt_secret)
+        receipt_claim = idem.begin(
+            session,
+            key=key,
+            scope=idem.receipt_scope(payload.receipt_secret),
+            endpoint=idem.Endpoint.REVIEW_WITHDRAW,
+            request_fingerprint=fingerprint,
+        )
+        if isinstance(receipt_claim, idem.Replay):
+            return idem.replay_response(receipt_claim)
         review = withdraw_review(session, review_id, payload.expected_version)
         result = _receipt_status(session, review)
+        idem.finish(session, receipt_claim, status.HTTP_200_OK, result)
         session.commit()
     except ReviewError as error:
         session.rollback()
@@ -549,29 +587,58 @@ def edit_unpublished_review(
     payload: ReviewEdit,
     sessions: CounterSessions,
     principal: OptionalPrincipal,
+    idempotency_key: idem.KeyHeader = None,
     session: Session = Depends(get_session),
-) -> ReviewEdited:
+) -> ReviewEdited | Response:
     """Edit a review that is still PENDING or CHANGES_REQUESTED as a new revision (API.md 5.5)."""
+    key = idem.parse_key(idempotency_key)
+    fingerprint = idem.request_fingerprint(method="PATCH", path={"review_id": str(review_id)}, body=payload)
     if payload.receipt_secret is None:
         owner = _owner_session(request, principal)
         ensure_not_restricted(session, owner.user.id)  # a restricted or suspended member cannot post (spec 6.4)
         try:
+            claim = idem.begin(
+                session,
+                key=key,
+                scope=idem.member_scope(owner.user.id),
+                endpoint=idem.Endpoint.REVIEW_EDIT_PENDING,
+                request_fingerprint=fingerprint,
+            )
+            if isinstance(claim, idem.Replay):
+                return idem.replay_response(claim)
             outcome = edit_pending_review(session, review_id, payload, author_id=owner.user.id)
+            edited = _edited(outcome)
+            idem.finish(session, claim, status.HTTP_200_OK, edited)
             session.commit()
         except ReviewError as error:
             session.rollback()
             _raise_service_error(error)
-    else:
-        receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
-        try:
-            verify_receipt(session, review_id, payload.receipt_secret)
-            outcome = edit_pending_review(session, review_id, payload)
-            session.commit()
-        except ReviewError as error:
-            session.rollback()
-            if error.code in _RECEIPT_FAILURE_CODES:
-                abuse.record_receipt_failure(sessions, receipt, network)
-            _raise_service_error(error)
+        return edited
+    receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
+    try:
+        verify_receipt(session, review_id, payload.receipt_secret)
+        receipt_claim = idem.begin(
+            session,
+            key=key,
+            scope=idem.receipt_scope(payload.receipt_secret),
+            endpoint=idem.Endpoint.REVIEW_EDIT_PENDING,
+            request_fingerprint=fingerprint,
+        )
+        if isinstance(receipt_claim, idem.Replay):
+            return idem.replay_response(receipt_claim)
+        outcome = edit_pending_review(session, review_id, payload)
+        edited = _edited(outcome)
+        idem.finish(session, receipt_claim, status.HTTP_200_OK, edited)
+        session.commit()
+    except ReviewError as error:
+        session.rollback()
+        if error.code in _RECEIPT_FAILURE_CODES:
+            abuse.record_receipt_failure(sessions, receipt, network)
+        _raise_service_error(error)
+    return edited
+
+
+def _edited(outcome: EditResult) -> ReviewEdited:
     return ReviewEdited(
         review_id=outcome.review.id, status=outcome.review.status, version=outcome.review.version, revision=outcome.revision
     )
@@ -583,13 +650,26 @@ def appeal_rejected_review(
     request: Request,
     payload: GuestAppealRequest,
     sessions: CounterSessions,
+    idempotency_key: idem.KeyHeader = None,
     session: Session = Depends(get_session),
-) -> GuestAppealCreated:
+) -> GuestAppealCreated | Response:
     """A Guest appeals the rejection of their review with the receipt (API.md 5.6)."""
+    key = idem.parse_key(idempotency_key)
     receipt, network = _guard_receipt_operation(request, sessions, payload.receipt_secret)
     try:
         verify_receipt(session, payload.review_id, payload.receipt_secret)
+        claim = idem.begin(
+            session,
+            key=key,
+            scope=idem.receipt_scope(payload.receipt_secret),
+            endpoint=idem.Endpoint.GUEST_APPEAL_CREATE,
+            request_fingerprint=idem.request_fingerprint(method="POST", path={}, body=payload),
+        )
+        if isinstance(claim, idem.Replay):
+            return idem.replay_response(claim)
         appeal = cases.create_guest_appeal(session, payload.review_id, statement=payload.statement)
+        created = GuestAppealCreated(appeal_id=appeal.id, status="OPEN", deadline_at=appeal.deadline_at)
+        idem.finish(session, claim, status.HTTP_201_CREATED, created)
         session.commit()
     except ReviewError as error:
         session.rollback()
@@ -599,7 +679,7 @@ def appeal_rejected_review(
     except ApiError:
         session.rollback()
         raise
-    return GuestAppealCreated(appeal_id=appeal.id, status="OPEN", deadline_at=appeal.deadline_at)
+    return created
 
 
 @router.get("/reviews/mine", response_model=MyReviews)
