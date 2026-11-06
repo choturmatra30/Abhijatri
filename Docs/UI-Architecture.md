@@ -112,7 +112,8 @@ Each component owns its bilingual behaviour; pages compose them. Status: **Built
 | Layout | `PublicLayout` | Shell for `/`, `/guest`, `/login` | Footer emergency line paired; legal links when the pages exist | Built |
 | Layout | `AppLayout`, `Sidebar`, `Navbar` | App shell and navigation | English-only and mismatched labels remain (U4, U5, U9, U10) | Partial |
 | Layout | `PreferenceToggles` | Language and theme switches | Target-language label with its own `lang`; accessible name fix (U11) | Partial |
-| Common | `LoadingState`, `ErrorState`, `EmptyState`, `describeError` | Shared states | L8; request reference shown in Latin | Built |
+| Common | `LoadingState`, `ErrorState` (offline, timeout, sign-in, no permission), `EmptyState` (empty, no results), `SlowNetworkHint`, `NetworkBanner`, `SessionExpiredBanner`, `SignInLink`, `describeError` | Shared states | L8; request reference shown in Latin; every message paired | Built |
+| UI | `InteractiveSelector` (`components/ui/`) | Expanding photo panels; generic, data via props | Titles and descriptions passed in the interface language; `lang` per option; credit text paired | Built |
 | Destination | `RatingSummary` | Community Rating, Seeded Destination Selection, Guest Feedback with counts | L7, L9, L10 (U13) | Partial |
 | Destination | `CategoryAverages` | Per-category averages for each audience, never merged | Paired category names; L7 digits | Built |
 | Destination | `AdvisoryCard` | Severity, state, validity, source | Paired severity and state labels; dates per L7 | Built |

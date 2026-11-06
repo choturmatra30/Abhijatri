@@ -14,6 +14,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
+import { SlowNetworkHint } from '../common/StatusViews';
 
 /**
  * "Report this review" (Review.md 5.4, Gantt R11). A signed-in member reports with their account; a visitor reports
@@ -154,6 +155,7 @@ export const ReportReview: React.FC<{ reviewId: string }> = ({ reviewId }) => {
             <button type="submit" disabled={busy} className="min-h-[40px] px-4 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-bold disabled:opacity-50">
               {t('পাঠান', 'Send report')}
             </button>
+            <SlowNetworkHint active={busy} />
             <button type="button" onClick={() => setOpen(false)} className="min-h-[40px] px-4 rounded-full border border-surface-muted dark:border-dark-surface-2">
               {t('বাতিল', 'Cancel')}
             </button>

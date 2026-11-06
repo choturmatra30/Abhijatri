@@ -1,126 +1,190 @@
-@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Dark mode follows the `.dark` class that ThemeContext puts on <html>. */
+@custom-variant dark (&:is(.dark *));
 
+/*
+ * Theme: shadcn/ui "stone" base with a green primary (Decisions 2026-11-04).
+ * shadcn's green-600 primary has 3.3:1 contrast with white text, below WCAG AA (PF 20), so the light
+ * theme uses green-700 (5.0:1); the dark theme uses green-500 with near-black text.
+ * Fonts: Inter for interface and English text; Hind Siliguri supplies every Bangla glyph (Inter has
+ * none), then system Bangla fonts if the web font has not loaded (Gantt F03 "system font fallback").
+ */
 :root {
-  /* ColorHunt Palette 1: Light Mode (e1f0da, d4e7c5, bfd8af, 99bc85) */
-  --color-canvas: #F8FAF7;
-  --color-surface-sage: #E1F0DA;
-  --color-surface-container: #D4E7C5;
-  --color-surface-muted: #BFD8AF;
-  --color-accent-green: #99BC85;
-  --color-forest-primary: #154212;
-  --color-forest-container: #2D5A27;
-  --color-on-surface: #0E1F12;
-  --color-on-surface-variant: #42493E;
-  --color-card-bg: #FFFFFF;
-  --color-border-subtle: rgba(21, 66, 18, 0.12);
+  --radius: 0.75rem;
 
-  /* Typography definition */
-  --font-title: 'Hind Siliguri', sans-serif;
-  --font-body: 'Noto Serif Bengali', serif;
-  --font-en: 'Inter', sans-serif;
-  --letter-spacing-en: -0.06em;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.147 0.004 49.25); /* stone-950 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.147 0.004 49.25);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.147 0.004 49.25);
+  --primary: oklch(0.527 0.154 150.069); /* green-700 */
+  --primary-hover: oklch(0.448 0.119 151.328); /* green-800 */
+  --primary-foreground: oklch(0.982 0.018 155.826); /* green-50 */
+  --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
+  --secondary-foreground: oklch(0.216 0.006 56.043); /* stone-900 */
+  --muted: oklch(0.97 0.001 106.424);
+  --muted-foreground: oklch(0.444 0.011 73.639); /* stone-600: keeps 4.5:1 on the mint background */
+  --accent: oklch(0.97 0.001 106.424);
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.923 0.003 48.717); /* stone-200 */
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.627 0.194 149.214); /* green-600 */
+
+  /* App surfaces between card and border, used by the older colour names below. */
+  --surface: oklch(0.97 0.001 106.424); /* stone-100 */
+  --surface-strong: oklch(0.923 0.003 48.717); /* stone-200 */
+  --surface-border: oklch(0.869 0.005 56.366); /* stone-300 */
 }
 
 .dark {
-  /* ColorHunt Night/Neon Dark Mode */
-  --color-canvas: #0B110D;
-  --color-surface-sage: #121A14;
-  --color-surface-container: #18241C;
-  --color-surface-muted: #243529;
-  --color-accent-green: #A3E635; /* Neon Lime */
-  --color-forest-primary: #BEF264; /* Pistachio Glow */
-  --color-forest-container: #162B1A;
-  --color-on-surface: #E1F0DA;
-  --color-on-surface-variant: #9CB294;
-  --color-card-bg: #121A14;
-  --color-border-subtle: rgba(163, 230, 53, 0.15);
+  --background: oklch(0.147 0.004 49.25); /* stone-950 */
+  --foreground: oklch(0.985 0.001 106.423); /* stone-50 */
+  --card: oklch(0.216 0.006 56.043); /* stone-900 */
+  --card-foreground: oklch(0.985 0.001 106.423);
+  --popover: oklch(0.216 0.006 56.043);
+  --popover-foreground: oklch(0.985 0.001 106.423);
+  --primary: oklch(0.723 0.219 149.579); /* green-500 */
+  --primary-hover: oklch(0.792 0.209 151.711); /* green-400 */
+  --primary-foreground: oklch(0.147 0.004 49.25);
+  --secondary: oklch(0.268 0.007 34.298); /* stone-800 */
+  --secondary-foreground: oklch(0.985 0.001 106.423);
+  --muted: oklch(0.268 0.007 34.298);
+  --muted-foreground: oklch(0.709 0.01 56.259); /* stone-400 */
+  --accent: oklch(0.268 0.007 34.298);
+  --accent-foreground: oklch(0.985 0.001 106.423);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.723 0.219 149.579);
+
+  --surface: oklch(0.216 0.006 56.043); /* stone-900 */
+  --surface-strong: oklch(0.268 0.007 34.298); /* stone-800 */
+  --surface-border: oklch(0.374 0.01 67.558); /* stone-700 */
+}
+
+@theme inline {
+  /* shadcn/ui semantic colours */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /*
+   * Older colour names, kept so every existing page takes the new theme without edits. They point
+   * at the theme above; new code uses the shadcn names (bg-primary, text-muted-foreground, ...).
+   */
+  --color-canvas-light: var(--background);
+  --color-surface-sage: var(--surface);
+  --color-surface-container: var(--surface-strong);
+  --color-surface-muted: var(--surface-border);
+  --color-accent-green: oklch(0.723 0.219 149.579);
+  --color-forest-primary: var(--primary);
+  --color-forest-container: var(--primary-hover);
+  --color-on-surface: var(--foreground);
+  --color-on-surface-variant: var(--muted-foreground);
+  --color-dark-bg-base: oklch(0.147 0.004 49.25);
+  --color-dark-surface-1: oklch(0.216 0.006 56.043);
+  --color-dark-surface-2: oklch(0.268 0.007 34.298);
+  --color-neon-lime: oklch(0.723 0.219 149.579);
+  --color-pistachio-glow: oklch(0.792 0.209 151.711);
+  --color-emerald-accent: oklch(0.792 0.209 151.711);
+  --color-on-dark: oklch(0.985 0.001 106.423);
+  --color-on-dark-muted: oklch(0.709 0.01 56.259);
+  --color-error-alert: var(--destructive);
+  --color-error-container: oklch(0.936 0.032 17.717); /* red-100 */
+
+  --font-sans: 'Inter', 'Hind Siliguri', 'Noto Sans Bengali', 'Nirmala UI', 'Vrinda', 'Kohinoor Bangla', system-ui, sans-serif;
+  --font-title: 'Inter', 'Hind Siliguri', 'Noto Sans Bengali', 'Nirmala UI', 'Vrinda', 'Kohinoor Bangla', system-ui, sans-serif;
+  --font-body: 'Inter', 'Hind Siliguri', 'Noto Sans Bengali', 'Nirmala UI', 'Vrinda', 'Kohinoor Bangla', system-ui, sans-serif;
+  --font-en: 'Inter', system-ui, sans-serif;
 }
 
 @layer base {
-  * {
-    border-color: var(--color-border-subtle);
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
   }
 
   body {
-    background-color: var(--color-canvas);
-    color: var(--color-on-surface);
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: var(--font-body);
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-title);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
   }
 }
 
-/* Specific Typography classes */
-.font-title {
-  font-family: var(--font-title) !important;
-}
-
-.font-body {
-  font-family: var(--font-body) !important;
-}
-
-/*
- * English typography follows the language of the text, never the page (UI-Architecture U1, U16).
- * The old rule matched <html lang="en">, so in English mode letter-spacing -0.06em was inherited by
- * every element, Bangla included, and Bangla became visibly cramped.
- */
+/* English text keeps Inter; a slight tightening suits Inter at display sizes (UI-Architecture U1). */
 .font-en,
-:not(html)[lang="en"] {
+:not(html)[lang='en'] {
   font-family: var(--font-en) !important;
-}
-
-:lang(en).font-en,
-:not(html)[lang="en"] {
-  letter-spacing: var(--letter-spacing-en);
 }
 
 /* Bangla is never tightened or spaced out: tracking separates conjuncts and vowel signs. */
 :lang(bn):is(h1, h2, h3, h4, h5, h6),
-:lang(bn)[class*="tracking-"] {
+:lang(bn)[class*='tracking-'] {
   letter-spacing: normal !important;
 }
 
-/* Accessibility: Focus rings */
+/* Accessibility: one visible focus ring everywhere, in the theme's ring colour. */
 :focus-visible {
-  outline: 2px solid #2D5A27;
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-.dark :focus-visible {
-  outline: 2px solid #A3E635;
-  outline-offset: 2px;
-}
-
-/* Minimalist Card & Tonal Stepping */
+/* Card surface used across the app (equivalent to shadcn's Card). */
 .tonal-card {
-  background-color: var(--color-card-bg);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 1rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Lift only cards that are links. On forms and content panels the lift moved the card out
-   from under the cursor at its edge, so hover toggled on and off and the card jittered. */
+/* Lift only cards that are links: lifting a large panel made it jitter under a resting cursor. */
 a.tonal-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 0.08);
 }
 
-.dark a.tonal-card:hover {
-  box-shadow: 0 6px 24px rgba(163, 230, 53, 0.08);
-}
-
-/* Custom Scrollbar for sleek UI */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -131,10 +195,18 @@ a.tonal-card:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-muted);
+  background: var(--surface-border);
   border-radius: 9999px;
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-muted);
+/* Entry motion for components/ui/interactive-selector; applied only under motion-safe. */
+@keyframes selector-in {
+  from {
+    opacity: 0;
+    transform: translateX(-2.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }

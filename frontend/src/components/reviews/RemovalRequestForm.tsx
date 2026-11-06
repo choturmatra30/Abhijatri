@@ -10,6 +10,7 @@ import {
 } from '../../api/reports';
 import { useLanguage } from '../../context/LanguageContext';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
+import { SlowNetworkHint } from '../common/StatusViews';
 
 /**
  * "I lost my receipt" (Review.md 9.2). The author cannot prove ownership with a receipt, so a moderator checks it
@@ -139,6 +140,7 @@ export const RemovalRequestForm: React.FC = () => {
             <button type="submit" disabled={busy} className="min-h-[44px] px-5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-bold disabled:opacity-50">
               {busy ? '…' : t('অনুরোধ পাঠান', 'Send request')}
             </button>
+            <SlowNetworkHint active={busy} />
             <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] px-5 rounded-full border border-surface-muted dark:border-dark-surface-2">
               {t('বাতিল', 'Cancel')}
             </button>

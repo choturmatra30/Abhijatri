@@ -97,7 +97,7 @@ export const HealthCheckPage: React.FC = () => {
           <button
             onClick={() => runTest(backendUrl)}
             disabled={loading}
-            className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-en flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-en flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-xs"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>{loading ? t('যাচাই হচ্ছে…', 'Checking…') : t('পরীক্ষা করুন', 'Check now')}</span>

@@ -3,18 +3,20 @@ import { Eye, EyeOff } from 'lucide-react';
 import { ApiError, NETWORK_ERROR } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
 import { passwordStrength, type FieldProblem } from '../../utils/authValidation';
+import { buttonVariants } from '@/components/ui/button';
 
 /** Small building blocks shared by the account pages (sign in, register, verify, reset). */
 
 type Translate = (bn: string, en: string) => string;
 
+/** Same look as shadcn's Input, for the account forms' native inputs. */
 export const inputClass =
-  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark disabled:opacity-60 disabled:cursor-not-allowed aria-[invalid=true]:border-red-500';
+  'w-full min-w-0 h-11 rounded-md border border-input bg-transparent px-3 py-1 text-base md:text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30';
 
-export const primaryButtonClass =
-  'inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title disabled:opacity-50 disabled:cursor-not-allowed';
+/** shadcn Button (default variant, large) for links and native buttons on account pages. */
+export const primaryButtonClass = buttonVariants({ size: 'lg' });
 
-export const linkClass = 'text-forest-primary dark:text-neon-lime font-bold underline underline-offset-2';
+export const linkClass = 'text-primary font-semibold underline underline-offset-4 hover:text-primary/80';
 
 /** A field problem as a sentence in the reader's language. */
 export function problemMessage(field: 'email' | 'password' | 'display_name', problem: FieldProblem | string, t: Translate): string {

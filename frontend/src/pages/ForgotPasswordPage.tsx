@@ -6,6 +6,7 @@ import { Field, Notice, accountErrorMessage, inputClass, linkClass, primaryButto
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from '../components/reviews/TurnstileWidget';
 import { useLanguage } from '../context/LanguageContext';
 import { emailProblem, normalizeEmail } from '../utils/authValidation';
+import { SlowNetworkHint } from '../components/common/StatusViews';
 
 /** Ask for a reset link. The answer is the same for every address, so it never says who has an account. */
 export const ForgotPasswordPage: React.FC = () => {
@@ -77,6 +78,7 @@ export const ForgotPasswordPage: React.FC = () => {
           <Send size={16} aria-hidden="true" />
           {busy ? t('অপেক্ষা করুন…', 'Please wait…') : t('রিসেট লিংক পাঠান', 'Send reset link')}
         </button>
+        <SlowNetworkHint active={busy} />
         <Link to="/login" className={`${linkClass} text-xs`}>
           {t('সাইন ইন পাতায় ফিরুন', 'Back to sign in')}
         </Link>

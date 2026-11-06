@@ -2,16 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, MapPin, Search } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { listAllDestinations } from '../api/destinations';
-import { useApiResource } from '../hooks/useApiResource';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
+import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
+import { EmptyState, ErrorState, LoadingState, OfflineEmptyState, OfflineSavedNotice } from '../components/common/StatusViews';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { formatNumber, pick } from '../utils/format';
 
 export const DestinationsPage: React.FC = () => {
   const { language, t } = useLanguage();
   const [query, setQuery] = useState('');
-  const { data, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
+  const { data: catalog, error, loading, reload } = useDestinationCatalog();
+  const data = catalog?.items ?? null;
+  const savedOnly = catalog?.saved ?? false;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -51,14 +52,25 @@ export const DestinationsPage: React.FC = () => {
 
       {loading && <LoadingState label={t('গন্তব্যের তালিকা লোড হচ্ছে…', 'Loading destinations…')} />}
       {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}
-      {!loading && !error && data && data.length === 0 && (
+      {!loading && !error && savedOnly && data && data.length === 0 && <OfflineEmptyState />}
+      {!loading && !error && savedOnly && data && data.length > 0 && <OfflineSavedNotice count={data.length} />}
+      {!loading && !error && !savedOnly && data && data.length === 0 && (
         <EmptyState
           title={t('এখনো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations yet')}
           hint={t('কনটেন্ট প্রকাশিত হলে এখানে দেখা যাবে।', 'Destinations appear here once their content is published.')}
         />
       )}
       {!loading && !error && data && data.length > 0 && visible.length === 0 && (
-        <EmptyState title={t('কোনো মিল পাওয়া যায়নি', 'No matches')} hint={t('অন্য শব্দ দিয়ে খুঁজুন।', 'Try another word.')} />
+        <EmptyState
+          variant="no-results"
+          title={t(`"${query.trim()}"-এর সাথে কোনো গন্তব্য মেলেনি`, `No destination matches "${query.trim()}"`)}
+          hint={t('বানান দেখুন বা অন্য শব্দ দিয়ে খুঁজুন; বাংলা ও ইংরেজি দুই নামেই খোঁজা যায়।', 'Check the spelling or try another word; Bangla and English names both work.')}
+          action={
+            <button type="button" onClick={() => setQuery('')} className="min-h-[44px] px-4 text-sm font-bold underline underline-offset-2 text-forest-primary dark:text-neon-lime">
+              {t('খোঁজা মুছুন', 'Clear search')}
+            </button>
+          }
+        />
       )}
 
       {!loading && !error && visible.length > 0 && (

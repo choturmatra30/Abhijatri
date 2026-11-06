@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   MapPin, 
@@ -7,7 +7,9 @@ import {
   DownloadCloud, 
   Bookmark, 
   MessageSquareText, 
-  HeartPulse, 
+  ChevronDown,
+  PenSquare,
+  ReceiptText,
   Compass,
   LogIn,
   LogOut,
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
+import { buttonVariants } from '@/components/ui/button';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -23,16 +26,25 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { t } = useLanguage();
-  const { session, isVerifiedMember, signOut } = useSession();
+  const { session, isVerifiedMember, signOut, status } = useSession();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // The Reviews group opens by itself whenever one of its pages is showing.
+  const inReviews = pathname.startsWith('/reviews');
+  const [reviewsOpen, setReviewsOpen] = useState(inReviews);
+  useEffect(() => {
+    if (inReviews) setReviewsOpen(true);
+  }, [inReviews]);
 
   const handleSignOut = () => {
-    signOut();
+    void signOut();
     onClose?.();
     navigate('/');
   };
 
-  const navItems: { to: string; labelBn: string; labelEn: string; icon: typeof Compass; soon?: boolean }[] = [
+  type NavChild = { to: string; labelBn: string; labelEn: string; icon: typeof Compass };
+  const navItems: { to: string; labelBn: string; labelEn: string; icon: typeof Compass; soon?: boolean; children?: NavChild[] }[] = [
     {
       to: '/overview',
       labelBn: 'সারসংক্ষেপ',
@@ -71,12 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelBn: 'রিভিউ',
       labelEn: 'Reviews',
       icon: MessageSquareText,
-    },
-    {
-      to: '/health',
-      labelBn: 'সিস্টেম স্ট্যাটাস',
-      labelEn: 'System status',
-      icon: HeartPulse,
+      children: [
+        { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare },
+        { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
+      ],
     },
   ];
 
@@ -85,21 +95,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Mobile Backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-surface-sage/70 dark:bg-dark-surface-1 border-r border-surface-muted/30 dark:border-dark-surface-2 flex flex-col justify-between py-6 px-4 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-background/85 border-r border-surface-muted/30 dark:border-dark-surface-2 flex flex-col justify-between py-6 px-4 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col gap-6">
           {/* Logo Brand Header */}
           <Link to="/" onClick={onClose} className="flex items-center gap-3 px-3 py-1 rounded-xl" aria-label={t('অভিযাত্রী হোম', 'Abhijatri home')}>
-            <div className="w-10 h-10 rounded-2xl bg-forest-primary dark:bg-neon-lime flex items-center justify-center text-white dark:text-dark-bg-base shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-forest-primary dark:bg-neon-lime flex items-center justify-center text-white dark:text-dark-bg-base shadow-xs">
               <Compass size={24} aria-hidden="true" />
             </div>
             <div className="flex flex-col">
@@ -116,6 +126,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <nav className="flex flex-col gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
+              if (item.children) {
+                const groupId = 'sidebar-group-reviews';
+                return (
+                  <div key={item.to} className="flex flex-col gap-1">
+                    {/* A disclosure button, not a link: it shows the two review pages below it. */}
+                    <button
+                      type="button"
+                      aria-expanded={reviewsOpen}
+                      aria-controls={groupId}
+                      onClick={() => setReviewsOpen((open) => !open)}
+                      className={`flex w-full items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-left cursor-pointer transition-colors ${
+                        inReviews
+                          ? 'text-forest-primary dark:text-neon-lime font-semibold'
+                          : 'text-on-surface-variant dark:text-on-dark'
+                      } hover:bg-surface-container dark:hover:bg-dark-surface-2`}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span className="font-title text-[15px]">{t(item.labelBn, item.labelEn)}</span>
+                      <ChevronDown
+                        size={16}
+                        aria-hidden="true"
+                        className={`ml-auto shrink-0 motion-safe:transition-transform ${reviewsOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {reviewsOpen && (
+                      <ul id={groupId} className="ml-5 pl-3 border-l border-border flex flex-col gap-1">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          return (
+                            <li key={child.to}>
+                              <NavLink
+                                to={child.to}
+                                onClick={onClose}
+                                className={({ isActive }) =>
+                                  `flex items-center gap-2.5 px-3 py-2 min-h-11 rounded-xl text-sm transition-colors ${
+                                    isActive
+                                      ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-xs'
+                                      : 'text-on-surface-variant dark:text-on-dark hover:bg-surface-container dark:hover:bg-dark-surface-2'
+                                  }`
+                                }
+                              >
+                                <ChildIcon size={16} aria-hidden="true" />
+                                <span className="font-title">{t(child.labelBn, child.labelEn)}</span>
+                              </NavLink>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              }
               return (
                 <NavLink
                   key={item.to}
@@ -124,7 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${
                       isActive
-                        ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-sm'
+                        ? 'bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base font-semibold shadow-xs'
                         : 'text-on-surface-variant dark:text-on-dark hover:bg-surface-container dark:hover:bg-dark-surface-2'
                     }`
                   }
@@ -149,8 +211,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <div className="p-3.5 rounded-xl bg-surface-container/80 dark:bg-dark-surface-2 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
             <UserRound size={16} className="text-forest-primary dark:text-neon-lime shrink-0" aria-hidden="true" />
-            <span className="min-w-0 break-words">
-              {session.kind === 'member'
+            <span className="min-w-0 wrap-break-word">
+              {status === 'unreachable'
+                ? t('সংযোগ নেই: সাইন-ইন যাচাই করা যাচ্ছে না', 'No connection: sign-in cannot be checked')
+                : session.kind === 'member'
                 ? `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`
                 : session.displayName
                   ? t(
@@ -162,11 +226,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     : t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
             </span>
           </div>
-          {session.kind === 'guest' && (
+          {status !== 'unreachable' && session.kind === 'guest' && (
           <Link
             to="/login"
             onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+            className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogIn size={14} aria-hidden="true" />
             {t('সাইন ইন', 'Sign in')}
@@ -196,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={handleSignOut}
-            className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-full border border-forest-primary/40 dark:border-neon-lime/40 text-forest-primary dark:text-neon-lime text-xs font-bold font-title hover:bg-surface-sage dark:hover:bg-dark-surface-1"
+            className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogOut size={14} aria-hidden="true" />
             {t('সাইন আউট', 'Sign out')}

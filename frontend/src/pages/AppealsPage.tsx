@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Scale } from 'lucide-react';
 import { getMyAppeals, submitAppeal, withdrawAppeal } from '../api/account';
 import { Notice, accountErrorMessage, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { LoadingState } from '../components/common/StatusViews';
+import { LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { AppealView, AppealableDecision } from '../types';
-import { formatTimestamp } from '../utils/format';
+import { formatNumber, formatTimestamp } from '../utils/format';
+import { SignInLink } from '../components/common/SignInLink';
 
 const STATE_TEXT: Record<AppealView['state'], [string, string]> = {
   received: ['গৃহীত', 'Received'],
@@ -20,7 +20,7 @@ const STATE_TEXT: Record<AppealView['state'], [string, string]> = {
 /** Appeal a decision on your own content or account within 30 days (Moderation spec 6.5). */
 export const AppealsPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status } = useSession();
+  const { session, status, refresh } = useSession();
   const [data, setData] = useState<{ appeals: AppealView[]; appealable: AppealableDecision[] } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
@@ -54,11 +54,12 @@ export const AppealsPage: React.FC = () => {
 
   if (status === 'loading') return <LoadingState />; // still reading the session
 
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">
         <Notice tone="info">
-          {t('আপিল করতে সাইন ইন করুন।', 'Sign in to appeal a decision.')} <Link to="/login" className={linkClass}>{t('সাইন ইন', 'Sign in')}</Link>
+          {t('আপিল করতে সাইন ইন করুন।', 'Sign in to appeal a decision.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
         </Notice>
       </div>
     );
@@ -87,8 +88,20 @@ export const AppealsPage: React.FC = () => {
               maxLength={1000}
               value={drafts[decision.target_id] ?? ''}
               onChange={(e) => setDrafts({ ...drafts, [decision.target_id]: e.target.value })}
+              aria-describedby={`reason-count-${decision.target_id}`}
               className="rounded-xl p-3 bg-surface-sage/40 dark:bg-dark-surface-2"
             />
+            {(() => {
+              // The button stays disabled below 10 characters; say why instead of leaving it silent.
+              const length = [...(drafts[decision.target_id] ?? '').trim()].length;
+              return (
+                <p id={`reason-count-${decision.target_id}`} aria-live="polite" className={`text-xs ${length > 0 && length < 10 ? 'text-amber-800 dark:text-amber-300' : 'text-on-surface-variant dark:text-on-dark-muted'}`}>
+                  {length < 10
+                    ? t(`আরও ${formatNumber(10 - length, language)}টি অক্ষর লিখুন (${formatNumber(length, language)}/১০০০)`, `${10 - length} more character${10 - length === 1 ? '' : 's'} needed (${length}/1000)`)
+                    : t(`${formatNumber(length, language)}/১০০০`, `${length}/1000`)}
+                </p>
+              );
+            })()}
             <button
               type="button"
               disabled={busy || (drafts[decision.target_id] ?? '').trim().length < 10}

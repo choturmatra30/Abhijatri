@@ -2,6 +2,43 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-06 (R12 offline shell)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Service worker | `vite-plugin-pwa` with a hand-written Workbox worker (`injectManifest`, `src/sw.ts`), not the generated one. | Security.md 7.4 needs rules the generated worker cannot express plainly: refuse `no-store`/`private`, skip `Authorization` requests, path allowlist. |
+| What R12 saves | A destination is saved for offline when its page is opened online (network first, 4-second timeout), for at most 7 days (PF 18.4 default). Deliberate download, delete and freshness labels are R13. | Meets the R12 acceptance ("selected page reopens in airplane mode") without inventing pack features ahead of R14. |
+| Offline lists | Offline, lists show only destinations saved on this device; global counts are hidden. | Requested by the frontend owner: nothing shown offline that cannot be opened. |
+| Images offline | Photos and review media are never cached and never requested offline; 480 px variants on Data Saver or 2G/3G; user media on request there. | PF 18.1 (packs are text), PF 19.3 (no eager full-resolution media, 1 MiB shell). |
+| Updates | Prompt, never silent: a new version activates when the reader presses Reload. | Avoids losing a form being filled in. |
+| Dev | Worker disabled in `npm run dev`; `npm run preview:offline` for offline testing. | Keeps development fast and avoids stale-cache confusion. |
+
+## 2026-11-04 (shadcn/ui, Tailwind 4 and a new theme)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Tailwind 4 | The frontend moves from Tailwind 3.4 to 4 (`@tailwindcss/postcss`, CSS-first config in `src/global.css`; `tailwind.config.js` removed; `autoprefixer` dropped). | Current shadcn/ui targets Tailwind 4; requested by the frontend owner. |
+| shadcn/ui | `components.json` (style new-york, base colour stone, lucide icons), `@/` alias to `src/` in `tsconfig.json` and `vite.config.ts`, `cn()` in `src/lib/utils.ts`. First components: button, card, input, label, textarea, badge, separator, select, dialog, sonner. `sonner` uses our `ThemeContext` instead of `next-themes`. | Accessible Radix primitives and one set of variants instead of per-page class strings. |
+| New theme | Supersedes the Design.md sage/neon palette: shadcn stone neutrals with a green primary (light `green-700`, dark `green-500`; shadcn's `green-600` fails AA with white text). The old colour names (`forest-primary`, `surface-sage`, ...) remain as aliases of the new tokens so unmigrated pages follow the theme; new code uses shadcn names. | Chosen by the frontend owner. Needs team acknowledgement because it changes the approved look (F03 review). |
+| Fonts | Inter for interface and English; Hind Siliguri for Bangla, with system Bangla fallbacks. Noto Serif Bengali is no longer loaded. | One sans family pairs with the shadcn look and saves a web-font download. |
+
+## 2026-11-04 (Destination photos and the interactive selector)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Destination photos | Supersedes "No destination images" (2026-10-19). Destination photos are allowed when they are open-licence Wikimedia Commons images of the actual place, with author and licence read from Commons metadata, resized to at most 1024 px WebP, self-hosted under `frontend/public/images/destinations/`, credited on the photo, and listed in `Docs/Image-Credits.md`. Stock photos (Unsplash, CDN mirrors) remain excluded. | Requested by the frontend owner with the 21st.dev selector; keeps PF 17 (licensed, attributed) and PF 16.3 (`img-src 'self'`, no hotlinking). |
+| `components/ui/` and shadcn/ui | Superseded the same day (see below): shadcn/ui is adopted. Generic UI pieces live in `frontend/src/components/ui/`; shadcn components are added with `npx shadcn@latest add <name>` and then adjusted (44 px targets, wrapping text). | The frontend owner chose shadcn/ui for consistent, accessible components. |
+| 21st.dev components | Adapted, not pasted: props instead of hard-coded data, lucide icons instead of `react-icons`, Tailwind and CSS keyframes instead of Next.js styled-jsx, keyboard and screen-reader support, phone layout, reduced motion. | The original used Next-only styled-jsx, needed 600 px of width, used clickable `div`s, and shipped stock images. |
+
+## 2026-11-04 (UI states: network, session, permission)
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Read deadline | GET requests through `apiRequest` stop after 20 s with `TIMEOUT`; writes have no default deadline; callers may pass `timeoutMs`. | A stalled connection must end in a clear, retryable state. 20 s leaves room for Slow 3G (PF 19.4). A write may still complete on the server, so it is not abandoned silently. |
+| Slow hint | Any spinner or busy submit button shows "taking longer than usual" after 8 s. | Users on weak networks need to know the app is still working. |
+| Session expiry | A 401 `AUTH_REQUIRED` ends the member view at once and shows "Your session has expired"; sign-in returns to the same page. Wrong credentials (401 `INVALID_CREDENTIALS`) never count as expiry. | Member sessions expire after 7 days idle or 30 days (PF 8.5); the client must not keep claiming a session the server ended. |
+| Permission denied | 403-class errors get their own state with no retry button. | Retrying cannot change a permission; the message says what the person can do instead. |
+
 ## 2026-10-31 (Hidden reviews and the rating)
 
 | Decision | Rule | Reason |

@@ -73,7 +73,19 @@ export const DestinationDetailPage: React.FC = () => {
             hint={t('লিংকটি পুরনো হতে পারে, অথবা গন্তব্যটি এখন প্রকাশিত নেই।', 'The link may be old, or the destination is no longer published.')}
           />
         ) : (
-          <ErrorState error={error} onRetry={reload} />
+          <ErrorState
+            error={error}
+            onRetry={reload}
+            offlineHint={t(
+              'এই গন্তব্যটি এই ডিভাইসে সংরক্ষিত নেই। অনলাইনে থাকার সময় খোলা গন্তব্য ৭ দিন পর্যন্ত অফলাইনে দেখা যায়।',
+              'This destination is not saved on this device. Destinations you open while online stay readable offline for up to 7 days.',
+            )}
+            offlineAction={
+              <Link to="/destinations" className="text-sm font-semibold text-primary underline underline-offset-4">
+                {t('সংরক্ষিত গন্তব্য দেখুন', 'See saved destinations')}
+              </Link>
+            }
+          />
         )}
       </div>
     );

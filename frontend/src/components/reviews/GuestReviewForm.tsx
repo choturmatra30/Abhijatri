@@ -18,7 +18,7 @@ import {
 import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth, pick } from '../../utils/format';
 import { photoMetadataComplete } from '../../utils/reviewPhotos';
-import { describeError } from '../common/StatusViews';
+import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { ReviewPhotos, SERVER_MEDIA_TEXT, type ReviewPhoto } from './ReviewPhotos';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
@@ -26,6 +26,7 @@ import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
 /** Must match the API's expected Turnstile action (backend app/turnstile.py). */
 const TURNSTILE_ACTION = 'guest-review';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
+import { formatNumber } from '../../utils/format';
 
 export interface SubmittedReview extends GuestReviewCreated {
   receipt: string;
@@ -45,7 +46,7 @@ const newIdentity = (): DraftIdentity => ({ clientDraftId: crypto.randomUUID(), 
 const length = (value: string) => [...value.trim()].length;
 
 const inputClass =
-  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-[invalid=true]:border-error-alert';
+  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert';
 const labelClass = 'text-xs font-bold text-on-surface-variant dark:text-on-dark-muted';
 
 export const GuestReviewForm: React.FC<{
@@ -318,7 +319,7 @@ export const GuestReviewForm: React.FC<{
               type="button"
               role="radio"
               aria-checked={rating === star}
-              aria-label={t(`${star} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
+              aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
               onClick={() => setRating(star)}
               className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full"
             >
@@ -491,6 +492,7 @@ export const GuestReviewForm: React.FC<{
             ? t('জমা হচ্ছে…', 'Submitting…')
             : t('রিভিউ জমা দিন', 'Submit review')}
       </button>
+      <SlowNetworkHint active={submitting} />
     </form>
   );
 };

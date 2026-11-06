@@ -13,6 +13,9 @@ export function listDestinations(
   return apiRequest<DestinationList>('/api/v1/destinations', {
     params: { after: options.after, limit: options.limit },
     signal: options.signal,
+    // Always check with the server (a cheap 304 via the ETag when unchanged). A copy reused from the
+    // browser cache would list destinations that cannot be opened offline (Frontend-Implemented 5i).
+    cache: 'no-cache',
   });
 }
 

@@ -7,12 +7,13 @@ import { useApiResource } from '../../hooks/useApiResource';
 import type { ComfortTier, ReviewEditChanges, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth } from '../../utils/format';
 import { codePoints, diffEdit, hasChanges, type EditableValues } from '../../utils/reviewAuthor';
-import { describeError } from '../common/StatusViews';
+import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
+import { formatNumber } from '../../utils/format';
 
 const inputClass =
-  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-[invalid=true]:border-error-alert';
+  'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert';
 const labelClass = 'text-xs font-bold text-on-surface-variant dark:text-on-dark-muted';
 
 type Field = 'title' | 'body' | 'overallRating' | 'visitMonth' | 'language' | 'travellerType' | 'comfortTier' | 'categoryRatings';
@@ -193,7 +194,7 @@ export const ReviewEditForm: React.FC<{
         <legend className={labelClass}>{t('সার্বিক রেটিং', 'Overall rating')}</legend>
         <div className="flex items-center gap-1" role="radiogroup" aria-describedby={describedBy('overall_rating')}>
           {[1, 2, 3, 4, 5].map((star) => (
-            <button key={star} type="button" role="radio" aria-checked={values.overallRating === star} aria-label={t(`${star} তারকা`, `${star} star${star === 1 ? '' : 's'}`)} onClick={() => set('overallRating', star)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full">
+            <button key={star} type="button" role="radio" aria-checked={values.overallRating === star} aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)} onClick={() => set('overallRating', star)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full">
               <Star size={26} aria-hidden="true" className={star <= values.overallRating ? 'fill-amber-400 text-amber-400' : 'text-surface-muted dark:text-on-dark-muted'} />
             </button>
           ))}
@@ -251,6 +252,7 @@ export const ReviewEditForm: React.FC<{
           <Save size={16} aria-hidden="true" />
           {saving ? t('সংরক্ষণ হচ্ছে…', 'Saving…') : t('সংরক্ষণ করুন', 'Save')}
         </button>
+        <SlowNetworkHint active={saving} />
         <button type="button" onClick={onCancel} className="min-h-[44px] px-5 rounded-full border text-sm font-bold">
           {t('বাতিল', 'Cancel')}
         </button>

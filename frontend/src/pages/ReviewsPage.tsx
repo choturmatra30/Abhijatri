@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { MessageSquareText } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowRight, MessageSquareText, ReceiptText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { listAllDestinations } from '../api/destinations';
 import { useApiResource } from '../hooks/useApiResource';
@@ -10,7 +10,42 @@ import { ReceiptPanel } from '../components/reviews/ReceiptPanel';
 import { ReceiptStatusPanel } from '../components/reviews/ReceiptStatusPanel';
 import { RemovalRequestForm } from '../components/reviews/RemovalRequestForm';
 
-export const ReviewsPage: React.FC = () => {
+/** The review section has two pages; the sidebar shows them under "Reviews" (Frontend-Implemented 5h). */
+export const REVIEW_WRITE_PATH = '/reviews/write';
+export const REVIEW_RECEIPT_PATH = '/reviews/receipt';
+
+const PageHeader: React.FC<{ icon: typeof MessageSquareText; eyebrow: [string, string]; title: [string, string]; summary: [string, string] }> = ({
+  icon: Icon,
+  eyebrow,
+  title,
+  summary,
+}) => {
+  const { t } = useLanguage();
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-forest-primary dark:text-neon-lime text-xs font-bold uppercase tracking-wider mb-1">
+        <Icon size={16} aria-hidden="true" />
+        <span>{t(...eyebrow)}</span>
+      </div>
+      <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark tracking-tight">{t(...title)}</h1>
+      <p className="text-sm text-on-surface-variant dark:text-on-dark-muted font-body mt-1">{t(...summary)}</p>
+    </div>
+  );
+};
+
+/** A quiet link to the other review page. */
+const SwitchLink: React.FC<{ to: string; text: [string, string] }> = ({ to, text }) => {
+  const { t } = useLanguage();
+  return (
+    <Link to={to} className="self-start inline-flex items-center gap-1.5 min-h-11 text-sm font-semibold text-primary underline-offset-4 hover:underline">
+      {t(...text)}
+      <ArrowRight size={14} aria-hidden="true" />
+    </Link>
+  );
+};
+
+/** Writing a guest review. `?destination=<id>` preselects the destination. */
+export const WriteReviewPage: React.FC = () => {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState<SubmittedReview | null>(null);
@@ -18,40 +53,54 @@ export const ReviewsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 pb-12 max-w-3xl mx-auto">
-      <div>
-        <div className="flex items-center gap-2 text-forest-primary dark:text-neon-lime text-xs font-bold uppercase tracking-wider mb-1">
-          <MessageSquareText size={16} aria-hidden="true" />
-          <span>{t('অতিথি রিভিউ', 'Guest review')}</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold font-title text-on-surface dark:text-on-dark tracking-tight">
-          {t('আপনার ভ্রমণ অভিজ্ঞতা লিখুন', 'Share your travel experience')}
-        </h1>
-        <p className="text-sm text-on-surface-variant dark:text-on-dark-muted font-body mt-1">
-          {t(
-            'অ্যাকাউন্ট ছাড়াই রিভিউ দিন। মডারেশনের পর প্রকাশিত হবে, আর রিসিপ্ট দিয়ে অবস্থা দেখা বা প্রত্যাহার করা যাবে।',
-            'No account needed. Reviews are published after moderation, and your receipt lets you check status or withdraw.',
-          )}
-        </p>
-      </div>
+      <PageHeader
+        icon={MessageSquareText}
+        eyebrow={['রিভিউ লিখুন', 'Write a review']}
+        title={['আপনার ভ্রমণ অভিজ্ঞতা লিখুন', 'Share your travel experience']}
+        summary={[
+          'অ্যাকাউন্ট ছাড়াই রিভিউ দিন। মডারেশনের পর প্রকাশিত হবে; জমা দেওয়ার পর একটি রিসিপ্ট পাবেন।',
+          'No account needed. Reviews are published after moderation; you get a receipt when you submit.',
+        ]}
+      />
 
       {submitted ? (
         <ReceiptPanel review={submitted} onDone={() => setSubmitted(null)} />
       ) : loading ? (
         <LoadingState />
       ) : error !== null ? (
-        <ErrorState error={error} onRetry={reload} />
-      ) : destinations && destinations.length > 0 ? (
-        <GuestReviewForm
-          destinations={destinations}
-          initialDestinationId={searchParams.get('destination')}
-          onSubmitted={setSubmitted}
+        <ErrorState
+          error={error}
+          onRetry={reload}
+          offlineHint={t(
+            'রিভিউ পাঠাতে ইন্টারনেট সংযোগ লাগে। সংযোগ ফিরলে এখানে আবার আসুন।',
+            'Sending a review needs a connection. Come back here when you are online.',
+          )}
         />
+      ) : destinations && destinations.length > 0 ? (
+        <GuestReviewForm destinations={destinations} initialDestinationId={searchParams.get('destination')} onSubmitted={setSubmitted} />
       ) : (
         <EmptyState title={t('রিভিউ দেওয়ার মতো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations to review yet')} />
       )}
 
-      <ReceiptStatusPanel />
-      <RemovalRequestForm />
+      <SwitchLink to={REVIEW_RECEIPT_PATH} text={['আগে রিভিউ দিয়েছেন? রিসিপ্ট দিয়ে অবস্থা দেখুন', 'Already reviewed? Check it with your receipt']} />
     </div>
   );
 };
+
+/** Checking, withdrawing or asking to remove an existing guest review with its receipt. */
+export const ReviewReceiptPage: React.FC = () => (
+  <div className="flex flex-col gap-6 pb-12 max-w-3xl mx-auto">
+    <PageHeader
+      icon={ReceiptText}
+      eyebrow={['রিসিপ্ট দিয়ে দেখুন', 'Check with receipt']}
+      title={['আপনার রিভিউয়ের অবস্থা', 'Your review status']}
+      summary={[
+        'রিভিউ জমার সময় পাওয়া রিসিপ্ট দিয়ে অবস্থা দেখুন, প্রত্যাহার করুন বা সরানোর অনুরোধ করুন।',
+        'Use the receipt you got when you submitted to check the status, withdraw the review or ask for removal.',
+      ]}
+    />
+    <ReceiptStatusPanel />
+    <RemovalRequestForm />
+    <SwitchLink to={REVIEW_WRITE_PATH} text={['নতুন রিভিউ লিখুন', 'Write a new review']} />
+  </div>
+);
