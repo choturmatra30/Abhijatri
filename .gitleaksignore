@@ -1,0 +1,5 @@
+# False positives: made-up test passwords in commit dc31d41 (6 Nov 2026), since moved out of the flagged pattern.
+# gitleaks scans commits, so these exact fingerprints stay listed. Add entries here only after checking each one.
+dc31d41bd73b15495d0ebb15cfb5fec137cbc5bd:backend/tests/test_breach.py:generic-api-key:23
+dc31d41bd73b15495d0ebb15cfb5fec137cbc5bd:backend/tests/test_breach.py:generic-api-key:131
+dc31d41bd73b15495d0ebb15cfb5fec137cbc5bd:backend/tests/test_breach.py:generic-api-key:145

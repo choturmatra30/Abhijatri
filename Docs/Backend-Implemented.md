@@ -1182,7 +1182,7 @@ To reproduce: run `prompt/r14_pack_manifest_test.md`.
 | Real-device airplane-mode tests (Gate 2) | Need R13 |
 | Faster freshness under 50-user load | Owner decision (5.23.10) |
 | Decisions Step 8 (measured maximum age) | Open; 7-day default in use |
-| Purging shared/CDN caches on moderation | None needed today (60-second TTL, no CDN); revisit if a CDN is added |
+| Purging shared caches on moderation | None today. Correction, 6 Nov: Vercel's edge does cache these public responses (`X-Vercel-Cache: HIT`), so a change can take about 60 seconds to reach a device, within the accepted TTL. Revisit if the TTL grows |
 
 ### 5.24 R16: `Idempotency-Key` replay, and B6: transaction-pooler support (6 November 2026)
 
@@ -1343,9 +1343,28 @@ Supabase's own switch needs a paid plan and the organisation is on Free, so the 
 | Chrome, production build on `glob@14` | Service worker active; destination saved; with backend and web server stopped the page and saved list still open |
 | Git history, 148 commits, all refs | The only password in a Supabase URL is the `pw` test placeholder; `Security_Abhijatra.pdf` scans clean |
 
-**Not run locally:** the full integration suite (memory), `pip-audit` and `docker build` (TLS interception), gitleaks (not installed). CI runs all of them. The action version bumps are proven only by CI.
+**Not run locally:** the full integration suite (memory), `pip-audit` and `docker build` (TLS interception). CI runs all of them; the `backend` job passed on run 42204992770 (Ubuntu 26.04, 7m24s).
 
-#### 5.25.5 Open, and accepted
+**gitleaks follow-up.** Once it could run, it flagged three made-up test passwords in commit dc31d41. They were never secrets. The test file now builds those values at run time, and `.gitleaksignore` lists exactly those three fingerprints, because gitleaks scans commits and pushed history is not rewritten. Proven with gitleaks locally on the same 3 commits: no leaks with the file, exactly 3 with it emptied.
+
+#### 5.25.5 Offline readiness audit of the live API
+
+No backend change is needed for R13 or R15.
+
+| Check, on the live system | Result |
+|---|---|
+| Manifest, download, SHA-256, size, schema through the website, all 5 destinations | All verified, through gzip, with Node `fetch` and WebCrypto |
+| Inside a real browser with IndexedDB | **Not run**; the Chrome extension was disconnected |
+| `If-None-Match` | `304` for pack and manifest, despite gzip weakening the `ETag` |
+| Stale `version`, unknown id, freshness | `409`, `404`, all `AVAILABLE` and matching stored `content_version` |
+| Privacy of pack content | No private fields; no media links |
+| Direct latency, median | Manifest 0.43 s, pack 0.27 s; up to 20 s for a pair after idle |
+| Burst limiter | Fires on one connection at about 20 a minute |
+| Limiter through the website | No `429` on 30 downloads by one user: traffic reaches the API from Vercel's addresses, so the burst limit does not separate website users. Safe for downloads; the durable limits were not tested for this and are worth checking under real load |
+
+The offline guideline records what this means for the client: the edge cache (5.1a), the `409` retry, a download deadline, and the limit of three new guest drafts a day per scope.
+
+#### 5.25.6 Open, and accepted
 
 | Item | State |
 |---|---|

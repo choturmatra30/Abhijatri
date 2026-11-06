@@ -25,6 +25,8 @@
 | Offline packs page | **Placeholder**: `OfflinePacksPage.tsx` shows "not built yet"; the sidebar item is marked Soon | `pages/OfflinePacksPage.tsx`, `components/layout/Sidebar.tsx` |
 | Offline drafts | **Not started**; offline, the reviews page shows an error state | `pages/ReviewsPage.tsx` |
 
+**Backend readiness (audited on the live system, 6 Nov 2026).** No backend change is needed for R13 or R15. All 5 destinations downloaded through the website with `fetch` and WebCrypto: SHA-256, size, `schema_version` and versions all matched; freshness matched; no private fields and no media links in any pack. A `304` works despite gzip, a stale version gives `409`, an unknown id gives `404`. Median direct latency: manifest 0.43 s, pack 0.27 s. Not yet run inside a real browser with IndexedDB; that is task 3's first check.
+
 **Release order:** merge PR #39 → confirm R16 live (section 7) → R13 → R15 → R18 phone tests. R15 depends on R13 (Gantt), and both depend on R16 being live.
 
 ---
@@ -249,8 +251,7 @@ export function openOfflineDb(): Promise<IDBPDatabase<OfflineDb>> {
 // src/api/packs.ts
 import { API_BASE_URL, ApiError, apiRequest } from './client';
 
-// `no-cache` revalidates with the ETag. Without it the browser may reuse a 60-second-old manifest
-// and hide a removal on the check that should catch it.
+// `no-cache` skips the browser's own copy. It does not bypass Vercel's edge cache (section 5.1a).
 export const getPackManifest = (id: string, signal?: AbortSignal) =>
   apiRequest<PackManifest>(`/api/v1/destinations/${encodeURIComponent(id)}/pack/manifest`, { cache: 'no-cache', signal });
 
@@ -276,6 +277,16 @@ export async function fetchPackBytes(packUrl: string, signal?: AbortSignal): Pro
 | Pack | 20 a minute per network | About 12 KB for a seeded destination; strong `ETag`, `Content-Digest` |
 | Freshness | 30 a minute per network | 1 to 20 distinct ids; repeats are `422` |
 
+### 5.1a What the live system does (measured)
+
+- **Vercel caches these responses.** `public, max-age=60` is honoured at the edge: repeat requests answered `X-Vercel-Cache: HIT`. So a manifest, freshness answer or pack can be up to about 60 seconds old, whatever `cache` option the browser uses. That is the accepted public TTL, not a bug.
+- **`ETag` arrives weak.** The server sends a strong `ETag`; the gzip step turns it into `W/"..."`. Do not compare `ETag` yourself; the server's `304` already handles it.
+- **Hash what `fetch` gives you.** `arrayBuffer()` returns decoded bytes, and those are what `sha256` covers. Verified through gzip on all 5 packs.
+- **A cold start can be slow.** One manifest plus pack took up to 20 s after idle, against under a second normally. Give a download its own deadline of about 30 s and one automatic retry. `READ_TIMEOUT_MS` (20 s) is too close.
+- **Limits rarely trigger on the website.** Thirty downloads through the site by one user got no `429`, because traffic reaches the API from Vercel's addresses. Still handle `429`.
+
+### 5.1b Contract notes
+
 The response shape differs from the proposal in `Handoff-Backend.md`. There is **no `parts` and no `removed_review_ids`**. Removals work because `content_version` changes when a review is hidden or withdrawn, and the device replaces the whole pack.
 
 ### 5.2 Download and verify
@@ -300,12 +311,15 @@ export async function downloadPack(id: string, signal?: AbortSignal, retried = f
     await requestPersistentStorage();
   } catch (error) {
     if (!retried && error instanceof ApiError && error.code === 'PACK_VERSION_SUPERSEDED') {
-      return downloadPack(id, signal, true); // a newer build appeared: read the manifest again, once
+      await delay(RETRY_AFTER_SUPERSEDED_MS); // the edge may still hold the old manifest (5.1a)
+      return downloadPack(id, signal, true);
     }
     throw error;
   }
 }
 ```
+
+`RETRY_AFTER_SUPERSEDED_MS` is about 5 seconds. If the second attempt also gets `409`, a cached manifest is still pointing at the old build: show Download failed with Retry, and keep any old pack. It clears within about 60 seconds.
 
 `crypto.subtle` needs a secure context. HTTPS and `localhost` work; plain `http://` over a local network does not, so test phones through the deployed site.
 
@@ -455,6 +469,8 @@ These are what make "no duplicates" true. All are stored on the draft and surviv
 
 **Trap 1: changing guest identity.** "Start as a new guest" (`startAsNewGuest`, `resetGuestScopeSecret`) replaces the scope secret. Server uniqueness is `(guest scope, client_draft_id)`, so sending an existing draft under the new scope looks like a new review. If a response was lost, that creates a **duplicate**. Always send the scope stored on the draft.
 
+**Limit to design for: three new guest drafts a day per scope.** `guest_submit_per_scope_per_day` is 3, so a traveller who queued four reviews gets `429 RATE_LIMITED` on the fourth, with a long `Retry-After`. Retrying an already-sent draft is free. Keep the draft as `READY`, show when it can be sent, and never present this as a failure of the review.
+
 **Trap 2: an edit after a lost response.** The server keeps the first version. If a response was lost and the user edits the draft and submits again, the answer is `200` with `duplicate_recovered: true` and the edit is **not applied**. When the local content may differ from what was first sent, say that the first version was received and offer to edit it with the receipt. Track this with `key_revision`.
 
 The in-memory `hooks/useIdempotencyKeys.ts` stays for the receipt panel and member pages, which act online. Drafts use the stored key instead.
@@ -513,7 +529,7 @@ Before sending: guests complete Turnstile (a token is single use and is not part
 | `401 AUTH_REQUIRED` | `READY` | Ask for sign-in |
 | `403 ACCOUNT_RESTRICTED`, `EMAIL_NOT_VERIFIED` | `NEEDS_ATTENTION` | Server message |
 | `404 NOT_FOUND` | `NEEDS_ATTENTION` | Destination no longer available |
-| `429 RATE_LIMITED` | `READY` | Honour `Retry-After` |
+| `429 RATE_LIMITED` | `READY` | Honour `Retry-After`; say when it can be sent (daily draft limit in 6.2) |
 | `503 GUEST_WRITES_PAUSED`, `SERVICE_UNAVAILABLE` | `READY` | Try later |
 
 Branch on `code`, never on `message`. Set `SUBMITTING` **before** sending, so a crash mid-send is recovered as a retry. Disable Submit while sending so one tap is one attempt.
@@ -686,6 +702,7 @@ Add `npm audit` to your routine: CI now fails on moderate or above. The one rema
 | D19 | Do not confirm, set the device date 8 days ahead, reopen | Receipt deleted |
 | D20 | Sign out with unsent member drafts | Warned; keep or delete; others cannot see them |
 | D21 | Phone: airplane mode, write, restart, reconnect, submit | One review |
+| D22 | Queue four guest drafts offline, reconnect, submit all | Three send; the fourth stays ready and says when it can be sent |
 
 ### 9.6 After PR #39 is live: R group
 
