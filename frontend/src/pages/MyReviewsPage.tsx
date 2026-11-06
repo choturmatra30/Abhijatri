@@ -5,7 +5,7 @@ import { ApiError, NETWORK_ERROR } from '../api/client';
 import { listAllDestinations } from '../api/destinations';
 import { getMyReviews, withdrawMemberReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { EmptyState, LoadingState, describeError } from '../components/common/StatusViews';
+import { EmptyState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { STATUS_LABEL } from '../components/reviews/reviewLabels';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -21,7 +21,7 @@ const STATUSES = Object.keys(STATUS_LABEL) as ReviewStatus[];
 /** The signed-in member's own reviews: filters, newest first, "Show more" paging (Review.md 9.3, Gantt R09). */
 export const MyReviewsPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const [params, setParams] = useSearchParams();
   const statusFilter = (STATUSES.includes(params.get('status') as ReviewStatus) ? params.get('status') : '') as ReviewStatus | '';
   const destinationFilter = params.get('destination') ?? '';
@@ -131,6 +131,7 @@ export const MyReviewsPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">

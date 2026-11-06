@@ -42,7 +42,18 @@ const honourCacheControl: WorkboxPlugin = {
 
 // 2. Public destination data. Network first so online readers always get current content; after 4 s
 // on a stalled connection the saved copy is shown instead of a spinner.
-const PUBLIC_API = /^\/api\/v1\/destinations(?:\/[0-9a-f-]{36}(?:\/reviews)?)?$/;
+// Destination pages and their review feeds only. The list (`/destinations`) is deliberately not
+// cached: offline, lists are built from the saved pages, so they never offer what cannot be opened.
+const PUBLIC_API = /^\/api\/v1\/destinations\/[0-9a-f-]{36}(?:\/reviews)?$/;
+const LIST_PATH = /^\/api\/v1\/destinations$/;
+
+/** A 5xx is the server failing, not an answer: fall back to the saved copy as if the network failed. */
+const serverErrorIsFailure: WorkboxPlugin = {
+  fetchDidSucceed: async ({ response }) => {
+    if (response.status >= 500) throw new Error(`server error ${response.status}`);
+    return response;
+  },
+};
 registerRoute(
   ({ url, request, sameOrigin }) =>
     sameOrigin && request.method === 'GET' && !request.headers.has('Authorization') && PUBLIC_API.test(url.pathname),
@@ -50,6 +61,7 @@ registerRoute(
     cacheName: PUBLIC_API_CACHE,
     networkTimeoutSeconds: 4,
     plugins: [
+      serverErrorIsFailure,
       new CacheableResponsePlugin({ statuses: [200] }),
       honourCacheControl,
       new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: SEVEN_DAYS, purgeOnQuotaError: true }),
@@ -84,6 +96,11 @@ self.addEventListener('activate', (event) => {
       await Promise.all(
         names.filter((n) => n.startsWith('abj-') && !n.endsWith(`-${VERSION}`)).map((n) => caches.delete(n)),
       );
+      // Earlier builds cached the list; drop it so offline lists come only from saved pages.
+      const api = await caches.open(PUBLIC_API_CACHE);
+      for (const request of await api.keys()) {
+        if (LIST_PATH.test(new URL(request.url).pathname)) await api.delete(request);
+      }
       await self.clients.claim();
     })(),
   );

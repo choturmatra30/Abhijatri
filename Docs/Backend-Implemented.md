@@ -290,6 +290,10 @@ Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` secti
 
 The live Railway API sends `Cache-Control: no-store` on `GET /destinations`, `/destinations/{id}` and `/destinations/{id}/reviews`, while this code sends `public, max-age=60` (section 1.11 evidence; `PUBLIC_CACHE_MAX_AGE_SECONDS`). The R12 service worker honours `no-store`, so offline destination pages cannot work on the live site until Railway runs current `main`. Details, fix and the one-line check: `Frontend-Implemented.md` section 6, B5.
 
+### 2.7 Open: shared database connection cap (6 November 2026)
+
+The Supabase session-mode pooler (port 5432) allows 15 clients in total, and each backend process may hold 7. When the cap is reached every route answers 503. Options and the check: `Frontend-Implemented.md` section 6, B6.
+
 ## 3. Not implemented in the backend
 
 | Area | Contract reference | Planned work |

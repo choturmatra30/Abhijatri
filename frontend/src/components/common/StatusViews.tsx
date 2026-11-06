@@ -2,7 +2,8 @@ import React from 'react';
 import { AlertCircle, Clock, CloudOff, Inbox, Loader2, LogIn, RefreshCw, SearchX, ShieldX, WifiOff, type LucideIcon } from 'lucide-react';
 import { ApiError, NETWORK_ERROR, TIMEOUT_ERROR } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
-import { useSlowFlag } from '../../hooks/useNetworkState';
+import { useOnlineStatus, useSlowFlag } from '../../hooks/useNetworkState';
+import { formatNumber } from '../../utils/format';
 import { SignInLink } from './SignInLink';
 import { Button, buttonVariants } from '@/components/ui/button';
 
@@ -95,7 +96,10 @@ export const ErrorState: React.FC<{
 }> = ({ error, onRetry, offlineHint, offlineAction }) => {
   const { t } = useLanguage();
   const kind = failureKind(error);
-  const { icon: Icon, title } = KIND_LOOK[kind];
+  const { icon: Icon, title: kindTitle } = KIND_LOOK[kind];
+  // The device has a connection but the server did not answer: do not claim the internet is down.
+  const serverDown = kind === 'offline' && typeof navigator !== 'undefined' && navigator.onLine;
+  const title: [string, string] = serverDown ? ['সার্ভারে পৌঁছানো যাচ্ছে না', 'The server cannot be reached'] : kindTitle;
   // Retrying cannot fix a missing sign-in or a permission; offer the step that can.
   const canRetry = onRetry && kind !== 'signin' && kind !== 'forbidden';
   return (
@@ -150,7 +154,9 @@ export const EmptyState: React.FC<{ title: string; hint?: string; action?: React
 
 /** Shown above lists that, offline, contain only what this device has saved (Frontend-Implemented 5i). */
 export const OfflineSavedNotice: React.FC<{ count: number }> = ({ count }) => {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const online = useOnlineStatus();
+  const n = formatNumber(count, language);
   return (
     <p
       role="status"
@@ -158,10 +164,15 @@ export const OfflineSavedNotice: React.FC<{ count: number }> = ({ count }) => {
     >
       <CloudOff size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
       <span>
-        {t(
-          `আপনি অফলাইনে আছেন। এই ডিভাইসে সংরক্ষিত ${count}টি গন্তব্য দেখানো হচ্ছে; সংযোগ ফিরলে সব দেখা যাবে।`,
-          `You are offline. Showing the ${count} destination(s) saved on this device; the full list returns when you are back online.`,
-        )}
+        {online
+          ? t(
+              `সার্ভারে পৌঁছানো যাচ্ছে না। এই ডিভাইসে সংরক্ষিত ${n}টি গন্তব্য দেখানো হচ্ছে; সংযোগ ঠিক হলে সব দেখা যাবে।`,
+              `The server cannot be reached. Showing the ${n} destination(s) saved on this device; the full list returns when it is back.`,
+            )
+          : t(
+              `আপনি অফলাইনে আছেন। এই ডিভাইসে সংরক্ষিত ${n}টি গন্তব্য দেখানো হচ্ছে; সংযোগ ফিরলে সব দেখা যাবে।`,
+              `You are offline. Showing the ${n} destination(s) saved on this device; the full list returns when you are back online.`,
+            )}
       </span>
     </p>
   );
@@ -182,6 +193,34 @@ export const OfflineEmptyState: React.FC = () => {
           'Destinations you open while online stay readable offline for up to 7 days.',
         )}
       </p>
+    </div>
+  );
+};
+
+/**
+ * Account pages while the server cannot be reached: the sign-in cannot be checked, and session data
+ * is never stored offline (PF 18.1), so say that instead of asking a signed-in member to sign in.
+ */
+export const AccountNeedsConnection: React.FC<{ onRetry?: () => void }> = ({ onRetry }) => {
+  const { t } = useLanguage();
+  return (
+    <div role="status" className="tonal-card p-10 flex flex-col items-center gap-3 text-center">
+      <CloudOff size={28} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
+      <p className="text-base font-bold font-title text-on-surface dark:text-on-dark">
+        {t('অ্যাকাউন্টের পাতা দেখতে সংযোগ লাগবে', 'Account pages need a connection')}
+      </p>
+      <p className="text-xs font-body text-on-surface-variant dark:text-on-dark-muted max-w-md">
+        {t(
+          'সংযোগ ছাড়া আপনার সাইন-ইন যাচাই করা যায় না, আর অ্যাকাউন্টের তথ্য এই ডিভাইসে রাখা হয় না। সংযোগ ফিরলে পাতাটি নিজেই আবার চেষ্টা করবে।',
+          'Your sign-in cannot be checked without a connection, and account data is not kept on this device. The page tries again by itself when the connection is back.',
+        )}
+      </p>
+      {onRetry && (
+        <Button type="button" variant="outline" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" />
+          {t('আবার চেষ্টা করুন', 'Try again')}
+        </Button>
+      )}
     </div>
   );
 };

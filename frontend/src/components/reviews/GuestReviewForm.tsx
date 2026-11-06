@@ -26,6 +26,7 @@ import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
 /** Must match the API's expected Turnstile action (backend app/turnstile.py). */
 const TURNSTILE_ACTION = 'guest-review';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
+import { formatNumber } from '../../utils/format';
 
 export interface SubmittedReview extends GuestReviewCreated {
   receipt: string;
@@ -318,7 +319,7 @@ export const GuestReviewForm: React.FC<{
               type="button"
               role="radio"
               aria-checked={rating === star}
-              aria-label={t(`${star} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
+              aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
               onClick={() => setRating(star)}
               className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full"
             >

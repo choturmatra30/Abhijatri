@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Scale } from 'lucide-react';
 import { getMyAppeals, submitAppeal, withdrawAppeal } from '../api/account';
 import { Notice, accountErrorMessage, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { LoadingState } from '../components/common/StatusViews';
+import { LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { AppealView, AppealableDecision } from '../types';
@@ -20,7 +20,7 @@ const STATE_TEXT: Record<AppealView['state'], [string, string]> = {
 /** Appeal a decision on your own content or account within 30 days (Moderation spec 6.5). */
 export const AppealsPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status } = useSession();
+  const { session, status, refresh } = useSession();
   const [data, setData] = useState<{ appeals: AppealView[]; appealable: AppealableDecision[] } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
@@ -54,6 +54,7 @@ export const AppealsPage: React.FC = () => {
 
   if (status === 'loading') return <LoadingState />; // still reading the session
 
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">

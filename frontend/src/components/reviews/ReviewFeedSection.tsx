@@ -115,7 +115,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
               <label htmlFor="feed-rating" className="text-xs font-bold text-on-surface-variant dark:text-on-dark-muted">{t('রেটিং', 'Rating')}</label>
               <select id="feed-rating" value={filters.rating} onChange={(e) => setFilters({ ...filters, rating: Number(e.target.value) as ReviewFilters['rating'] })} className="min-h-[44px] px-3 rounded-xl bg-white dark:bg-dark-surface-1 text-sm">
                 <option value={0}>{t('সব রেটিং', 'All ratings')}</option>
-                {[5, 4, 3, 2, 1].map((n) => (<option key={n} value={n}>{t(`${n} তারকা`, `${n} star${n === 1 ? '' : 's'}`)}</option>))}
+                {[5, 4, 3, 2, 1].map((n) => (<option key={n} value={n}>{t(`${formatNumber(n, 'bn')} তারকা`, `${n} star${n === 1 ? '' : 's'}`)}</option>))}
               </select>
             </div>
             <div className="flex flex-col gap-1">

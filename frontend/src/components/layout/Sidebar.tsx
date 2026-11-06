@@ -26,7 +26,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { t } = useLanguage();
-  const { session, isVerifiedMember, signOut } = useSession();
+  const { session, isVerifiedMember, signOut, status } = useSession();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -212,7 +212,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-2 text-sm font-semibold text-on-surface dark:text-on-dark">
             <UserRound size={16} className="text-forest-primary dark:text-neon-lime shrink-0" aria-hidden="true" />
             <span className="min-w-0 wrap-break-word">
-              {session.kind === 'member'
+              {status === 'unreachable'
+                ? t('সংযোগ নেই: সাইন-ইন যাচাই করা যাচ্ছে না', 'No connection: sign-in cannot be checked')
+                : session.kind === 'member'
                 ? `${session.displayName}${isVerifiedMember ? t(' · যাচাইকৃত সদস্য', ' · Verified Member') : ''}`
                 : session.displayName
                   ? t(
@@ -224,7 +226,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     : t('অতিথি হিসেবে দেখছেন', 'Browsing as a guest')}
             </span>
           </div>
-          {session.kind === 'guest' && (
+          {status !== 'unreachable' && session.kind === 'guest' && (
           <Link
             to="/login"
             onClick={onClose}

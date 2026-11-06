@@ -97,6 +97,8 @@ export interface VelarisProps {
   bg?: string;
   colors?: string[];
   speed?: number;
+  /** false: draw one still frame (low-end devices, Data Saver). */
+  animate?: boolean;
   grain?: number;
   /** CSS height; omit to size to the content. */
   height?: string;
@@ -118,6 +120,7 @@ const Velaris = ({
   bg = '#0c0a09',
   colors = DEFAULT_COLORS,
   speed = 2.0,
+  animate = true,
   grain = 0.3,
   height,
   className,
@@ -184,7 +187,7 @@ const Velaris = ({
 
     const loop = (t: number) => {
       raf = 0;
-      if (!visible || document.hidden || reducedMotion.matches) return;
+      if (!visible || document.hidden || reducedMotion.matches || !animate) return;
       if (t - last >= FRAME_MS) {
         last = t;
         draw(t);
@@ -192,7 +195,7 @@ const Velaris = ({
       raf = requestAnimationFrame(loop);
     };
     const start = () => {
-      if (reducedMotion.matches) draw(4000); // one still frame
+      if (reducedMotion.matches || !animate) draw(4000); // one still frame
       else if (!raf) raf = requestAnimationFrame(loop);
     };
 
@@ -226,7 +229,7 @@ const Velaris = ({
       gl.deleteShader(vs);
       gl.deleteShader(fs);
     };
-  }, [bg, colorKey, speed, grain]);
+  }, [bg, colorKey, speed, grain, animate]);
 
   return (
     <div

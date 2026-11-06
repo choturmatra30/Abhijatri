@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { BadgeCheck, FileUp, ShieldQuestion } from 'lucide-react';
 import { EVIDENCE_MAX_BYTES, EVIDENCE_TYPES, getMyVerification, requestVerification, respondToVerification, uploadEvidence, withdrawVerification } from '../api/account';
 import { Notice, accountErrorMessage, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { LoadingState } from '../components/common/StatusViews';
+import { LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
 import type { VerificationCaseView } from '../types';
@@ -58,6 +58,7 @@ export const VerificationPage: React.FC = () => {
 
   if (status === 'loading') return <LoadingState />; // still reading the session
 
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">

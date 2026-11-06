@@ -5,7 +5,7 @@ import { ApiError } from '../api/client';
 import { getDestination } from '../api/destinations';
 import { getReview, withdrawMemberReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { ErrorState, LoadingState, describeError } from '../components/common/StatusViews';
+import { ErrorState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { CATEGORY_LABEL, COMFORT_TIERS, REVIEW_LANGUAGES, TRAVELLER_TYPES } from '../components/reviews/reviewLabels';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -25,7 +25,7 @@ const APPEAL_TEXT: Record<ReviewAppealState, [string, string]> = {
 /** One review of the signed-in author, with its history and the controls that apply to its state. */
 export const ReviewDetailPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const location = useLocation();
   const flash = (location.state as { saved?: string } | null)?.saved;
@@ -76,6 +76,7 @@ export const ReviewDetailPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">

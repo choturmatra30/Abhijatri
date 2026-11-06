@@ -10,6 +10,7 @@ import { codePoints, diffEdit, hasChanges, type EditableValues } from '../../uti
 import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
+import { formatNumber } from '../../utils/format';
 
 const inputClass =
   'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert';
@@ -193,7 +194,7 @@ export const ReviewEditForm: React.FC<{
         <legend className={labelClass}>{t('সার্বিক রেটিং', 'Overall rating')}</legend>
         <div className="flex items-center gap-1" role="radiogroup" aria-describedby={describedBy('overall_rating')}>
           {[1, 2, 3, 4, 5].map((star) => (
-            <button key={star} type="button" role="radio" aria-checked={values.overallRating === star} aria-label={t(`${star} তারকা`, `${star} star${star === 1 ? '' : 's'}`)} onClick={() => set('overallRating', star)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full">
+            <button key={star} type="button" role="radio" aria-checked={values.overallRating === star} aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)} onClick={() => set('overallRating', star)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full">
               <Star size={26} aria-hidden="true" className={star <= values.overallRating ? 'fill-amber-400 text-amber-400' : 'text-surface-muted dark:text-on-dark-muted'} />
             </button>
           ))}

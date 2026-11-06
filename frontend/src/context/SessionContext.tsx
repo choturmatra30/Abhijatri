@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { getSession, login as loginRequest, logout as logoutRequest } from '../api/auth';
 import { AUTH_REQUIRED_EVENT } from '../api/client';
 import type { AuthSession, StaffRole } from '../types';
+import { ApiError, NETWORK_ERROR, TIMEOUT_ERROR } from '../api/client';
 import {
   loadGuestName,
   loadGuestTag,
@@ -32,7 +33,8 @@ interface SessionContextValue {
   session: Session;
   isVerifiedMember: boolean;
   /** loading until the first answer from GET /auth/session; the page renders as a guest meanwhile. */
-  status: 'loading' | 'ready';
+  /** `unreachable`: the server could not be asked (offline or down), so the sign-in is unknown. */
+  status: 'loading' | 'ready' | 'unreachable';
   /** Signs in with the account service; throws ApiError (code INVALID_CREDENTIALS, EMAIL_NOT_VERIFIED, RATE_LIMITED, ...). */
   signIn: (email: string, password: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -67,11 +69,18 @@ const SessionContext = createContext<SessionContextValue>({
   dismissSessionExpired: () => undefined,
 });
 
+/** True when the server gave no answer: offline, timed out, or a gateway error. */
+function isUnreachable(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  if (!(error instanceof ApiError)) return false;
+  return error.code === NETWORK_ERROR || error.code === TIMEOUT_ERROR || [502, 503, 504].includes(error.status);
+}
+
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [displayName, setDisplayName] = useState<string | null>(() => loadGuestName());
   const [guestTag, setGuestTag] = useState<string | null>(null);
   const [account, setAccount] = useState<Extract<AuthSession, { authenticated: true }> | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unreachable'>('loading');
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Any API call answering 401 AUTH_REQUIRED while we believe a member is signed in means the
@@ -104,22 +113,43 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (answer.authenticated) setAccount(answer);
         else void recordDailyVisit().catch(() => undefined);
       })
-      .catch(() => {
-        if (active) void recordDailyVisit().catch(() => undefined); // accounts unavailable: still a guest
-      })
-      .finally(() => {
+      .then(() => {
         if (active) setStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        // No answer at all (offline, timeout, server down): the sign-in is unknown, not "guest".
+        if (isUnreachable(error)) return setStatus('unreachable');
+        void recordDailyVisit().catch(() => undefined); // accounts unavailable: still a guest
+        setStatus('ready');
       });
     return () => {
       active = false;
     };
   }, []);
 
-  /** Re-reads the session, e.g. after a verification was approved. */
+  /** Re-reads the session, e.g. after a verification was approved or the connection came back. */
   const refresh = useCallback(async () => {
-    const answer = await getSession().catch(() => null);
-    if (answer?.authenticated) setAccount(answer);
+    try {
+      const answer = await getSession();
+      setAccount(answer.authenticated ? answer : null);
+      setStatus('ready');
+    } catch (error) {
+      if (isUnreachable(error)) setStatus((s) => (s === 'ready' ? s : 'unreachable'));
+    }
   }, []);
+
+  // Back online after an unreachable start: ask again, so account pages recover by themselves.
+  useEffect(() => {
+    if (status !== 'unreachable') return undefined;
+    const retry = () => void refresh();
+    window.addEventListener('online', retry);
+    const timer = window.setInterval(retry, 30_000);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.clearInterval(timer);
+    };
+  }, [status, refresh]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const answer = await loginRequest(email, password);

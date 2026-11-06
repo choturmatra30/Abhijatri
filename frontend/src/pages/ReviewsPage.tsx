@@ -68,7 +68,14 @@ export const WriteReviewPage: React.FC = () => {
       ) : loading ? (
         <LoadingState />
       ) : error !== null ? (
-        <ErrorState error={error} onRetry={reload} />
+        <ErrorState
+          error={error}
+          onRetry={reload}
+          offlineHint={t(
+            'রিভিউ পাঠাতে ইন্টারনেট সংযোগ লাগে। সংযোগ ফিরলে এখানে আবার আসুন।',
+            'Sending a review needs a connection. Come back here when you are online.',
+          )}
+        />
       ) : destinations && destinations.length > 0 ? (
         <GuestReviewForm destinations={destinations} initialDestinationId={searchParams.get('destination')} onSubmitted={setSubmitted} />
       ) : (

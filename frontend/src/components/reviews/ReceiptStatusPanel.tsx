@@ -58,6 +58,8 @@ export const ReceiptStatusPanel: React.FC = () => {
     setNotice(null);
     if (!UUID_PATTERN.test(reviewId.trim()) || !isReceiptFormat(receipt)) {
       setError(t('রিভিউ আইডি বা রিসিপ্টের ফরম্যাট সঠিক নয়।', 'The review ID or receipt format is not valid.'));
+      // Take keyboard and screen-reader users to the first field that needs fixing.
+      document.getElementById(UUID_PATTERN.test(reviewId.trim()) ? 'status-receipt' : 'status-review-id')?.focus();
       return;
     }
     setBusy(true);

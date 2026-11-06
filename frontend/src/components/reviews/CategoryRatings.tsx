@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { REVIEW_CATEGORIES } from '../../api/reviews';
 import type { CategoryRatings as Ratings, ReviewCategory, ReviewParameters } from '../../types';
 import { CATEGORY_LABEL } from './reviewLabels';
+import { formatNumber } from '../../utils/format';
 
 /**
  * The seven Review.md 3.1 category ratings, each 1 to 5 or "not applicable". Optional: the
@@ -70,7 +71,7 @@ export const CategoryRatings: React.FC<{
                     type="button"
                     role="radio"
                     aria-checked={current === star}
-                    aria-label={t(`${name}: ${star} তারকা`, `${name}: ${star} star${star === 1 ? '' : 's'}`)}
+                    aria-label={t(`${name}: ${formatNumber(star, 'bn')} তারকা`, `${name}: ${star} star${star === 1 ? '' : 's'}`)}
                     onClick={() => set(category, star)}
                     className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full"
                   >

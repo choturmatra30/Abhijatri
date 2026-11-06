@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { editMemberReview, getReview } from '../api/reviews';
 import { Notice, linkClass } from '../components/auth/AccountUi';
-import { ErrorState, LoadingState } from '../components/common/StatusViews';
+import { ErrorState, LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { ReviewEditForm } from '../components/reviews/ReviewEditForm';
 import { StatusChip } from '../components/reviews/StatusChip';
 import { useLanguage } from '../context/LanguageContext';
@@ -16,7 +16,7 @@ import { SignInLink } from '../components/common/SignInLink';
 /** Edit one of the signed-in author's unpublished reviews (PENDING or CHANGES_REQUESTED). */
 export const ReviewEditPage: React.FC = () => {
   const { t } = useLanguage();
-  const { session, status: sessionStatus } = useSession();
+  const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
@@ -50,6 +50,7 @@ export const ReviewEditPage: React.FC = () => {
   };
 
   if (sessionStatus === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-xl mx-auto px-4 py-10">

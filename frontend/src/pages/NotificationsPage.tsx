@@ -9,7 +9,7 @@ import {
   updateNotification,
 } from '../api/account';
 import { Notice, accountErrorMessage, inputClass, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { EmptyState, ErrorState, LoadingState, SlowNetworkHint } from '../components/common/StatusViews';
+import { EmptyState, ErrorState, LoadingState, SlowNetworkHint, AccountNeedsConnection } from '../components/common/StatusViews';
 import { STAFF_BASE_URL } from '../components/layout/NotificationBell';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
@@ -28,7 +28,7 @@ const PRIORITY_TEXT: Record<string, [string, string]> = {
 /** The full inbox and email preferences (Notification spec 9 and 12). */
 export const NotificationsPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const { session, status } = useSession();
+  const { session, status, refresh } = useSession();
   const [view, setView] = useState<View>('all');
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export const NotificationsPage: React.FC = () => {
 
   if (status === 'loading') return <LoadingState />; // the session is still being read; do not ask to sign in yet
 
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
   if (session.kind !== 'member') {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
