@@ -1,192 +1,265 @@
-"""State, sequence, ER and Venn figures for the Abhijatri documents.   Usage: python make_other.py"""
+"""State, sequence, ER, Venn and use case figures for the Abhijatri documents.   Usage: python make_other.py
 
+Every figure is drawn from data in this file and checked for layout problems (a line under a box, a label on another
+label or arrow, a Venn label outside its region). The script exits non-zero if any check fails.
+"""
+
+import sys
 from pathlib import Path
 
-from diagram_lib import INK, PAL, draw_erd, draw_sequence, draw_states, draw_venn
+from diagram_lib import _trim, PAL, draw_erd, draw_sequence, draw_states, draw_usecases, draw_venn3
 
 OUT = Path(__file__).resolve().parent
 
 
-def states() -> None:
-    blue, green, red, grey, amber = "#DCEBF7", "#E3F3EA", "#F7DDD4", "#EFEFEF", "#FFF1D6"
+def states() -> list[str]:
+    lilac, green, red, grey, amber = "#EDE3F2", "#E3F3EA", "#F7DDD4", "#EFEFEF", "#FFF1D6"
     st = {
-        "PENDING": (36, 50, blue),
-        "CHANGES_REQUESTED": (36, 18, amber),
-        "REJECTED": (62, 70, red),
-        "PUBLISHED": (80, 50, green),
-        "HIDDEN": (114, 50, red),
-        "WITHDRAWN": (80, 18, grey),
-        "UNDER_REVIEW": (114, 22, grey),
-        "DELETED": (114, 8, grey),
+        "REJECTED": (27, 82, red),
+        "HIDDEN": (69, 82, red),
+        "PENDING": (27, 55, lilac),
+        "PUBLISHED": (69, 55, green),
+        "CHANGES_REQUESTED": (27, 28, amber),
+        "WITHDRAWN": (69, 8, grey),
     }
     edges = [
-        ("__start", "PENDING", "submit (Guest or Member)", 0.0, 0.5, 0, 2.6),
-        ("PENDING", "PUBLISHED", "PUBLISH: rating counted once", 0.0, 0.5, 0, 2.6),
-        ("PENDING", "REJECTED", "REJECT", 0.0, 0.5, -3.0, 2.0),
-        ("REJECTED", "PENDING", "appeal overturned", 0.28, 0.5, 6.0, -1.5),
-        ("PENDING", "CHANGES_REQUESTED", "REQUEST_CHANGES", 0.25, 0.5, -15.0, 3.0),
-        ("CHANGES_REQUESTED", "PENDING", "author edits: new revision", 0.25, 0.5, -15.0, -4.0),
-        ("PUBLISHED", "HIDDEN", "HIDE: rating removed", 0.25, 0.5, 0, 4.0),
-        ("HIDDEN", "PUBLISHED", "RESTORE", 0.25, 0.5, 0, -4.0),
-        ("PENDING", "WITHDRAWN", "author withdraws", 0.0, 0.62, 3.0, 5.0),
-        ("CHANGES_REQUESTED", "WITHDRAWN", "author withdraws", 0.0, 0.5, 0, 2.6),
-        ("PUBLISHED", "WITHDRAWN", "author withdraws: rating removed", 0.0, 0.5, 11.0, 0),
+        ("__start", "PENDING", "submit"),
+        ("PENDING", "PUBLISHED", "PUBLISH (rating counted)"),
+        ("PENDING", "REJECTED", "REJECT"),
+        ("REJECTED", "PENDING", "appeal overturned: back to the queue"),
+        ("PENDING", "CHANGES_REQUESTED", "REQUEST_CHANGES"),
+        ("CHANGES_REQUESTED", "PENDING", "author edits (new revision)"),
+        ("PUBLISHED", "HIDDEN", "HIDE or enforcement takedown (rating removed)"),
+        ("HIDDEN", "PUBLISHED", "RESTORE, appeal overturned or enforcement lifted"),
+        ("__group", "WITHDRAWN", "withdraw"),
     ]
-    draw_states(str(OUT / "review-state.png"), "Review lifecycle (ReviewStatus) and the transitions the code allows", st, edges,
-                size=(13.0, 8.2), dashed={"UNDER_REVIEW", "DELETED"},
-                note="Dashed states exist in the model but no current code path sets them (a moderator's claim is held on the task, not on the review). Editing is allowed only in PENDING and CHANGES_REQUESTED; a published review is never edited.")
+    probs = draw_states(
+        str(OUT / "review-state.png"), "", st, edges,  # no in-image title: the SRS caption names the figure
+        size=(9.0, 10.4), dashed=set(), start=(5, 55),
+        group=(12, 19, 86, 93, "Withdrawable states"))
+    _trim(str(OUT / "review-state.png"), 200)
+    return probs
 
 
-def sequences() -> None:
-    draw_sequence(
+SEQ_STYLE = dict(fs=11.0, tight=True, call_colour="#1F6F5C", return_colour="#C8641E", self_colour="#8E44AD")
+PART = {  # (fill, edge) per kind of participant; no blue
+    "person": ("#FFF1D6", "#D55E00"), "api": ("#E3F3EA", "#009E73"), "external": ("#FCF3CF", "#B7950B"),
+    "db": ("#EDE3F2", "#8E44AD"), "staff": ("#F7DDD4", "#C0504D"), "worker": ("#E9EFE0", "#5E7D1E"),
+}
+
+
+def sequences() -> list[str]:
+    p = draw_sequence(
         str(OUT / "seq-submit-moderate.png"),
-        "Sequence: a Guest submits a review, a moderator publishes it, the author is notified",
-        ["Guest browser (PWA)", "API (FastAPI)", "PostgreSQL", "Moderator (staff app)", "Outbox worker", "Email provider"],
+        "",
+        ["Guest browser (PWA)", "API (FastAPI)", "Cloudflare Turnstile", "PostgreSQL", "Moderator (staff app)", "Outbox\nworker"],
         [
-            (0, 1, "POST /reviews/guest: receipt, draft id, Turnstile token"),
-            (1, 1, "validate; check Turnstile; rate limits; duplicate check", "self"),
-            (1, 2, "insert review, first revision, receipt digest, moderation task, outbox event (one transaction)"),
-            (2, 1, "committed", "return"),
+            (0, 1, "POST /reviews/guest: review, receipt, draft id, Turnstile token"),
+            (1, 2, "verify the challenge token"),
+            (2, 1, "pass", "return"),
+            (1, 1, "validate; check rate limits and duplicates", "self"),
+            (1, 3, "insert review, first revision, receipt digest, task, outbox event (one transaction)"),
+            (3, 1, "committed", "return"),
             (1, 0, "201 { review_id, status PENDING }", "return"),
-            (3, 1, "claim task (POST /admin/tasks/{id}/claim)"),
-            (1, 3, "lease token (300 s)", "return"),
-            (3, 1, "POST /admin/submissions/{id}/moderation-actions: PUBLISH + lease + version"),
-            (1, 2, "status PUBLISHED, rating totals, action, audit, outbox event (one transaction)"),
-            (4, 2, "claim due outbox events (FOR UPDATE SKIP LOCKED)"),
-            (4, 2, "create notification for the author; queue email delivery"),
-            (4, 5, "send email (retries after 1 min, 5 min, 30 min, 2 h)"),
+            (4, 1, "POST /admin/tasks/{id}/claim"),
+            (1, 4, "lease token (300 s)", "return"),
+            (4, 1, "POST moderation-actions: PUBLISH + lease + version"),
+            (1, 3, "PUBLISHED, rating totals, action, audit, outbox event (one transaction)"),
+            (1, 4, "200 decision result", "return"),
+            (5, 3, "claim due outbox events (FOR UPDATE SKIP LOCKED)"),
+            (3, 5, "review.state_changed", "return"),
+            (5, 5, "find recipients: a Guest author has no account, so no notification or email", "self"),
+            (0, 1, "POST /review-receipts/status: review id + receipt"),
+            (1, 0, "status PUBLISHED", "return"),
         ],
-        size=(15.0, 9.6),
+        size=(9.0, 14.6), colours=[PART[k] for k in ("person", "api", "external", "db", "staff", "worker")], **SEQ_STYLE,
     )
-    draw_sequence(
+    p += draw_sequence(
         str(OUT / "seq-guest-edit.png"),
-        "Sequence: moderator asks for changes, the Guest edits with the receipt, the review returns to the queue",
+        "",
         ["Moderator (staff app)", "API (FastAPI)", "PostgreSQL", "Guest browser (PWA)"],
         [
             (0, 1, "moderation-actions: REQUEST_CHANGES + reason code + lease + version"),
-            (1, 2, "status CHANGES_REQUESTED, action, audit, outbox event"),
+            (1, 2, "CHANGES_REQUESTED, action, audit, outbox event"),
+            (1, 0, "200 decision result", "return"),
             (3, 1, "POST /review-receipts/status: review id + receipt"),
+            (1, 2, "read review and receipt digest"),
+            (2, 1, "status, public reason", "return"),
             (1, 3, "CHANGES_REQUESTED + public reason", "return"),
             (3, 1, "PATCH /reviews/{id}/pending: receipt, expected_version, changed fields"),
-            (1, 1, "verify receipt digest; check state and version; validate", "self"),
-            (1, 2, "new revision (old one SUPERSEDED), status PENDING, task re-queued, review.edited"),
+            (1, 2, "lock review; read receipt digest and current revision"),
+            (1, 1, "verify the receipt; check state and version; validate", "self"),
+            (1, 2, "new revision (old one SUPERSEDED), PENDING, task re-queued, review.edited"),
             (1, 3, "200 { status PENDING, version, revision }", "return"),
-            (0, 1, "claim task and decide again (PUBLISH)"),
+            (0, 1, "claim the task and decide again"),
         ],
-        size=(13.0, 8.2),
+        size=(9.0, 12.6), colours=[PART[k] for k in ("staff", "api", "db", "person")], **SEQ_STYLE,
     )
+    return p
 
 
-def erd() -> None:
+def erd() -> list[str]:
     head = {"core": "#DCEBF7", "review": "#FFF1D6", "mod": "#F7DDD4", "notify": "#E3F3EA"}
     ents = {
-        "users": (14, 96, ["PK id", "email, display_name", "status"], head["core"]),
-        "user_roles": (14, 72, ["PK id", "FK user_id", "role, revoked_at"], head["core"]),
-        "destinations": (52, 100, ["PK id", "name_bn, name_en", "status"], head["core"]),
-        "destination_rating_stats": (52, 74, ["PK/FK destination_id", "community sum, count", "guest sum, count"], head["core"]),
-        "reviews": (92, 90, ["PK id", "FK destination_id", "FK author_user_id (null = guest)", "status, version, visit_month", "overall_rating, counted_rating", "current_revision_id"], head["review"]),
-        "review_revisions": (92, 54, ["PK id", "FK review_id", "sequence, status", "title, body, rating"], head["review"]),
-        "review_category_ratings": (126, 54, ["PK/FK revision_id", "PK category", "rating 1..5"], head["review"]),
-        "review_receipts": (126, 90, ["PK id", "FK review_id", "key_id, digest"], head["review"]),
-        "review_media": (126, 72, ["PK id", "FK review_id", "FK uploader_id", "kind, state"], head["review"]),
-        "moderation_actions": (52, 38, ["PK id", "FK review_id", "FK actor_user_id", "decision, new_status"], head["mod"]),
-        "appeals": (14, 38, ["PK id", "FK appellant_user_id (null = guest)", "FK moderation_action_id", "state, deadline_at"], head["mod"]),
-        "moderation_tasks": (92, 22, ["PK id", "task_type, subject_id", "FK claimed_by", "status, lease_expires_at"], head["mod"]),
-        "outbox_events": (14, 8, ["PK id", "topic, aggregate_id", "status, attempts"], head["notify"]),
-        "notifications": (52, 8, ["PK id", "FK event_id", "FK recipient_user_id", "kind, priority"], head["notify"]),
-        "notification_deliveries": (92, 4, ["PK id", "FK notification_id", "status, attempt_count"], head["notify"]),
+        "users": (16, 108, ["PK id", "email, display_name", "status, last_visit_on"], head["core"]),
+        "user_roles": (16, 80, ["PK id", "FK user_id", "role, revoked_at"], head["core"]),
+        "destinations": (58, 112, ["PK id", "name_bn, name_en", "status"], head["core"]),
+        "destination_rating_stats": (100, 112, ["PK/FK destination_id", "community sum, count", "guest sum, count"], head["core"]),
+        "reviews": (58, 80, ["PK id", "FK destination_id", "FK author_user_id (null: guest)", "status, version", "counted_rating"], head["review"]),
+        "review_revisions": (94, 84, ["PK id", "FK review_id", "sequence, status", "title, body, rating"], head["review"]),
+        "review_category_ratings": (130, 84, ["PK/FK revision_id", "PK category", "rating 1..5"], head["review"]),
+        "review_receipts": (16, 22, ["PK id", "FK review_id", "key_id, digest"], head["review"]),
+        "review_media": (100, 58, ["PK id", "FK review_id", "FK uploader_id", "kind, state"], head["review"]),
+        "moderation_actions": (58, 50, ["PK id", "FK review_id", "FK actor_user_id", "decision, new_status"], head["mod"]),
+        "enforcement_cases": (16, 48, ["PK id", "FK review_id", "FK subject_user_id", "kind, state"], head["mod"]),
+        "verification_cases": (130, 32, ["PK id", "FK applicant_user_id", "state, decided_by"], head["mod"]),
+        "appeals": (58, 22, ["PK id", "FK appellant_user_id (null: guest)", "FK moderation_action_id", "FK enforcement_case_id",
+                             "FK verification_case_id", "state, deadline_at"], head["mod"]),
+        "outbox_events": (100, 30, ["PK id", "topic, aggregate_id", "status, attempts"], head["notify"]),
+        "notifications": (100, 10, ["PK id", "FK event_id", "FK recipient_user_id"], head["notify"]),
     }
+    ents = {k: (v[0], v[1] + 5, v[2], v[3]) for k, v in ents.items()}
     rels = [
-        ("users", "user_roles", "has", "1", "N", 0.0),
-        ("destinations", "reviews", "is reviewed in", "1", "N", 0.0),
-        ("users", "reviews", "writes (member)", "1", "N", 0.0),
-        ("destinations", "destination_rating_stats", "has", "1", "1", 0.0),
-        ("reviews", "review_revisions", "has", "1", "N", 0.0),
-        ("review_revisions", "review_category_ratings", "scores", "1", "N", 0.0),
-        ("reviews", "review_receipts", "proved by", "1", "N", 0.0),
-        ("reviews", "review_media", "shows", "1", "N", 0.0),
-        ("reviews", "moderation_actions", "decided by", "1", "N", 0.0),
-        ("moderation_actions", "appeals", "appealed in", "1", "N", 0.0),
-        ("outbox_events", "notifications", "becomes", "1", "N", 0.0),
-        ("notifications", "notification_deliveries", "emailed as", "1", "N", 0.0),
-        ("users", "notifications", "receives", "1", "N", 0.35),
+        ("users", "user_roles", "has", "1", "0..N"),
+        ("destinations", "reviews", "is reviewed in", "1", "0..N"),
+        ("users", "reviews", "writes", "0..1", "0..N"),
+        ("destinations", "destination_rating_stats", "has", "1", "0..1"),
+        ("reviews", "review_revisions", "has", "1", "1..N"),
+        ("review_revisions", "review_category_ratings", "scores", "1", "0..N"),
+        ("reviews", "review_receipts", "proved by", "1", "0..N"),
+        ("reviews", "review_media", "shows", "1", "0..N"),
+        ("reviews", "moderation_actions", "decided by", "1", "0..N"),
+        ("reviews", "enforcement_cases", "taken down in", "0..1", "0..N"),
+        ("moderation_actions", "appeals", "appealed in", "0..1", "0..N"),
+        ("enforcement_cases", "appeals", "appealed in", "0..1", "0..N"),
+        ("verification_cases", "appeals", "appealed in", "0..1", "0..N"),
+        ("outbox_events", "notifications", "becomes", "1", "0..N"),
     ]
-    ents = {k: (v[0], v[1] + 8, v[2], v[3]) for k, v in ents.items()}
-    rels = [r for r in rels if (r[0], r[1]) != ("users", "notifications")]
-    draw_erd(str(OUT / "erd.png"), "Entity-relationship diagram: the main tables (foreign keys as in backend/app/models.py)", ents, rels, size=(14.5, 12.8),
-             note="Also: notifications.recipient_user_id, moderation_actions.actor_user_id and appeals.appellant_user_id point to users. moderation_tasks.subject_id points to a review, appeal, report, case or verification by task_type, so it has no database foreign key. audit_events is append-only and also has no foreign key.")
+    return draw_erd(
+        str(OUT / "erd.png"), "Entity-relationship diagram: the main tables (crow's-foot notation, from backend/app/models.py)", ents, rels,
+        size=(14.4, 13.0),
+        note="Each appeal targets exactly one of a moderation action, an enforcement case or a verification case. Not drawn, to keep the "
+             "figure readable: review_media.uploader_id, moderation_actions.actor_user_id, appeals.appellant_user_id, "
+             "verification_cases.applicant_user_id and notifications.recipient_user_id all point to users. moderation_tasks.subject_id "
+             "and audit_events have no database foreign key.")
 
 
-def venns() -> None:
-    o, g, b = PAL["orange"], PAL["green"], PAL["blue"]
-    draw_venn(
-        str(OUT / "venn-product.png"),
-        "Where Abhijatri sits: three needs that no single tool meets together",
-        [
-            dict(x=44, y=58, r=30, colour=b, name="Bangla-first and\noffline-ready", name_xy=(24, 86)),
-            dict(x=76, y=58, r=30, colour=g, name="Community trust\n(moderated, dated)", name_xy=(96, 86)),
-            dict(x=60, y=33, r=30, colour=o, name="Explainable\ncost planning", name_xy=(60, 3)),
-        ],
-        "Abhijatri",
-        [
-            (60, 52, "ABHIJATRI\nBangla, offline-first,\ntrusted and priced", 9.5, "bold"),
-            (60, 77, "Offline pages with\ndated advisories and\nfreshness labels", 8, "normal"),
-            (36, 42, "Cost estimates that\nwork without a signal\n(prototype)", 8, "normal"),
-            (84, 42, "Itemised estimates built\nfrom source-dated prices", 8, "normal"),
-            (28, 66, "Bangla interface,\ninstallable PWA", 8, "normal"),
-            (92, 66, "Moderated reviews,\nguest and member", 8, "normal"),
-        ],
-        size=(12.0, 10.0),
-        subtitle="Offline cost planning is a prototype; the other overlaps are built and tested (Docs/Implemented.md).",
+def venns() -> list[str]:
+    """The three Venn figures carry no title: the document's caption names each one, and the fonts are sized to stay
+    readable when the figure is printed at text width (about 15 cm)."""
+    p_, g, o = PAL["purple"], PAL["green"], PAL["orange"]
+    circles = [dict(x=64, y=78, r=35, colour=p_), dict(x=107, y=78, r=35, colour=g), dict(x=85.5, y=41, r=35, colour=o)]
+    big, mid, ctr = 21, 18, 21
+    common = dict(size=(17.4, 13.6), name_size=21, tight=True, names_vertical=True)
+    p = draw_venn3(
+        str(OUT / "venn-product.png"), "",
+        [dict(circles[0], name="Bangla-First"), dict(circles[1], name="Moderated and Dated"), dict(circles[2], name="Offline and Priced")],
+        {
+            "A": ("Bangla\ninterface\n(built)", big, "normal"),
+            "B": ("Moderated\nreviews, dated\nadvisories\n(built)", big, "normal"),
+            "C": ("Cost estimates,\noffline packs\n(prototype)", big, "normal"),
+            "AB": ("Bangla\ncontent with\nfreshness\nlabels\n(built)", mid, "normal"),
+            "AC": ("Bangla\npages\noffline\n(planned)", mid, "normal"),
+            "BC": ("Estimates\nfrom dated\nprices\n(planned)", mid, "normal"),
+            "ABC": ("ABHIJATRI", ctr, "bold"),
+        },
+        **common,
     )
-    r, s, m = "#CC79A7", PAL["sky"], PAL["yellow"]
-    draw_venn(
-        str(OUT / "venn-landscape.png"),
-        "What each kind of existing tool offers, and what Abhijatri adds",
-        [
-            dict(x=42, y=62, r=28, colour=r, name="Booking and\nguide sites", name_xy=(20, 90)),
-            dict(x=78, y=62, r=28, colour=s, name="Social media travel\ngroups and blogs", name_xy=(100, 90)),
-            dict(x=60, y=36, r=28, colour=m, name="Maps and\noffline apps", name_xy=(60, 5)),
-        ],
-        "Abhijatri",
-        [
-            (60, 55, "ABHIJATRI\nBangla-first, moderated,\ndated, offline", 9.5, "bold"),
-            (60, 78, "Prices and listings,\nbut commercial\nand often undated", 7.8, "normal"),
-            (30, 50, "Navigation, but no\ntravel cost or\ntrust signals", 7.8, "normal"),
-            (90, 50, "Real experiences, but\nunmoderated and\nhard to search", 7.8, "normal"),
-            (20, 70, "Listings\nand prices", 8, "normal"),
-            (100, 70, "Local stories\nand tips", 8, "normal"),
-            (60, 22, "Maps and\ndirections", 8, "normal"),
-        ],
-        size=(12.0, 10.0),
-        subtitle="General positioning only: no product is named and no figures are claimed. Abhijatri is the intersection that none of the three covers alone.",
+    p += draw_venn3(
+        str(OUT / "venn-landscape.png"), "",
+        [dict(circles[0], name="Bangla-First"), dict(circles[1], name="Moderated and Dated"), dict(circles[2], name="Works Offline")],
+        {
+            "A": ("Social media\ntravel groups\nand blogs", big, "normal"),
+            "B": ("Booking and\nguide sites", big, "normal"),
+            "C": ("Maps and\noffline apps", big, "normal"),
+            "AB": ("None of the\ntools\ncompared", mid, "normal"),
+            "AC": ("None of the\ntools\ncompared", mid, "normal"),
+            "BC": ("None of the\ntools\ncompared", mid, "normal"),
+            "ABC": ("ABHIJATRI\n(offline\nplanned)", 18, "bold"),
+        },
+        **common,
     )
-    draw_venn(
-        str(OUT / "venn-roles.png"),
-        "Team responsibilities and where they overlap (from the proposal's roles)",
-        [
-            dict(x=42, y=62, r=28, colour=b, name="Frontend and offline\n(Abdullah)", name_xy=(20, 90)),
-            dict(x=78, y=62, r=28, colour=g, name="Backend and data\n(Syed Muhtasim)", name_xy=(100, 90)),
-            dict(x=60, y=36, r=28, colour=o, name="Quality assurance\n(Irfan)", name_xy=(60, 5)),
-        ],
-        "Team",
-        [
-            (60, 55, "Shahriar (leader):\nscope, content, estimator\nrules, integration, documents", 8.5, "bold"),
-            (60, 78, "API contract,\nerror handling,\nidempotent retries", 8, "normal"),
-            (30, 50, "Offline and\nreal-device tests", 8, "normal"),
-            (90, 50, "Integration, security\nand regression tests", 8, "normal"),
-            (20, 70, "React, bilingual\nUI, PWA", 8, "normal"),
-            (100, 70, "FastAPI, PostgreSQL,\nauthentication", 8, "normal"),
-            (60, 22, "Test strategy,\npilot, defects", 8, "normal"),
-        ],
-        size=(12.0, 10.0),
-        subtitle="The centre is shared work that needs all four members; the project leader coordinates it.",
+    p += draw_venn3(
+        str(OUT / "venn-roles.png"), "",
+        [dict(circles[0], name="Frontend and Offline\n(Abdullah)"), dict(circles[1], name="Backend and Data\n(Syed Muhtasim)"),
+         dict(circles[2], name="Quality Assurance (Irfan)")],
+        {
+            "A": ("React,\nbilingual UI,\nPWA", big, "normal"),
+            "B": ("FastAPI,\nPostgreSQL,\nauthentication", big, "normal"),
+            "C": ("Test strategy,\npilot, defects", big, "normal"),
+            "AB": ("API\ncontract,\nerror\nhandling", mid, "normal"),
+            "AC": ("Offline\nand real-\ndevice\ntests", mid, "normal"),
+            "BC": ("Integration\nand\nsecurity\ntests", mid, "normal"),
+            "ABC": ("Leader\n(Shahriar)", 19, "bold"),
+        },
+        **common,
+    )
+    return p
+
+
+def usecases() -> list[str]:
+    actors = {
+        "Guest": (7, 104, "Guest"),
+        "Member": (7, 62, "Member"),
+        "Verified": (7, 26, "Verified Member"),
+        "Moderator": (97, 104, "Moderator"),
+        "Superadmin": (97, 60, "Superadmin"),
+        "Ops": (97, 18, "Ops operator"),
+    }
+    L, R = 39, 71
+    cases = [
+        ("browse", L, 118, "Browse destinations and advisories", "built"),
+        ("read", L, 110, "Read published reviews and ratings", "built"),
+        ("submit", L, 102, "Submit a review", "built"),
+        ("status", L, 94, "Check, edit or withdraw a review", "built"),
+        ("appeal", L, 86, "Appeal a decision", "built"),
+        ("estimate", L, 78, "Estimate trip cost", "prototype"),
+        ("offline", L, 70, "Download offline pack, save trip", "prototype"),
+        ("account", L, 61, "Register, sign in, reset password", "built"),
+        ("media", L, 53, "Attach photos and video", "built"),
+        ("report", L, 45, "Report a review", "built"),
+        ("inbox", L, 37, "Read notifications, set preferences", "built"),
+        ("verify_req", L, 29, "Request the verified badge", "built"),
+        ("community", L, 18, "Count toward the Community Rating", "built"),
+        ("queue", R, 118, "Moderate the review queue", "built"),
+        ("appeals", R, 110, "Decide appeals and reports", "built"),
+        ("verify", R, 102, "Verify members", "built"),
+        ("totp", R, 90, "Sign in with TOTP", "built"),
+        ("enforce", R, 78, "Take enforcement action", "built"),
+        ("roles", R, 70, "Manage staff roles", "built"),
+        ("notifyadmin", R, 62, "Administer notifications", "built"),
+        ("audit", R, 54, "Read the audit log", "built"),
+        ("content", R, 46, "Edit destination content", "planned"),
+        ("panels", R, 18, "Monitor health, content, traffic and queues", "built"),
+    ]
+    owner = {}
+    for a, cs in (("Guest", ("browse", "read", "submit", "status", "appeal", "estimate", "offline")),
+                  ("Member", ("account", "media", "report", "inbox", "verify_req")), ("Verified", ("community",)),
+                  ("Moderator", ("queue", "appeals", "verify")), ("Superadmin", ("totp", "enforce", "roles", "notifyadmin", "audit", "content")),
+                  ("Ops", ("panels",))):
+        for c in cs:
+            owner[c] = a
+    # bow each column towards its actor ("(" on the left, ")" on the right) so no association line cuts another ellipse
+    cases = [(cid, x - min(0.42 * abs(y - actors[owner[cid]][1]), 7.0) * (1 if x < 50 else -1), y, text, status) for cid, x, y, text, status in cases]
+    links = [("Guest", c) for c in ("browse", "read", "submit", "status", "appeal", "estimate", "offline")]
+    links += [("Member", c) for c in ("account", "media", "report", "inbox", "verify_req")]
+    links += [("Verified", "community")]
+    links += [("Moderator", c) for c in ("queue", "appeals", "verify", "totp")]
+    links += [("Superadmin", c) for c in ("totp", "enforce", "roles", "notifyadmin", "audit", "content")]
+    links += [("Ops", "panels")]
+    return draw_usecases(
+        str(OUT / "usecase-asbuilt.png"), "Use case diagram: Abhijatri as built (31 October 2026)", actors, cases, links,
+        generalisations=[("Member", "Guest"), ("Verified", "Member")],
+        boundary=(16, 10, 88, 124, "Abhijatri platform"),
+        size=(10.4, 13.4),
+        note="A Member can do everything a Guest can, and a Verified Member everything a Member can (hollow arrows). The Ops operator "
+             "uses the separate ops site with a token.",
     )
 
 
 if __name__ == "__main__":
-    states()
-    sequences()
-    erd()
-    venns()
-    print("drew state, sequence, ER and Venn figures")
+    problems = states() + sequences() + erd() + venns() + usecases()
+    for p in problems:
+        print("LAYOUT PROBLEM:", p)
+    print("drew state, sequence, ER, Venn and use case figures; layout problems:", len(problems))
+    sys.exit(1 if problems else 0)

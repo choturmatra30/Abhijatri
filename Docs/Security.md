@@ -9,7 +9,7 @@
 ## 1. Security principles
 
 1. **Deny by default.** Every protected request is authenticated and authorised on the server.
-2. **Collect the minimum.** Abhijatri does not require raw NID storage, advertising identifiers, or exact location for the Review MVP.
+2. **Collect the minimum.** Abhijatri never stores raw NID numbers, advertising identifiers, or exact location. Identity documents are reviewed for Verified Member status and then deleted; only the last 4 digits and a keyed hash remain (`Features/Verified user sign-up form.md`).
 3. **Separate identity, verification, and authority.** A Verified Member badge does not grant staff permissions.
 4. **Cache by allowlist.** A response is private and non-cacheable unless a route-specific policy explicitly declares it public.
 5. **Preserve rating integrity.** Moderation, eligibility, conflict, withdrawal, deletion, and account-deletion actions use the same locked aggregate-transition rules.
@@ -124,7 +124,7 @@ Only strictly necessary cookies are permitted in the MVP: authenticated member s
 
 The Personal Data Protection Act, 2026 defines a child as a person under 18 unless another age is prescribed. Student-focused features therefore create a material child-data risk.
 
-**Deploy gate:** Before allowing real users, decide and document the minimum age, guardian-consent process where required, child-accessible notices, and whether student-ID verification is permitted. Until that decision is implemented, the semester demonstration uses controlled adult test accounts and synthetic evidence only. Raw NID or student-ID images must not be collected from real users.
+**Deploy gate (decided 6 Nov 2026):** the minimum age is 18 for Verified Member status and every TourMate feature, so no guardian-consent process is needed for those features. Student-ID verification is permitted. ID and student-ID images may be collected from real users only through the verification form (`Features/Verified user sign-up form.md`): private encrypted bucket, 60-second audited staff views, deletion 24 hours after approval or 30 days after rejection. Until that form is live, demonstrations use controlled adult test accounts and synthetic evidence.
 
 ### 3.6 Data-subject and Guest controls
 
@@ -409,6 +409,6 @@ A team member who did not implement the control performs an authenticated and un
 
 ## 11. Exclusions and change control
 
-Payment-card processing, live vendor inventory, agency onboarding, private-community chat, real-time location sharing, and machine-learning moderation require separate threat models before implementation. Sandbox payment demonstrations must not accept real money or production credentials.
+Payment-card processing, live vendor inventory, agency onboarding, real-time location sharing, and machine-learning moderation require separate threat models before implementation. Tour chat and the TourMate system have theirs in `Features/Verified Users Interface Architechture.md` 10.7; private communities still have no chat. Sandbox payment demonstrations must not accept real money or production credentials.
 
 The Review specification remains frozen. Security decisions made while building are recorded in `Docs/Decisions.md`. A change that affects schema, public claims, retention, rating integrity, authentication, or legal basis requires an explicit decision-log entry and updated tests.

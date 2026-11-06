@@ -3,7 +3,7 @@
 **Version:** 2.0 (31 October 2026). Restructures v1 (22 October 2026) into Frontend, Backend and Database parts and aligns it with the implemented system.
 **Status:** Implemented 27 October 2026, except the items marked **Planned** (section 12).
 **Base path:** every route below is under `/api/v1`.
-**Companion documents:** `Docs/Notification-Documentation.md` (notifications), `Docs/api/API.md` 5.17 to 5.21 (wire contract), `Docs/Schema.md` (tables), `Docs/Decisions.md` (owner decisions), `Docs/System-Monitoring-Dashboard.md` (ops dashboard).
+**Companion documents:** `Docs/Notification-Documentation.md` (notifications), `Docs/api/API.md` 5.17 to 5.21 (wire contract), `Docs/Schema.md` (tables), `Docs/Decisions.md` (owner decisions), `Docs/System-Monitoring-Dashboard.md` (ops dashboard), `Features/Verified user sign-up form.md` and `Features/Verified Users Interface.md` 16 (extensions planned 6 Nov 2026, Part E).
 
 Where this document and `API.md` differ on a request or response shape, `API.md` and the OpenAPI snapshot (`Docs/api/openapi-v1.json`) win and this document is corrected.
 
@@ -115,6 +115,7 @@ Both Vite apps call the API with `credentials: 'include'`, send `X-CSRF-Token` o
 | Monitoring | staff | Queue depth, oldest task, escalations, expired claims, open reports, outbox backlog, denials. | `GET /admin/monitoring/summary` |
 | Staff | superadmin | Find a person, grant or revoke `moderator` / `superadmin`. | `GET /admin/staff`, `GET /admin/users`, `POST /admin/staff/{id}/role` |
 | Notifications | superadmin | Deliveries, outbox, suppressions, templates, rules. | Notification spec section 9 |
+| Tours (**Planned**, Part E) | staff | Find tours by public ID, code or creator; status, flags, members, change history. | `GET /admin/tours*` |
 
 The tab list is a role-filtered array in `staff/src/App.tsx`. Hiding a tab is a convenience; the server refuses the call anyway.
 
@@ -342,6 +343,8 @@ Conventions: staff routes need a session with a role and `aal2` (non-staff `404`
 | P-03 | Rejected and Hidden lists with 30-day recovery for reviews | `GET /admin/reviews?status=REJECTED\|HIDDEN&after=&limit=` (staff), each with `recoverable_until`; `POST /admin/submissions/{id}/moderation-actions` `REOPEN` (`REJECTED → PENDING`, superadmin, within 30 days); retention purges rejected review bodies and media after 30 days unless an appeal is open | Owner design: "Rejected" and "Hidden" segments, 30-day retrieval. | **Implemented 1 Nov 2026 (R11): `GET /admin/reviews`, `POST /admin/reviews/{id}/reopen` (a separate route, superadmin), retention purge.** |
 | P-04 | Moderators see fellow moderators | `GET /admin/staff` open to moderators with `display_name` and `role` only (no email) | Owner design. |
 | P-05 | Superadmin reopens a rejected verification within 30 days | `POST /admin/verification-cases/{id}/reopen` (`rejected → in_review`, reason required) | Today only an appeal can reverse it. |
+| P-07 | Verified Member sign-up form: draft state, phone and document checks, liveness, attributes on approval (Part E) | Extends 12.4 routes | Owner decision 6 Nov 2026 |
+| P-08 | Tour Operations: new task types, tour subjects, `tourmate_restriction`, Tours tab, break-glass (Part E) | `/admin/tours*`, extended enforcement routes | Owner decision 6 Nov 2026 |
 | P-06 | Explicit reason codes catalogue | `GET /admin/reason-codes` from one server list | Consistent decisions; the UI stops hard-coding codes. | **Implemented 1 Nov 2026 (R11): `GET /admin/reason-codes`; strict groups for decisions, report resolutions, hide and reopen.** |
 
 ## 13. Errors
@@ -464,3 +467,48 @@ Implemented in `backend/tests/` on PostgreSQL. Each must keep passing:
 12. Bulk responses report each item.
 
 Tests to add with the Planned items: P-01 (an expired suspension stops blocking at once even if the job has not run), P-02 (granting `moderator` to an unverified member is refused), P-03 (a rejected review can be reopened on day 29 and is purged after day 30 unless appealed).
+
+---
+
+# Part E: Extensions Planned on 6 November 2026
+
+Two new owner-approved features plug into this dashboard. They reuse its queue, leases, decision pipeline (section 9), reason codes, enforcement cases, sanctions, appeals, audit and outbox. Nothing here changes an implemented rule.
+
+## 22. Verified Member sign-up form (P-07)
+
+Full design: `Features/Verified user sign-up form.md`.
+
+| Area | Change |
+|---|---|
+| What is collected | Legal name, date of birth, gender (Female, Male, Third gender), home district, occupation, verified phone (OTP), an ID document photo (NID, passport or driving licence), a live selfie with a server-issued code, and for students a student ID and optional institutional email. Replaces the "no NID" rule (Review.md A3), by owner decision. |
+| State machine (11.1) | Adds `draft` before `submitted` and `expired` for abandoned drafts and unanswered clarifications. All other states and transitions are unchanged. |
+| Queue | `task_type = verification` as today. Risk-flagged cases (duplicate document or phone, edited image) are escalated automatically, so a superadmin decides. |
+| Approval | The `approved` transition now requires the moderator to set gender, birth year and student status (with end date). It writes `verifications` and `verification_attributes` in the same transaction. |
+| Moderators | Must be Verified Members (P-02). A moderator releases a case of someone they know ("Conflict"). |
+| Retention (18) | Unchanged: evidence deleted 24 h after approval, 30 days after rejection or withdrawal, never while an appeal is open. The full document number is deleted with the evidence; only the last 4 digits and a keyed hash stay. |
+| Storage (19) | `verification-evidence` objects are also encrypted by the API with a per-case data key. |
+| Revocation | An account enforcement case opened by a superadmin; appealable. |
+| Later | Election Commission NID check through an authorised partner. |
+
+## 23. Tour Operations (P-08)
+
+Full design: `Features/Verified Users Interface.md` 16 and `Features/Verified Users Interface Architechture.md`.
+
+| Area | Change |
+|---|---|
+| Queue (5.2) | New task types `tour_report`, `chat_report`, `tour_safety`. SOS and safety reports sort first. |
+| Tours tab | New staff tab to search and inspect tours. |
+| Enforcement (11.1) | Case subjects extended to a tour, a tour member and a chat message. Actions: suspend or restore a tour, cancel a tour (superadmin if Confirmed), remove a member, hide a message. |
+| Sanctions | New kind `tourmate_restriction` with a required end date; expires lazily like other sanctions (P-01). Moderators up to 30 days, superadmins longer. |
+| Appeals (11.2) | Tour enforcement cases are appealable on the same 30-day rule. |
+| Break-glass | A moderator may read a tour's chat or safety data without a report only through a 60-minute grant with a written reason; audited and shown to superadmins daily. An SOS grants the safety queue 24 hours of access. |
+| Permissions (10) | Add rows: suspend or restore a tour, remove a member, hide a message (moderator); cancel a Confirmed tour, restriction over 30 days (superadmin). |
+| Monitoring | New counters: open safety cases, At Risk tours, abuse signals (code guessing, mass requests or invitations). |
+
+### 23.1 Acceptance tests to add
+
+13. A moderator cannot approve a verification without setting gender and birth year.
+14. A duplicate document or phone escalates the case automatically.
+15. A `tourmate_restriction` past its end time stops blocking at once.
+16. A break-glass grant expires after 60 minutes, and every read under it is audited.
+

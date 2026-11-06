@@ -324,9 +324,9 @@ The identity module shall provide:
 - recent reauthentication for privileged staff actions
 - security audit events
 
-Phone, NID and student-ID verification are deferred until separately specified.
+Phone, ID-document and student-ID verification are specified in `Features/Verified user sign-up form.md` (6 Nov 2026).
 
-Real users are not admitted until the minimum-age and student-verification decision required by `Security.md` 3.5 is implemented. Until then, demonstrations use controlled adult test accounts.
+The minimum-age and student-verification decision required by `Security.md` 3.5 was made on 6 Nov 2026 (18+, student ID permitted). Real users are admitted to Verified Member features once that form is implemented; until then, demonstrations use controlled adult test accounts.
 
 ### 8.3 Roles and Verification
 
@@ -1556,8 +1556,7 @@ The following remain outside the Platform Foundation:
 - automatic media transcoding
 - microservices
 - native mobile applications
-- production phone OTP
-- automated NID verification
+- automated Election Commission NID verification (manual document review and phone OTP are specified in `Features/Verified user sign-up form.md`)
 - machine-learning recommendations
 - real payment transfer
 - live vendor inventory
