@@ -291,6 +291,39 @@ class DestinationContact(ProvenanceMixin, Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
+class DestinationPackVersion(Base):
+    """A built offline pack (R14, PF 18.4): the exact bytes served and their SHA-256.
+
+    Only the newest build of a destination is kept, so a review removed by moderation never
+    survives in an older pack on the server.
+    """
+
+    __tablename__ = "destination_pack_versions"
+    __table_args__ = (
+        UniqueConstraint("destination_id", "pack_version", name="uq_pack_versions_destination_version"),
+        CheckConstraint("pack_version > 0", name="ck_pack_versions_version_positive"),
+        CheckConstraint("size_bytes > 0", name="ck_pack_versions_size_positive"),
+        CheckConstraint("schema_version > 0", name="ck_pack_versions_schema_positive"),
+        CheckConstraint("expires_at > generated_at", name="ck_pack_versions_expiry_after_generation"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="ck_pack_versions_sha256_hex"),
+        CheckConstraint("content_version ~ '^[0-9a-f]{64}$'", name="ck_pack_versions_content_hex"),
+        Index("ix_pack_versions_destination_latest", "destination_id", text("pack_version DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    destination_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False
+    )
+    pack_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_version: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    body: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
 

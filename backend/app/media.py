@@ -450,6 +450,23 @@ def published_media(session: Session, storage: StorageClient, review_ids: list[u
     return grouped
 
 
+def published_media_metadata(session: Session, review_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[ReviewMedia]]:
+    """Approved media of the given reviews without any link, for the offline pack (R14).
+
+    A signed link expires within the hour and would change the pack hash on every read, so a pack
+    describes media and the device opens it only when online (Review.md 7.3)."""
+    if not review_ids:
+        return {}
+    grouped: dict[uuid.UUID, list[ReviewMedia]] = {}
+    for row in session.scalars(
+        select(ReviewMedia)
+        .where(ReviewMedia.review_id.in_(review_ids), ReviewMedia.state == "approved")
+        .order_by(ReviewMedia.review_id, ReviewMedia.position, ReviewMedia.id)
+    ):
+        grouped.setdefault(row.review_id, []).append(row)
+    return grouped
+
+
 def staff_url(session: Session, storage: StorageClient, review_id: uuid.UUID, media_id: uuid.UUID) -> str:
     media = session.scalar(select(ReviewMedia).where(ReviewMedia.id == media_id, ReviewMedia.review_id == review_id))
     if media is None or media.processed_key is None or media.state == "removed":

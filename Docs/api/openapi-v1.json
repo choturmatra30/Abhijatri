@@ -2268,6 +2268,772 @@
         "title": "OwnerMedia",
         "type": "object"
       },
+      "PackAdvisory": {
+        "description": "Raw dates travel with the advisory so a device recomputes its state offline (Dhaka date).",
+        "properties": {
+          "effective_on": {
+            "format": "date",
+            "title": "Effective On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AdvisorySeverity"
+          },
+          "text_bn": {
+            "title": "Text Bn",
+            "type": "string"
+          },
+          "text_en": {
+            "title": "Text En",
+            "type": "string"
+          },
+          "title_bn": {
+            "title": "Title Bn",
+            "type": "string"
+          },
+          "title_en": {
+            "title": "Title En",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "title_bn",
+          "title_en",
+          "text_bn",
+          "text_en",
+          "effective_on",
+          "valid_until",
+          "provenance"
+        ],
+        "title": "PackAdvisory",
+        "type": "object"
+      },
+      "PackAdvisoryStateAtGeneration": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "NOT_YET_EFFECTIVE",
+              "CURRENT",
+              "STALE",
+              "EXPIRED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "PackAdvisoryStateAtGeneration",
+        "type": "object"
+      },
+      "PackDestination": {
+        "properties": {
+          "community_rating": {
+            "$ref": "#/components/schemas/CommunityRatingSummary"
+          },
+          "content_licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Licence"
+          },
+          "content_verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Verified On"
+          },
+          "guest_feedback": {
+            "$ref": "#/components/schemas/GuestFeedbackSummary"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "name_bn": {
+            "title": "Name Bn",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "region_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Bn"
+          },
+          "region_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region En"
+          },
+          "restrictions_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrictions Bn"
+          },
+          "restrictions_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrictions En"
+          },
+          "seasonality_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seasonality Bn"
+          },
+          "seasonality_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seasonality En"
+          },
+          "summary_bn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Bn"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          }
+        },
+        "required": [
+          "id",
+          "name_bn",
+          "name_en",
+          "region_bn",
+          "region_en",
+          "summary_bn",
+          "summary_en",
+          "seasonality_bn",
+          "seasonality_en",
+          "restrictions_bn",
+          "restrictions_en",
+          "latitude",
+          "longitude",
+          "content_licence",
+          "content_verified_on",
+          "community_rating",
+          "guest_feedback"
+        ],
+        "title": "PackDestination",
+        "type": "object"
+      },
+      "PackDocument": {
+        "description": "The pack body. Its exact bytes are what ``sha256`` in the manifest covers.",
+        "properties": {
+          "advisories": {
+            "items": {
+              "$ref": "#/components/schemas/PackAdvisory"
+            },
+            "title": "Advisories",
+            "type": "array"
+          },
+          "advisories_verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisories Verified On"
+          },
+          "advisory_states": {
+            "items": {
+              "$ref": "#/components/schemas/PackAdvisoryStateAtGeneration"
+            },
+            "title": "Advisory States",
+            "type": "array"
+          },
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            },
+            "title": "Contacts",
+            "type": "array"
+          },
+          "content_version": {
+            "title": "Content Version",
+            "type": "string"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/PackDestination"
+          },
+          "destination_id": {
+            "format": "uuid",
+            "title": "Destination Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "generated_on": {
+            "format": "date",
+            "title": "Generated On",
+            "type": "string"
+          },
+          "guide_items": {
+            "items": {
+              "$ref": "#/components/schemas/GuideItem"
+            },
+            "title": "Guide Items",
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "enum": [
+                "bn",
+                "en"
+              ],
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "max_age_seconds": {
+            "title": "Max Age Seconds",
+            "type": "integer"
+          },
+          "pack_version": {
+            "title": "Pack Version",
+            "type": "integer"
+          },
+          "reviews": {
+            "$ref": "#/components/schemas/PackReviewSnapshot"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "stale_after_days": {
+            "title": "Stale After Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "languages",
+          "stale_after_days",
+          "destination",
+          "guide_items",
+          "advisories",
+          "contacts",
+          "reviews",
+          "destination_id",
+          "pack_version",
+          "content_version",
+          "generated_at",
+          "generated_on",
+          "expires_at",
+          "max_age_seconds",
+          "advisories_verified_on",
+          "advisory_states"
+        ],
+        "title": "PackDocument",
+        "type": "object"
+      },
+      "PackFreshness": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PackFreshnessItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PackFreshness",
+        "type": "object"
+      },
+      "PackFreshnessItem": {
+        "properties": {
+          "content_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Version"
+          },
+          "destination_id": {
+            "format": "uuid",
+            "title": "Destination Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "pack_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Url"
+          },
+          "pack_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Version"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "WITHDRAWN",
+              "NOT_FOUND"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination_id",
+          "status"
+        ],
+        "title": "PackFreshnessItem",
+        "type": "object"
+      },
+      "PackManifest": {
+        "properties": {
+          "advisories_verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisories Verified On"
+          },
+          "content_version": {
+            "title": "Content Version",
+            "type": "string"
+          },
+          "destination_id": {
+            "format": "uuid",
+            "title": "Destination Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "enum": [
+                "bn",
+                "en"
+              ],
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "max_age_seconds": {
+            "title": "Max Age Seconds",
+            "type": "integer"
+          },
+          "pack_url": {
+            "title": "Pack Url",
+            "type": "string"
+          },
+          "pack_version": {
+            "title": "Pack Version",
+            "type": "integer"
+          },
+          "review_snapshot": {
+            "$ref": "#/components/schemas/PackReviewCount"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "stale_after_days": {
+            "title": "Stale After Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "destination_id",
+          "pack_version",
+          "content_version",
+          "sha256",
+          "size_bytes",
+          "generated_at",
+          "expires_at",
+          "max_age_seconds",
+          "stale_after_days",
+          "advisories_verified_on",
+          "languages",
+          "review_snapshot",
+          "pack_url"
+        ],
+        "title": "PackManifest",
+        "type": "object"
+      },
+      "PackMedia": {
+        "description": "An approved photo or video, described without a link: it opens only when online.",
+        "properties": {
+          "alt_text": {
+            "title": "Alt Text",
+            "type": "string"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "alt_text",
+          "caption"
+        ],
+        "title": "PackMedia",
+        "type": "object"
+      },
+      "PackReview": {
+        "properties": {
+          "author_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Display Name"
+          },
+          "author_type": {
+            "enum": [
+              "GUEST",
+              "MEMBER"
+            ],
+            "title": "Author Type",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "category_ratings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ReviewCategory"
+            },
+            "title": "Category Ratings",
+            "type": "object"
+          },
+          "guest_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Tag"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/PackMedia"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "overall_rating": {
+            "title": "Overall Rating",
+            "type": "integer"
+          },
+          "published_at": {
+            "format": "date-time",
+            "title": "Published At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "author_type",
+          "guest_tag",
+          "author_display_name",
+          "overall_rating",
+          "category_ratings",
+          "published_at",
+          "title",
+          "body",
+          "media"
+        ],
+        "title": "PackReview",
+        "type": "object"
+      },
+      "PackReviewCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "limit"
+        ],
+        "title": "PackReviewCount",
+        "type": "object"
+      },
+      "PackReviewSnapshot": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PackReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "count",
+          "items"
+        ],
+        "title": "PackReviewSnapshot",
+        "type": "object"
+      },
       "PreferencesBody": {
         "additionalProperties": false,
         "properties": {
@@ -7288,6 +8054,120 @@
         "summary": "Destination Profile"
       }
     },
+    "/api/v1/destinations/{destination_id}/pack": {
+      "get": {
+        "description": "The stored bytes, byte for byte, so the device can check them against the manifest.",
+        "operationId": "pack_download_api_v1_destinations__destination_id__pack_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "destination_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Destination Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "410": {
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pack Download"
+      }
+    },
+    "/api/v1/destinations/{destination_id}/pack/manifest": {
+      "get": {
+        "operationId": "pack_manifest_api_v1_destinations__destination_id__pack_manifest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "destination_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Destination Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "410": {
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pack Manifest"
+      }
+    },
     "/api/v1/destinations/{destination_id}/reviews": {
       "get": {
         "operationId": "public_reviews_api_v1_destinations__destination_id__reviews_get",
@@ -8069,6 +8949,51 @@
         "tags": [
           "ops"
         ]
+      }
+    },
+    "/api/v1/packs/freshness": {
+      "get": {
+        "operationId": "pack_freshness_api_v1_packs_freshness_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "destination_id",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Destination Id",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackFreshness"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pack Freshness"
       }
     },
     "/api/v1/public/removal-requests": {

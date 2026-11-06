@@ -27,6 +27,10 @@ ALLOWED_DOCUMENTS = {
     "Docs/Review-Frontend-Manual-Test-Cases.docx",
     "Docs/R08-Rating-Test-Cases.docx",
     "Docs/R11-Reports-Moderation-Audit-Test-Cases.docx",
+    # LaTeX build of the data flow diagrams (11 pages, no embedded images or files); the full extracted text
+    # was scanned for connection strings, keys, tokens, URLs and email addresses on 6 November 2026 (no hit;
+    # "token" and "password" occur only as diagram labels).
+    "Docs/Abhijatri-DFD.pdf",
 }
 DOCUMENT_SUFFIXES = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "postgres", "redis", "h"}

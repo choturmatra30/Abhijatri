@@ -23,3 +23,15 @@ def receipt_limit() -> str:
 
 def guest_visit_limit() -> str:
     return get_settings().rate_limit_guest_visit
+
+
+def pack_manifest_limit() -> str:
+    return get_settings().rate_limit_pack_manifest
+
+
+def pack_download_limit() -> str:
+    return get_settings().rate_limit_pack_download
+
+
+def pack_freshness_limit() -> str:
+    return get_settings().rate_limit_pack_freshness

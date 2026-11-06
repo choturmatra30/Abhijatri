@@ -22,6 +22,7 @@ from app.member_routes import router as member_router
 from app.notify.admin_routes import router as notification_admin_router
 from app.notify.webhooks import router as webhook_router
 from app.notify.worker import NotificationWorker
+from app.offline.routes import router as offline_router
 from app.ops import events
 from app.ops.routes import router as ops_router
 from app.public_reports import router as public_reports_router
@@ -167,6 +168,7 @@ def create_app() -> FastAPI:
     )
     application.include_router(router)
     application.include_router(destination_router)
+    application.include_router(offline_router)
     application.include_router(ops_router)
     application.include_router(auth_router)
     application.include_router(admin_router)

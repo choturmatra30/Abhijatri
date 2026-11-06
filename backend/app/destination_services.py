@@ -206,6 +206,38 @@ def _contact_rows(session: Session, destination_id: uuid.UUID) -> Sequence[Desti
     ).all()
 
 
+def _guide_rows(session: Session, destination_id: uuid.UUID) -> Sequence[DestinationGuideItem]:
+    return session.scalars(
+        select(DestinationGuideItem)
+        .where(
+            DestinationGuideItem.destination_id == destination_id,
+            DestinationGuideItem.is_published.is_(True),
+        )
+        .order_by(
+            DestinationGuideItem.category.asc(),
+            DestinationGuideItem.sort_order.asc(),
+            DestinationGuideItem.title_en.asc(),
+            DestinationGuideItem.id.asc(),
+        )
+    ).all()
+
+
+def _guide_items(rows: Sequence[DestinationGuideItem]) -> list[GuideItem]:
+    return [
+        GuideItem(
+            id=row.id,
+            category=row.category,
+            title_bn=row.title_bn,
+            title_en=row.title_en,
+            body_bn=row.body_bn,
+            body_en=row.body_en,
+            sort_order=row.sort_order,
+            provenance=_provenance(row),
+        )
+        for row in rows
+    ]
+
+
 def list_published_destinations(
     session: Session, *, limit: int, after: str | None, today: date | None = None
 ) -> DestinationList:
@@ -283,19 +315,7 @@ def get_destination_profile(
 ) -> DestinationProfile:
     today = today or today_in_display_tz()
     destination = _published_destination(session, destination_id)
-    guide_rows = session.scalars(
-        select(DestinationGuideItem)
-        .where(
-            DestinationGuideItem.destination_id == destination_id,
-            DestinationGuideItem.is_published.is_(True),
-        )
-        .order_by(
-            DestinationGuideItem.category.asc(),
-            DestinationGuideItem.sort_order.asc(),
-            DestinationGuideItem.title_en.asc(),
-            DestinationGuideItem.id.asc(),
-        )
-    ).all()
+    guide_rows = _guide_rows(session, destination_id)
     advisory_rows = _advisory_rows(session, destination_id, today=today, include_expired=include_expired)
     contact_rows = _contact_rows(session, destination_id)
     community, guest = _ratings(
@@ -327,19 +347,7 @@ def get_destination_profile(
         longitude=_float(destination.longitude),
         community_rating=community,
         guest_feedback=guest,
-        guide_items=[
-            GuideItem(
-                id=row.id,
-                category=row.category,
-                title_bn=row.title_bn,
-                title_en=row.title_en,
-                body_bn=row.body_bn,
-                body_en=row.body_en,
-                sort_order=row.sort_order,
-                provenance=_provenance(row),
-            )
-            for row in guide_rows
-        ],
+        guide_items=_guide_items(guide_rows),
         advisories=_advisories(advisory_rows, today),
         contacts=_contacts(contact_rows),
         content_licence=destination.content_licence,

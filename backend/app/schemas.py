@@ -517,3 +517,141 @@ class DestinationProfile(BaseModel):
     as_of: date
     stale_after_days: int
     last_updated: datetime
+
+
+# Offline destination packs (R14, PF 18.4, Security 7.4). A pack carries only public content:
+# no researcher or reviewer names, no account or receipt data, and no signed media links.
+
+PackFreshnessStatus = Literal["AVAILABLE", "WITHDRAWN", "NOT_FOUND"]
+
+
+class PackMedia(BaseModel):
+    """An approved photo or video, described without a link: it opens only when online."""
+
+    id: uuid.UUID
+    kind: Literal["image", "video"]
+    alt_text: str
+    caption: str | None
+
+
+class PackReview(BaseModel):
+    id: uuid.UUID
+    author_type: Literal["GUEST", "MEMBER"]
+    guest_tag: str | None
+    author_display_name: str | None
+    overall_rating: int
+    category_ratings: dict[ReviewCategory, int]
+    published_at: datetime
+    title: str
+    body: str
+    media: list[PackMedia]
+
+
+class PackReviewSnapshot(BaseModel):
+    limit: int
+    count: int
+    items: list[PackReview]
+
+
+class PackAdvisory(BaseModel):
+    """Raw dates travel with the advisory so a device recomputes its state offline (Dhaka date)."""
+
+    id: uuid.UUID
+    severity: AdvisorySeverity
+    title_bn: str
+    title_en: str
+    text_bn: str
+    text_en: str
+    effective_on: date
+    valid_until: date
+    provenance: Provenance
+
+
+class PackDestination(BaseModel):
+    id: uuid.UUID
+    name_bn: str
+    name_en: str
+    region_bn: str | None
+    region_en: str | None
+    summary_bn: str | None
+    summary_en: str | None
+    seasonality_bn: str | None
+    seasonality_en: str | None
+    restrictions_bn: str | None
+    restrictions_en: str | None
+    latitude: float | None
+    longitude: float | None
+    content_licence: str | None
+    content_verified_on: date | None
+    community_rating: CommunityRatingSummary
+    guest_feedback: GuestFeedbackSummary
+
+
+class PackContent(BaseModel):
+    """Everything whose change makes a new content version. Nothing here depends on the clock."""
+
+    schema_version: int
+    languages: list[Literal["bn", "en"]]
+    stale_after_days: int
+    destination: PackDestination
+    guide_items: list[GuideItem]
+    advisories: list[PackAdvisory]
+    contacts: list[Contact]
+    reviews: PackReviewSnapshot
+
+
+class PackAdvisoryStateAtGeneration(BaseModel):
+    id: uuid.UUID
+    state: AdvisoryState
+
+
+class PackDocument(PackContent):
+    """The pack body. Its exact bytes are what ``sha256`` in the manifest covers."""
+
+    destination_id: uuid.UUID
+    pack_version: int
+    content_version: str
+    generated_at: datetime
+    generated_on: date  # the Asia/Dhaka date used for ``advisory_states``
+    expires_at: datetime
+    max_age_seconds: int
+    advisories_verified_on: date | None
+    advisory_states: list[PackAdvisoryStateAtGeneration]
+
+
+class PackReviewCount(BaseModel):
+    count: int
+    limit: int
+
+
+class PackManifest(BaseModel):
+    schema_version: int
+    destination_id: uuid.UUID
+    pack_version: int
+    content_version: str
+    sha256: str
+    size_bytes: int
+    generated_at: datetime
+    expires_at: datetime
+    max_age_seconds: int
+    stale_after_days: int
+    advisories_verified_on: date | None
+    languages: list[Literal["bn", "en"]]
+    review_snapshot: PackReviewCount
+    pack_url: str
+
+
+class PackFreshnessItem(BaseModel):
+    destination_id: uuid.UUID
+    status: PackFreshnessStatus
+    pack_version: int | None = None
+    content_version: str | None = None
+    sha256: str | None = None
+    size_bytes: int | None = None
+    generated_at: datetime | None = None
+    expires_at: datetime | None = None
+    pack_url: str | None = None
+
+
+class PackFreshness(BaseModel):
+    items: list[PackFreshnessItem]

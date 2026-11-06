@@ -56,6 +56,8 @@ CATALOGUE: dict[str, tuple[int, str, str]] = {
     "DUPLICATE_OPEN_REPORT": (409, "এই রিভিউয়ের জন্য আপনার একটি রিপোর্ট ইতিমধ্যে খোলা আছে।", "You already have an open report on this review."),
     "REOPEN_WINDOW_CLOSED": (409, "এই রিভিউটি আর পুনরায় খোলা যাবে না।", "This review can no longer be reopened."),
     "APPEAL_WINDOW_CLOSED": (409, "আপিলের সময় শেষ হয়ে গেছে।", "The appeal window has closed."),
+    "PACK_VERSION_SUPERSEDED": (409, "এই প্যাকের নতুন সংস্করণ এসেছে। আবার ডাউনলোড করুন।", "A newer version of this pack exists. Download it again."),
+    "PACK_WITHDRAWN": (410, "এই গন্তব্যটি আর প্রকাশিত নয়। সংরক্ষিত প্যাকটি মুছে ফেলুন।", "This destination is no longer published. Delete the saved pack."),
     "PAYLOAD_TOO_LARGE": (413, "অনুরোধটি অনেক বড়।", "The request is too large."),
     "TOKEN_INVALID_OR_EXPIRED": (422, "লিংকটি সঠিক নয় বা মেয়াদ শেষ। নতুন লিংক চান।", "The link is not valid or has expired. Request a new one."),
     "EVIDENCE_REQUIRED": (422, "অনুমোদনের আগে অন্তত একটি প্রমাণ ফাইল লাগবে।", "At least one evidence file is needed before approval."),

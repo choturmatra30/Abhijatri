@@ -226,7 +226,7 @@ To reproduce: start PostgreSQL 17, create a database whose name ends in `_test`,
 | Staff create, edit, publish and delete of destination content, translations and advisories | R10 and R11, after real staff authentication. |
 | Confirmed advisory staleness threshold | Open decision for the team (section 1.10). |
 | `last_updated` using verification dates | It uses row `updated_at` values only. |
-| Pack manifest `GET /destinations/{id}/pack/manifest` | R14. |
+| Pack manifest `GET /destinations/{id}/pack/manifest` | Implemented 6 Nov 2026 (R14, section 5.23). |
 
 ---
 
@@ -303,7 +303,7 @@ The Supabase session-mode pooler (port 5432) allows 15 clients in total, and eac
 | Paged staff moderation queue; `build` and `db_revision` in `/health/ready` | 5.9, 4.1 | WP8 |
 | Credentialed CORS, CSRF token endpoint | 1.2, `GET /auth/csrf` | WP9 |
 | Registration, sign-in, sessions, staff MFA, verifications, role grants | 4.5, 4.6 | WP10 (R04, R11); needs `Features/Identity-Access-Verification.md` |
-| Destination pack manifest | 4.3 | WP11 (R14) |
+| Destination pack manifest | 4.3 | Done 6 Nov 2026 (R14, section 5.23) |
 
 ## 4. Open items that need evidence outside this repository
 
@@ -426,7 +426,7 @@ RLS enabled, with grants revoked.
 | R11 | `POST /reviews/{review_id}/reports`, `POST /public/review-reports`, `POST /public/removal-requests` | Reports and lost-receipt removal | 4.4, 5.7 |
 | R11 | `GET /staff/verifications`, `POST /staff/verifications/{id}/decisions` | Verified Member approval queue | 4.6 |
 | R11 | `POST /staff/users/{user_id}/roles` | Role assignment (super administrator, recent reauthentication) | 4.6 |
-| R14 | `GET /destinations/{id}/pack/manifest` | Offline pack | 4.3 |
+| R14 | `GET /destinations/{id}/pack/manifest` | Offline pack | 4.3 (done 6 Nov 2026, section 5.23) |
 
 ### 5.5 Existing endpoints that still need updates (API.md section 6)
 
@@ -444,7 +444,7 @@ RLS enabled, with grants revoked.
 2. 5.3 guest welcome and counter: small and independent.
 3. R04 authentication and `GET /auth/session`: unblocks sign-in, Member reviews and Verified Members.
 4. R07 Member reviews, pending edits, appeals and media intents.
-5. R11 reports, verification and roles; R14 pack manifest; the 5.5 updates alongside.
+5. R11 reports, verification and roles; R14 pack manifest (done 6 Nov 2026, section 5.23); the 5.5 updates alongside.
 
 ### 5.7 Verification for each step
 
@@ -1001,3 +1001,185 @@ Inspection found the R10/R11 core already built (35 staff routes, queue, leases,
 
 **Not exercised in the browser:** Hide pending without keeping the rating, Reopen, Dismiss and the CSV export on the online data: further staff writes to shared online data need the owner's go-ahead. All are covered by the automated tests. The browser's public cache (`max-age=60`) can show a just-hidden review to a visitor for up to a minute.
 
+
+### 5.23 R14: Pack manifest, version and freshness endpoints (6 November 2026)
+
+#### 5.23.1 Task and requirements
+
+| Item | Value |
+|---|---|
+| Gantt task | R14 "Implement pack manifest, version and freshness endpoints" |
+| Owner | Muhtasim; 4 points; planned 22 to 27 October 2026, delivered 6 November 2026 |
+| Depends on | R02 (destination, advisory and contact services, section 1) |
+| Unblocks | R13 (frontend: versioned IndexedDB pack store, Abdullah) and R15/R18 reconnect behaviour |
+
+| Source | Requirement | How it is met |
+|---|---|---|
+| PF 18.4 | Every pack carries pack version, content version, generation time, advisory verification time, expiry, language and a SHA-256 integrity identifier. | `pack_version`, `content_version`, `generated_at`, `advisories_verified_on`, `expires_at`/`max_age_seconds`, `languages: ["bn","en"]`, `sha256` in the manifest; the same fields inside the pack. |
+| PF 18.4, Security 7.4 | On reconnection the client checks the manifest and applies removals before showing a refreshed pack as current. | `GET /packs/freshness` (one call for every pack on a device); `content_version` changes when a review is hidden or withdrawn; `WITHDRAWN` and `410 PACK_WITHDRAWN` for archived destinations. |
+| PF 18.4, Decisions Step 8 | Maximum snapshot age 7 days until Step 8 is decided; expired safety information never appears current. | `PACK_MAX_AGE_DAYS=7`; expired advisories are left out; advisory dates travel so the device recomputes the state offline. |
+| Security 7.1, 7.2 | Versioned public packs: explicit version and maximum age; exact route allowlist; responses do not reflect unkeyed headers; errors `no-store`. | `public, max-age=60` + ETag on the three routes only; byte-identical responses with forged cookies, `Authorization` and `Accept-Language` (tested). |
+| FR14 | Atomic replacement after the new pack passes validation. | `?version=N` returns `409 PACK_VERSION_SUPERSEDED` when a newer build exists; strong `ETag` and `Content-Digest` equal the manifest SHA-256. |
+| Review 7.1, 7.3 | Bounded snapshot of published reviews; media opens only when online. | Newest 20 published reviews (`PACK_REVIEW_SNAPSHOT_LIMIT`); media as id, kind, alt text and caption with no link. |
+| PF 3.2 | Backend package `offline/`. | New `app/offline/` package. |
+
+#### 5.23.2 What was delivered
+
+| Deliverable | Location |
+|---|---|
+| Pack builder, versioning, manifest and freshness services | `backend/app/offline/packs.py` |
+| Three public routes | `backend/app/offline/routes.py`, registered in `app/main.py` |
+| Table `destination_pack_versions` | `app/models.py`; migration `0021_destination_pack_versions` |
+| Schemas `PackManifest`, `PackDocument`, `PackContent`, `PackDestination`, `PackAdvisory`, `PackAdvisoryStateAtGeneration`, `PackReview`, `PackMedia`, `PackReviewSnapshot`, `PackReviewCount`, `PackFreshness`, `PackFreshnessItem` | `app/schemas.py` |
+| Error codes `PACK_VERSION_SUPERSEDED` (409), `PACK_WITHDRAWN` (410), Bangla and English | `app/errors.py` |
+| Settings and rate limits | `app/config.py`, `app/limits.py`, `.env.example` |
+| Shared PUBLISHED-only review query `published_review_rows()` (also used by the public feed) | `app/review_lists.py`, `app/api.py` |
+| Shared guide-item loaders `_guide_rows()`, `_guide_items()` (also used by the profile) | `app/destination_services.py` |
+| Link-free media metadata `published_media_metadata()` | `app/media.py` |
+| Tests | `tests/test_pack_unit.py` (23), `tests/test_pack_http.py` (32), `tests/test_pack_postgres.py` (20) |
+| Contract and docs | `Docs/api/API.md` 4.3, 5.23, sections 2, 7, 8; `Docs/api/openapi-v1.json`; `Docs/Schema.md`; `Docs/Decisions.md` (6 Nov 2026); `Docs/Implemented.md`; `Docs/Architecture.md` 8 |
+| Reusable test-run prompt | `prompt/r14_pack_manifest_test.md` (outside the repository) |
+
+#### 5.23.3 Endpoints
+
+| Method and path | Purpose | Credential | Cache |
+|---|---|---|---|
+| `GET /api/v1/destinations/{destination_id}/pack/manifest` | Current pack metadata | none | `public, max-age=60`, weak ETag, 304 |
+| `GET /api/v1/destinations/{destination_id}/pack?version=N` | The exact stored bytes | none | `public, max-age=60`, strong `ETag: "<sha256>"`, `Content-Digest`, 304 |
+| `GET /api/v1/packs/freshness?destination_id=...` | Reconnect check for 1 to 20 packs | none | `public, max-age=60`, weak ETag, 304 |
+
+| Parameter | Rule |
+|---|---|
+| `destination_id` (path) | UUID, else `422 VALIDATION_FAILED`. Unknown or DRAFT: the same `404 NOT_FOUND` body. ARCHIVED: `410 PACK_WITHDRAWN`. |
+| `version` | Optional integer 1 to 2147483647. Not the current build: `409 PACK_VERSION_SUPERSEDED`. |
+| `destination_id` (query, repeated) | 1 to 20 distinct UUIDs; more, none, or a repeat is `422` (repeat: field code `DUPLICATE`). Answer in request order with status `AVAILABLE`, `WITHDRAWN` or `NOT_FOUND`. |
+
+`If-None-Match` uses the weak comparison of RFC 9110, so `W/"<sha256>"` also matches the pack. Other methods return `405`; unknown sub-paths `404`. Bursts above 60, 20 and 30 requests a minute per network return `429 RATE_LIMITED` with `Retry-After`.
+
+#### 5.23.4 Data model (migration `0021_destination_pack_versions`)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `destination_id` | UUID | FK `destinations` `ON DELETE CASCADE` |
+| `pack_version` | integer | Build counter, `> 0` |
+| `content_version` | char(64) | SHA-256 hex of the content only (check `^[0-9a-f]{64}$`) |
+| `sha256` | char(64) | SHA-256 hex of `body` (same check) |
+| `size_bytes` | integer | `> 0` |
+| `schema_version` | smallint | `> 0`; currently 1 |
+| `generated_at`, `expires_at` | timestamptz | `expires_at > generated_at` |
+| `body` | bytea | The exact bytes served |
+
+Unique `uq_pack_versions_destination_version (destination_id, pack_version)`, index `ix_pack_versions_destination_latest (destination_id, pack_version DESC)`. Index and constraint names are identical in the model and the migration.
+
+**RLS.** The migration enables row-level security and revokes `anon` and `authenticated` grants; `tests/test_rls.py` covers the new table.
+
+**Reversibility.** `downgrade()` drops the index and table; packs are rebuilt on the next request. Upgrade, `alembic check` ("No new upgrade operations detected"), `downgrade -1`, `upgrade`, `downgrade base`, `upgrade` were run clean on PostgreSQL 17.
+
+#### 5.23.5 Versioning and freshness logic
+
+| Rule | Implementation |
+|---|---|
+| Content version | SHA-256 of canonical JSON (UTF-8, Bangla unescaped, sorted keys, no whitespace, NaN refused) of everything a reader sees, without clock-dependent fields. Recomputed on every read. Not based on `updated_at`, which no writer bumps automatically. |
+| New build | When there is no build, the content version or schema changed, the newest build expired, or it is 24 hours old (`PACK_REBUILD_AFTER_HOURS`). An age rebuild keeps the content version and extends `expires_at`. |
+| Concurrency | `pg_advisory_xact_lock(hashtextextended('pack:<id>', 0))` around the build, then a re-read: concurrent first requests build once. |
+| Retention | After inserting a build, older builds of that destination are deleted in the same transaction, so a removed review never survives on the server. |
+| Advisory window | Published, `valid_until >= today`, `effective_on <= today + PACK_MAX_AGE_DAYS`, all on the Asia/Dhaka date. Upcoming advisories are included with `NOT_YET_EFFECTIVE` in `advisory_states`; expired ones are left out. |
+| Expiry | `expires_at = generated_at + 7 days`; `max_age_seconds = 604800`. |
+| Transactions | Every path of `ensure_current_pack` ends its transaction before returning (commit, or rollback on error), so the pooled connection returns to the pool immediately (see 5.23.9). |
+
+#### 5.23.6 Service and API layer
+
+| Function | Responsibility |
+|---|---|
+| `canonical_json`, `sha256_hex`, `content_digest` | Deterministic bytes, hashes and the RFC 9530 header value |
+| `build_content` | Public content of a published destination, reusing the R02 loaders and the shared review query |
+| `content_version_of`, `needs_rebuild`, `advisory_window` | Pure rules, unit-tested without a database |
+| `build_document` | Adds versions, times, `generated_on` and `advisory_states` to the content |
+| `ensure_current_pack` | Lookup, lazy build under the lock, retention, transaction end |
+| `manifest_of`, `freshness` | Manifest from the build; per-id freshness in request order |
+| `routes.if_none_match` | Weak ETag comparison for the three routes |
+
+#### 5.23.7 Configuration added
+
+| Variable | Default | Effect |
+|---|---|---|
+| `PACK_MAX_AGE_DAYS` | 7 (1 to 30) | Pack expiry and advisory window |
+| `PACK_REBUILD_AFTER_HOURS` | 24 (1 to 168) | Rebuild interval when content is unchanged |
+| `PACK_REVIEW_SNAPSHOT_LIMIT` | 20 (0 to 50) | Newest published reviews in a pack |
+| `RATE_LIMIT_PACK_MANIFEST` / `_DOWNLOAD` / `_FRESHNESS` | 60 / 20 / 30 per minute | In-memory burst pre-filter per network |
+
+#### 5.23.8 Privacy and safety properties
+
+- A pack contains only public content. Tests assert the absence of researcher and reviewer names, member email, guest typed name, `guest_display_name`, `author_user_id`, receipt and scope data, storage keys, signed links, pending reviews, unpublished guide items and contacts, `visit_month`, `rating_eligibility` and `client_draft_id`.
+- A review hidden by a moderator or withdrawn by its author leaves the next pack, and no stored build still holds it.
+- Responses do not depend on cookies, `Authorization`, `Accept-Language` or unknown query parameters (byte-identical, same ETag), and never set a cookie.
+- A draft destination cannot be told apart from an unknown id. An archived one is announced as withdrawn because it was public.
+- Expired advisories are never in a pack; upcoming ones carry their dates and `NOT_YET_EFFECTIVE`.
+
+#### 5.23.9 Fixed during this run
+
+| # | Defect found by testing | Fix | Where |
+|---|---|---|---|
+| 1 | The concurrency test passed even with the advisory lock removed (mutation check): the threads never overlapped. | The test now slows the build inside the critical section, so without the lock 7 of 8 threads fail with a unique violation. | `tests/test_pack_postgres.py` |
+| 2 | Load check (50 clients): manifest requests stalled up to 141 s, 504s, and `pg_stat_activity` showed 14 to 15 of 20 pool connections "idle in transaction" after the last pack query. The fast path returned without ending its read transaction, so each connection was held until the request's dependency teardown. | `ensure_current_pack` commits or rolls back on every path; regression test `test_every_path_ends_its_transaction`, which fails when the commit is removed. | `app/offline/packs.py` |
+| 3 | After fix 2 the no-database stub session in the HTTP tests had no `rollback()`. | Stub gained `commit()` and `rollback()`. | `tests/test_pack_http.py` |
+
+#### 5.23.10 Tests and evidence
+
+| File | Type | What it proves |
+|---|---|---|
+| `tests/test_pack_unit.py` | Unit, Hypothesis | Canonical JSON (sorted, compact, Bangla kept, NaN refused); hash independent of key order (property); Bangla round trip (property); `Content-Digest`; rebuild table (first, same, changed, aged, expired, schema); Dhaka-date window (20:30 UTC is the next Dhaka day); weak `If-None-Match`; settings bounds and defaults; error codes 409/410. |
+| `tests/test_pack_http.py` | HTTP, no database | 404 envelope, Bangla default and English message; freshness of unknown ids; 422 for bad ids, versions, missing, duplicate and 21 ids without echoing values; 20 ids accepted; 405 for POST/PUT/PATCH/DELETE on all three routes; 404 for extra segments; security headers, no cookie. |
+| `tests/test_pack_postgres.py` | PostgreSQL 17 integration | Manifest equals the served bytes (SHA-256, strong ETag, `Content-Digest`, size); one build reused; content change gives version 2, old build deleted, old version 409; hidden and withdrawn reviews leave the pack (parametrised); 24-hour rebuild keeps the content version; snapshot limit; 304 on all three routes; 8 concurrent first requests build exactly once; draft equals unknown; archived is 410; freshness order and values; advisory window and states; no private content; responses independent of request headers; CORS; download rate limit 429; transactions ended on every path. |
+
+Mutation checks (each change made, tests run, file restored and diffed):
+
+| Mutation in `app/offline/packs.py` | Result |
+|---|---|
+| Advisory lock removed | Killed (after fix 1): 7 unique violations |
+| Older builds kept | Killed: 4 tests fail |
+| 24-hour rebuild removed | Killed: 2 tests fail |
+| Upcoming advisories excluded | Killed: 1 test fails |
+| Draft treated as published | Killed: 2 tests fail |
+| Fast-path commit removed | Killed: 1 test fails |
+
+CI reproduction on 6 November 2026, final code, PostgreSQL 17 container with the `ci.yml` credentials and environment (`APP_ENV=test`, `TZ=UTC`, `APP_TIMEZONE=UTC`, `DEFAULT_DISPLAY_TIMEZONE=Asia/Dhaka`):
+
+| Job | Step | Result |
+|---|---|---|
+| backend | `uv sync --locked --dev` | Pass; no dependency change (`uv.lock`, `pyproject.toml` untouched) |
+| backend | `ruff check .` | Pass |
+| backend | `mypy` (strict) | Pass, 79 source files |
+| backend | `pytest -m "not integration"` | 344 passed |
+| backend | `alembic upgrade head`, `check`, `downgrade base` (+ `downgrade -1`/`upgrade` and re-upgrade) | Pass; no drift |
+| backend | `pytest -m integration --cov` | 461 passed, 1 skipped (`test_rls.py`: this PostgreSQL has no Supabase roles, as before R14); coverage `app/offline/packs.py` 98 %, `routes.py` 97 %, total 85 % |
+| backend | `docker build` | Not run locally (TLS interception on this machine); CI runs it |
+| security | `check_committed_secrets.py` | Pass |
+| security | `pip-audit` | Not run locally: PyPI unreachable through TLS interception (certificate checks not weakened). R14 adds no dependency. |
+| security | gitleaks | Not installed locally; CI runs it |
+| frontend / staff / ops | `npm run build`, `npm test` | Pass: 110, 46 and 19 tests; public-bundle guard OK (no frontend change in R14) |
+
+Live API run (`uvicorn`, migrated and seeded database with the five semester destinations):
+
+| Check | Result |
+|---|---|
+| Smoke and security probes (30): headers, 304, SHA-256 = manifest, strong ETag, `Content-Digest`, size, Bangla unescaped, no private fields, build reuse, byte-identical with forged cookie/`Authorization`/`Accept-Language`, 409, 404, 422, 405, extra segment 404, freshness order and 422s, CORS allowed and foreign origin, 429 after 20 downloads | 30/30 pass on the final code |
+| WebCrypto check: `crypto.subtle.digest("SHA-256")` of the downloaded pack equals `manifest.sha256`, CORS from `http://localhost:5173` | Pass in Node 22. **Not run in Chrome**: the Claude in Chrome extension was not connected. |
+| Load, 50 concurrent clients × 20 requests, final code, cold (no builds) | 1000/1000 `200`; exactly one build per destination (5 rows, version 1); p95 manifest 2.08 s, pack 1.69 s, freshness 3.57 s |
+| Load, same, warm | 1000/1000 `200`, no 5xx; p95 manifest 1.82 s, pack 1.48 s, freshness 3.36 s, overall 2.62 s; manifest-only run p95 1.53 s |
+| Control: same load with the R02 profile route instead of the manifest | 1000/1000 `200`, overall p95 1.88 s |
+
+**Load verdict.** Manifest and pack downloads meet p95 < 2 s warm. **The freshness check does not**: each call in the test asks for all five destinations, so it does five content builds (p95 about 3.4 s on this laptop: one uvicorn worker, PostgreSQL in Docker). The overall p95 of the mixed run (2.6 s) therefore misses the 2 s target. In production the 60-second public cache absorbs repeated checks, but that was not measured. Making freshness cheaper (for example a short in-process cache of content versions) would let a removed review stay in a downloaded pack slightly longer, so it is left as an owner decision.
+
+To reproduce: run `prompt/r14_pack_manifest_test.md`.
+
+#### 5.23.11 Not implemented
+
+| Item | Status |
+|---|---|
+| Frontend pack client, IndexedDB store, service worker, offline page | R12, R13 (frontend) |
+| Real-device airplane-mode tests (Gate 2) | Need R13 |
+| Faster freshness under 50-user load | Owner decision (5.23.10) |
+| Decisions Step 8 (measured maximum age) | Open; 7-day default in use |
+| Purging shared/CDN caches on moderation | None needed today (60-second TTL, no CDN); revisit if a CDN is added |
