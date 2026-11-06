@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app import media
+from app import idempotency, media
 from app.admin import audit
 from app.admin.cases import reverse_sanction
 from app.db import SessionLocal
@@ -50,6 +50,7 @@ OPEN_APPEAL = ("received", "in_review")
 STANDARD_DAYS = 90
 CRITICAL_DAYS = 730
 OUTBOX_DAYS = 30
+IDEMPOTENCY_PURGE_BATCH = idempotency.PURGE_BATCH
 
 
 def purge_verification(sessions: Callable[[], Session], storage: StorageClient, now: datetime) -> dict[str, int]:
@@ -212,6 +213,18 @@ def purge_review_media(sessions: Callable[[], Session], storage: StorageClient, 
     return purged
 
 
+def purge_idempotency(sessions: Callable[[], Session], now: datetime) -> int:
+    """Stored Idempotency-Key responses past their expiry (R16, API.md section 3), in batches."""
+    total = 0
+    with sessions() as session:
+        while True:
+            deleted = idempotency.purge_expired(session, now=now)
+            session.commit()
+            total += deleted
+            if deleted < IDEMPOTENCY_PURGE_BATCH:
+                return total
+
+
 def run(sessions: Callable[[], Session] = SessionLocal, storage: StorageClient | None = None, now: datetime | None = None) -> dict[str, int]:
     moment = now or datetime.now(UTC)
     store = storage or get_storage()
@@ -222,6 +235,7 @@ def run(sessions: Callable[[], Session] = SessionLocal, storage: StorageClient |
     result["sanctions_expired"] = expire_sanctions(sessions, moment)
     result["rejected_reviews"] = purge_rejected_reviews(sessions, store, moment)
     result["report_contacts"] = erase_report_contacts(sessions, moment)
+    result["idempotency_keys"] = purge_idempotency(sessions, moment)
     return result
 
 

@@ -4,6 +4,7 @@ import { ArrowLeft, FilePenLine, Undo2 } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { getDestination } from '../api/destinations';
 import { getReview, withdrawMemberReview } from '../api/reviews';
+import { useIdempotencyKeys } from '../hooks/useIdempotencyKeys';
 import { Notice, linkClass } from '../components/auth/AccountUi';
 import { ErrorState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
 import { CATEGORY_LABEL, COMFORT_TIERS, REVIEW_LANGUAGES, TRAVELLER_TYPES } from '../components/reviews/reviewLabels';
@@ -25,6 +26,8 @@ const APPEAL_TEXT: Record<ReviewAppealState, [string, string]> = {
 /** One review of the signed-in author, with its history and the controls that apply to its state. */
 export const ReviewDetailPage: React.FC = () => {
   const { t, language } = useLanguage();
+  // A retried action reuses its Idempotency-Key, so a lost response is replayed, not repeated (R16).
+  const withdrawKeys = useIdempotencyKeys();
   const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const location = useLocation();
@@ -62,7 +65,8 @@ export const ReviewDetailPage: React.FC = () => {
     setBusy(true);
     setMessage(null);
     try {
-      await withdrawMemberReview(detail.id, detail.version);
+      await withdrawMemberReview(detail.id, detail.version, withdrawKeys.keyFor({ review: detail.id, version: detail.version }));
+      withdrawKeys.reset();
       setMessage({ tone: 'success', text: t('রিভিউ প্রত্যাহার করা হয়েছে।', 'Review withdrawn.') });
       setConfirming(false);
       await load();

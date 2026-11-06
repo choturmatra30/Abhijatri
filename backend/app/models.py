@@ -775,6 +775,33 @@ class IdempotencyKey(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
+class RequestIdempotency(Base):
+    """Stored success of a retryable public or member write (R16, API.md section 3).
+
+    Scoped by a keyed digest of the caller (member, guest scope or receipt) and the endpoint. The
+    raw ``Idempotency-Key`` and every secret are kept only as digests. Rows expire after
+    ``IDEMPOTENCY_TTL_HOURS`` and the retention job deletes them.
+    """
+
+    __tablename__ = "request_idempotency"
+    __table_args__ = (
+        CheckConstraint("key_digest ~ '^[0-9a-f]{64}$'", name="ck_request_idempotency_key_hex"),
+        CheckConstraint("fingerprint ~ '^[0-9a-f]{64}$'", name="ck_request_idempotency_fingerprint_hex"),
+        CheckConstraint("status_code BETWEEN 200 AND 299", name="ck_request_idempotency_success_only"),
+        CheckConstraint("expires_at > created_at", name="ck_request_idempotency_expiry_after_creation"),
+        Index("ix_request_idempotency_expires_at", "expires_at"),
+    )
+
+    scope_digest: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String(80), primary_key=True)
+    key_digest: Mapped[str] = mapped_column(CHAR(64), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    status_code: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    response: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ModerationTask(Base):
     """Queue and claim state, kept apart from content lifecycle (Moderation spec 5 and 7.2)."""
 

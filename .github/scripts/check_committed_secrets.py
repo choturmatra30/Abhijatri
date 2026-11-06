@@ -31,6 +31,11 @@ ALLOWED_DOCUMENTS = {
     # was scanned for connection strings, keys, tokens, URLs and email addresses on 6 November 2026 (no hit;
     # "token" and "password" occur only as diagram labels).
     "Docs/Abhijatri-DFD.pdf",
+    # Drawing and coverage guides. Every XML part of each file was scanned for connection strings, keys, tokens,
+    # credentials and email addresses on 6 November 2026 (no hit); none has embedded media or files.
+    "Docs/internal/Abhijatri-DFD-Drawing-Guide.docx",
+    "Docs/internal/Abhijatri-Proposal-Coverage.docx",
+    "Docs/internal/Abhijatri-Venn-Drawing-Guide.docx",
 }
 DOCUMENT_SUFFIXES = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "postgres", "redis", "h"}

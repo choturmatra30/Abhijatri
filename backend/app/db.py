@@ -1,11 +1,12 @@
 from collections.abc import Generator
+from typing import Any
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 
 
 class Base(DeclarativeBase):
@@ -13,6 +14,17 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
+
+
+def connect_args_for(configured: Settings) -> dict[str, Any]:
+    """psycopg connect arguments. ``prepare_threshold=None`` turns server-side prepared statements
+    off, which a transaction-mode pooler (Supabase port 6543) requires (Handoff B6)."""
+    args: dict[str, Any] = {"connect_timeout": configured.db_connect_timeout}
+    if not configured.uses_prepared_statements:
+        args["prepare_threshold"] = None
+    return args
+
+
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
@@ -20,7 +32,7 @@ engine = create_engine(
     max_overflow=settings.db_max_overflow,
     pool_recycle=settings.db_pool_recycle,
     pool_timeout=settings.db_pool_timeout,
-    connect_args={"connect_timeout": settings.db_connect_timeout},
+    connect_args=connect_args_for(settings),
 )
 
 

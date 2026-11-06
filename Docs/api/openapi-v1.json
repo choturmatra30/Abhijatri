@@ -9175,6 +9175,26 @@
       "post": {
         "description": "A Guest appeals the rejection of their review with the receipt (API.md 5.6).",
         "operationId": "appeal_rejected_review_api_v1_review_receipts_appeals_post",
+        "parameters": [
+          {
+            "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9252,6 +9272,26 @@
       "post": {
         "description": "Order of checks (API.md 5.2, PF 14.4).",
         "operationId": "create_guest_review_api_v1_reviews_guest_post",
+        "parameters": [
+          {
+            "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9289,8 +9329,28 @@
     },
     "/api/v1/reviews/member": {
       "post": {
-        "description": "A signed-in member's review. No Turnstile: the session, CSRF token and rate limit stand in for it.",
+        "description": "A signed-in member's review. No Turnstile: the session, CSRF token and rate limit stand in for it.\n\nRetry safety has two layers: the same ``client_draft_id`` and receipt recover the stored review\n(200, ``duplicate_recovered``), and an ``Idempotency-Key`` replays the first response (R16).",
         "operationId": "create_member_review_api_v1_reviews_member_post",
+        "parameters": [
+          {
+            "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9631,6 +9691,24 @@
               "title": "Review Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "requestBody": {
@@ -9737,6 +9815,24 @@
               "format": "uuid",
               "title": "Review Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional UUID. A retry with the same key and body returns the stored response (API.md 3).",
+              "title": "Idempotency-Key"
             }
           }
         ],

@@ -192,12 +192,14 @@ export function getReviewFeed(
 
 /**
  * 201 = created, 200 with `duplicate_recovered` = a retry of the same draft found the stored
- * review. The same `client_draft_id` and receipt must be reused on every retry of one draft.
+ * review. The same `client_draft_id`, receipt and `idempotencyKey` must be reused on every retry of
+ * one draft.
  */
-export function submitGuestReview(payload: GuestReviewCreate): Promise<GuestReviewCreated> {
+export function submitGuestReview(payload: GuestReviewCreate, idempotencyKey?: string): Promise<GuestReviewCreated> {
   return apiRequest<GuestReviewCreated>('/api/v1/reviews/guest', {
     method: 'POST',
     body: payload,
+    idempotencyKey,
   });
 }
 
@@ -212,18 +214,20 @@ export function withdrawGuestReview(
   reviewId: string,
   receiptSecret: string,
   expectedVersion: number,
+  idempotencyKey?: string,
 ): Promise<ReceiptStatus> {
   return apiRequest<ReceiptStatus>(`/api/v1/reviews/${encodeURIComponent(reviewId)}/withdraw`, {
     method: 'POST',
     body: { receipt_secret: receiptSecret, expected_version: expectedVersion },
+    idempotencyKey,
   });
 }
 
 /** A signed-in member's review (API.md 5.20): the guest scope, name and Turnstile token are not sent. */
 export type MemberReviewCreate = Omit<GuestReviewCreate, 'guest_scope_secret' | 'guest_display_name' | 'turnstile_token'>;
 
-export function submitMemberReview(payload: MemberReviewCreate): Promise<GuestReviewCreated> {
-  return call<GuestReviewCreated>('/api/v1/reviews/member', { body: payload, session: true });
+export function submitMemberReview(payload: MemberReviewCreate, idempotencyKey?: string): Promise<GuestReviewCreated> {
+  return call<GuestReviewCreated>('/api/v1/reviews/member', { body: payload, session: true, idempotencyKey });
 }
 
 export interface MediaUpload {
@@ -283,30 +287,45 @@ export const getMyReviews = (query: MyReviewsQuery = {}) =>
 export const getReview = (reviewId: string) => call<ReviewDetail>(`/api/v1/reviews/${encodeURIComponent(reviewId)}`, { method: 'GET' });
 
 /** A member edits their own PENDING or CHANGES_REQUESTED review: session and CSRF token, never a receipt. */
-export const editMemberReview = (reviewId: string, expectedVersion: number, changes: ReviewEditChanges) =>
+export const editMemberReview = (
+  reviewId: string,
+  expectedVersion: number,
+  changes: ReviewEditChanges,
+  idempotencyKey?: string,
+) =>
   call<ReviewEdited>(`/api/v1/reviews/${encodeURIComponent(reviewId)}/pending`, {
     method: 'PATCH',
     body: { expected_version: expectedVersion, ...changes },
     session: true,
+    idempotencyKey,
   });
 
 /** A Guest edits with the receipt in the JSON body only: no cookie, no CSRF token, never a URL. */
-export const editGuestReview = (reviewId: string, receiptSecret: string, expectedVersion: number, changes: ReviewEditChanges) =>
+export const editGuestReview = (
+  reviewId: string,
+  receiptSecret: string,
+  expectedVersion: number,
+  changes: ReviewEditChanges,
+  idempotencyKey?: string,
+) =>
   apiRequest<ReviewEdited>(`/api/v1/reviews/${encodeURIComponent(reviewId)}/pending`, {
     method: 'PATCH',
     body: { expected_version: expectedVersion, receipt_secret: receiptSecret, ...changes },
+    idempotencyKey,
   });
 
 /** A member withdraws their own review by session; the body carries only the version. */
-export const withdrawMemberReview = (reviewId: string, expectedVersion: number) =>
+export const withdrawMemberReview = (reviewId: string, expectedVersion: number, idempotencyKey?: string) =>
   call<ReceiptStatus>(`/api/v1/reviews/${encodeURIComponent(reviewId)}/withdraw`, {
     body: { expected_version: expectedVersion },
     session: true,
+    idempotencyKey,
   });
 
 /** A Guest appeals a rejection with the receipt (API.md 5.6). The statement is 20 to 2000 characters. */
-export const appealRejectedReview = (reviewId: string, receiptSecret: string, statement: string) =>
+export const appealRejectedReview = (reviewId: string, receiptSecret: string, statement: string, idempotencyKey?: string) =>
   apiRequest<GuestAppealCreated>('/api/v1/review-receipts/appeals', {
     method: 'POST',
     body: { review_id: reviewId, receipt_secret: receiptSecret, statement: statement.trim() },
+    idempotencyKey,
   });

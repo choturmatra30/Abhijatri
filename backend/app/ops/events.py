@@ -33,6 +33,8 @@ EVENT_NAMES = frozenset(
         "visits.dropped",
         "reviews.submitted",
         "ops.auth_failed",
+        "breach_check.refused",
+        "breach_check.skipped",
     }
 )
 

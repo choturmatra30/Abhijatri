@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { editMemberReview, getReview } from '../api/reviews';
+import { useIdempotencyKeys } from '../hooks/useIdempotencyKeys';
 import { Notice, linkClass } from '../components/auth/AccountUi';
 import { ErrorState, LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
 import { ReviewEditForm } from '../components/reviews/ReviewEditForm';
@@ -16,6 +17,8 @@ import { SignInLink } from '../components/common/SignInLink';
 /** Edit one of the signed-in author's unpublished reviews (PENDING or CHANGES_REQUESTED). */
 export const ReviewEditPage: React.FC = () => {
   const { t } = useLanguage();
+  // A retried action reuses its Idempotency-Key, so a lost response is replayed, not repeated (R16).
+  const editKeys = useIdempotencyKeys();
   const { session, status: sessionStatus, status, refresh } = useSession();
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -43,7 +46,9 @@ export const ReviewEditPage: React.FC = () => {
 
   const save = async (changes: ReviewEditChanges) => {
     if (!detail) return;
-    const result = await editMemberReview(detail.id, detail.version, changes);
+    const key = editKeys.keyFor({ review: detail.id, version: detail.version, changes });
+    const result = await editMemberReview(detail.id, detail.version, changes, key);
+    editKeys.reset();
     navigate(`/account/reviews/${detail.id}`, {
       state: { saved: t(`সংরক্ষিত হয়েছে। এখন সংস্করণ ${result.revision}; মডারেটরের পর্যালোচনার অপেক্ষায়।`, `Saved as version ${result.revision}. It is waiting for moderation again.`) },
     });

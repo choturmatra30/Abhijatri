@@ -298,7 +298,7 @@ The Supabase session-mode pooler (port 5432) allows 15 clients in total, and eac
 
 | Area | Contract reference | Planned work |
 |---|---|---|
-| `Idempotency-Key` replay | section 3 | WP4 |
+| `Idempotency-Key` replay | section 3 | Done 6 Nov 2026 (R16, section 5.24) |
 | Reports and removal requests | 4.4, 5.7 | WP7 (R11) |
 | Paged staff moderation queue; `build` and `db_revision` in `/health/ready` | 5.9, 4.1 | WP8 |
 | Credentialed CORS, CSRF token endpoint | 1.2, `GET /auth/csrf` | WP9 |
@@ -1182,4 +1182,282 @@ To reproduce: run `prompt/r14_pack_manifest_test.md`.
 | Real-device airplane-mode tests (Gate 2) | Need R13 |
 | Faster freshness under 50-user load | Owner decision (5.23.10) |
 | Decisions Step 8 (measured maximum age) | Open; 7-day default in use |
-| Purging shared/CDN caches on moderation | None needed today (60-second TTL, no CDN); revisit if a CDN is added |
+| Purging shared caches on moderation | None today. Correction, 6 Nov: Vercel's edge does cache these public responses (`X-Vercel-Cache: HIT`), so a change can take about 60 seconds to reach a device, within the accepted TTL. Revisit if the TTL grows |
+
+### 5.24 R16: `Idempotency-Key` replay, and B6: transaction-pooler support (6 November 2026)
+
+#### 5.24.1 Task and requirements
+
+| Item | Value |
+|---|---|
+| Gantt task | R16 "Implement server-side idempotency-key storage and expiry" |
+| Owner | Muhtasim; 3 points; planned 24 to 28 October 2026, delivered 6 November 2026 |
+| Depends on | R07 (review edit, withdraw and appeal routes, section 5.18) |
+| Handoff | `Handoff-Backend.md` R16 and B6 |
+| Unblocks | R15 offline drafts: a retry after a lost response can never act twice |
+
+| Source | Requirement | How it is met |
+|---|---|---|
+| API.md 3, PF 12.4 | Retryable writes accept `Idempotency-Key`; stored with scope, endpoint, fingerprint, response and a 72-hour expiry. | Table `request_idempotency`; `IDEMPOTENCY_TTL_HOURS=72`. |
+| Gantt R16 acceptance | Unique constraint and retry tests pass. | Primary key `(scope_digest, endpoint, key_digest)`; 24 PostgreSQL tests plus 19 unit tests. |
+| API.md 3 | Same key and body returns the stored response; same key and another body is `409 IDEMPOTENCY_KEY_REUSED`. | `app/idempotency.py` `begin()`; tested on every route. |
+| API.md 5.2 step 3 | Replay is checked before Turnstile and counters. | In `POST /reviews/guest` after the `client_draft_id` recovery and before the emergency switch, challenge and counters, so a replay spends no durable counter (tested). Receipt routes check the receipt first, so there a replay counts as a receipt operation (tested). |
+| Handoff R16 | Member review has the same `client_draft_id` recovery as the guest route. | Already built (`submit_member_review`); now covered by a test. |
+| Handoff B6 | Run on the transaction pooler; prepared statements off. | `DB_PREPARED_STATEMENTS`, off by default on port 6543 (`app/db.py` `connect_args_for`). |
+
+#### 5.24.2 What was delivered
+
+| Deliverable | Location |
+|---|---|
+| Replay service: key parsing, scopes, fingerprint, reserve, finish, purge | `backend/app/idempotency.py` |
+| Table and migration (RLS on, no client grants) | `models.py` `RequestIdempotency`; `migrations/versions/0022_request_idempotency.py` |
+| Five routes wired | `app/api.py` (guest create, withdraw, edit, appeal); `app/member_routes.py` (member create) |
+| Retention of expired rows | `app/jobs/retention.py` `purge_idempotency` (result key `idempotency_keys`) |
+| CORS `Access-Control-Expose-Headers: Idempotent-Replayed, Retry-After` | `app/main.py` |
+| New error `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` (Bangla and English) | `app/errors.py` |
+| Pooler setting and the `IDEMPOTENCY_TTL_HOURS` setting | `app/config.py`, `app/db.py`, `.env.example`, `backend/README.md` |
+| Frontend: header, one key per user action | `frontend/src/api/client.ts`, `auth.ts`, `reviews.ts`, `idempotency.ts`, `hooks/useIdempotencyKeys.ts`, the review form, receipt panel and the three member review pages |
+| Contract | `Docs/api/API.md` sections 3, 4.2, 5.2, 5.20 and 6; `openapi-v1.json`; `Schema.md` |
+
+#### 5.24.3 Data model (migration `0022_request_idempotency`)
+
+| Column | Type | Meaning |
+|---|---|---|
+| `scope_digest` | `BYTEA(32)` | Keyed HMAC of the caller: member id, guest scope secret or receipt secret, each under its own label |
+| `endpoint` | `VARCHAR(80)` | Stable operation name, e.g. `reviews.withdraw` |
+| `key_digest` | `CHAR(64)` | SHA-256 of the key; the raw key is never stored |
+| `fingerprint` | `CHAR(64)` | SHA-256 of method, path parameters and body, without the single-use `turnstile_token` |
+| `status_code`, `response` | `SMALLINT`, `JSONB` | The stored success (2xx only, enforced by a check constraint) |
+| `created_at`, `expires_at` | `TIMESTAMPTZ` | Expiry is 72 hours later, enforced `> created_at` |
+
+Primary key `(scope_digest, endpoint, key_digest)`; index on `expires_at` for the purge. The staff `idempotency_keys` table (Moderation spec 8.2) is unchanged; its `fingerprint` function is now shared.
+
+#### 5.24.4 How a request flows
+
+1. The header is parsed. A missing header means the write simply runs; a value that is not a UUID is `422` on field `Idempotency-Key`.
+2. `begin()` deletes an expired row for this key, then inserts a reservation with `ON CONFLICT DO NOTHING`, inside the business transaction.
+3. If the insert did not happen, a committed row exists: the same fingerprint is replayed with `Idempotent-Replayed: true`; another fingerprint is `409 IDEMPOTENCY_KEY_REUSED`.
+4. If it did, the route runs and `finish()` stores the response, committing with the write.
+5. Any error rolls the reservation back with the rest. A retry therefore runs again, and a corrected request may reuse the key.
+6. A concurrent twin blocks on the primary key until the first request commits (it then replays) or rolls back (it then runs). After the lock timeout it gets `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` with `Retry-After: 1`.
+
+On guest create a retry of the same draft is normally answered by the draft recovery itself, so there the key mainly refuses reuse for another draft; the real replay value is on member create, edit, withdraw and appeal.
+
+Placement per route: guest create, after the draft recovery and before the switch, challenge and counters; withdraw, edit and appeal, after the receipt is verified (a wrong receipt still counts toward the progressive block and never reaches a stored response); member create, after the session and CSRF checks.
+
+#### 5.24.5 Decisions
+
+| Decision | Reason |
+|---|---|
+| A new table, not the staff `idempotency_keys` | The staff table stores a raw key, an actor id and has no expiry; changing it would put tested decisions at risk. Merging them is a later option. |
+| Only 2xx stored; errors roll back | Matches the staff helper and the spec: a failed write leaves no key. |
+| Digests everywhere | A database read must not reveal a receipt, scope secret or key. |
+| `turnstile_token` excluded from the fingerprint | It is single use; a retry carries a new one and must still replay. |
+| `client_draft_id` stays the permanent guard | Idempotency only replays recent responses (RV 4.1). |
+| `DB_PREPARED_STATEMENTS` defaults by port | Port 6543 turns them off automatically; the setting overrides. |
+
+#### 5.24.6 Not implemented
+
+| Item | Status |
+|---|---|
+| Idempotency for media intents, notifications, verification and report routes | Not in the R16 scope (the review write routes of API.md 3) |
+| Merging the staff `idempotency_keys` into `request_idempotency` | Later option |
+| Railway variable change for B6 (`DATABASE_URL` on port 6543) and the 10-minute multi-backend check | Deploy owner |
+
+Migration `0022` was applied to the shared Supabase database on 6 November 2026 (table empty, RLS on, no client grants). The Docker `CMD` also runs `alembic upgrade head` on every container start.
+
+#### 5.24.7 Tests and evidence (6 November 2026)
+
+| Check | Result |
+|---|---|
+| `ruff check .`, `mypy` (80 files, strict) | Pass |
+| `pytest -m "not integration"` | 363 passed (19 new in `tests/test_idempotency_unit.py`) |
+| Staff and ops `npm run build`, `npm test` | Pass, 46 and 19 tests |
+| Migrations on an empty database: `upgrade head`, `alembic check`, `downgrade base`, `upgrade head`, single-step downgrade of `0022` | Pass |
+| `pytest -m integration --cov` | 484 passed (22 new), total coverage 85 %, `app/idempotency.py` 95 %. Two counter tests were added afterwards; `tests/test_idempotency_postgres.py` now has 24 passing |
+| Frontend `npm ci`, `npm run build`, `npm test` | Pass, 131 tests; the "no ops code in dist" check is clean |
+| `check_committed_secrets.py` | Pass |
+| `pip-audit`, `docker build`, gitleaks | Not run locally (TLS interception on this machine); no dependency changed; CI runs them |
+| Black-box run against a real `uvicorn` on a migrated and seeded scratch database (`e2e_idem.py`, 14 checks): 201, no-store, replay with the same review id, `409 IDEMPOTENCY_KEY_REUSED`, `422` on a bad key, withdraw replay with `Idempotent-Replayed: true`, a wrong receipt never reaches a stored replay, CORS preflight allows `Idempotency-Key`, `Idempotent-Replayed` exposed, public reads still `public, max-age=60` | 14 of 14 pass |
+
+The tests cover: replay on every route, a different body, a malformed key, scope and endpoint isolation, an error that stores nothing, expiry and purge, concurrent twins (wait then replay; first fails then twin runs; lock timeout gives `IDEMPOTENCY_REQUEST_IN_PROGRESS`), no secret in the stored row, and the primary key as the unique constraint.
+
+**Chrome, 6 November 2026.** Production build (`vite preview`, the same `/api` proxy shape as Vercel) against the new backend on a scratch database. A wrapper around `fetch` delivered each request to the server and then failed it in the browser, which is a real lost response; the tester then pressed the button again.
+
+| Check | Result |
+|---|---|
+| Guest submit: response lost, submit again | Same `Idempotency-Key`; `201`, then `200` with `duplicate_recovered: true` and the same review; the receipt is shown |
+| Guest edit from the receipt panel: response lost, save again | Same key; `200`, then `200` with `Idempotent-Replayed: true`; the page says Saved. Without R16 this retry is `409 REVIEW_VERSION_CONFLICT` |
+| Guest withdraw: response lost, confirm again | Same key; `200`, then replay; status Withdrawn |
+| Database afterwards | 1 review, 2 revisions, 3 `request_idempotency` rows, each expiring after 72 hours |
+| Service worker | Active and controlling; 40 precached entries; `abj-public-api-v1` holds the destination and `/reviews?limit=10`; `no-store` `/health/ready` is not stored |
+| Backend stopped | The saved destination opens with its advisory; the list shows only that destination and "server cannot be reached"; an unsaved destination shows the not-saved message, no crash |
+| Backend and web server stopped | The saved destination and the landing page open from the service worker. The landing hero image is black because it is not cached |
+| Servers restarted | All 5 destinations return, the notice clears |
+| Console errors | None read on the last offline pages; tracking started only at that step, so earlier steps are not covered |
+
+The Chrome **Offline** switch was not used (the extension cannot set it): stopping the servers stands in for it, so real airplane-mode and phone tests (R18) are still open. Member submit, member edit and withdraw, and the guest appeal were not driven in Chrome; they are covered by the PostgreSQL tests.
+
+
+
+### 5.25 CI repair and security pass (6 November 2026)
+
+#### 5.25.1 What failed
+
+CI's `security` job failed on `main` and on PR #39 for one reason: three new `Docs/internal/*.docx` files were not on the `check_committed_secrets.py` allowlist. Every XML part of each file was scanned (no credentials, keys, tokens, email addresses, media or embedded files) and they were allowlisted. The failing step also stopped the job before gitleaks ran, so "Secret scan" now runs even when an earlier step fails.
+
+`backend`, `frontend`, `staff` and `ops` were green on run 42199044039 (commit 4e26f40, which contains R16). That is the complete integration suite on R16, which the local run in 5.24.7 could not finish because the machine ran low on memory.
+
+#### 5.25.2 What changed
+
+| Change | Where |
+|---|---|
+| Allowlist entries with a dated scan note | `.github/scripts/check_committed_secrets.py` |
+| Secret scan always runs | `.github/workflows/ci.yml` |
+| `npm audit --audit-level=moderate` in the frontend, staff and ops jobs | `ci.yml` |
+| Dependabot watches npm in the three frontends | `.github/dependabot.yml` |
+| Actions moved off Node 20: checkout v7, setup-node v7, setup-uv v10.3.3 (it publishes exact tags only, no `v10`), gitleaks v3 | `ci.yml` |
+| `workbox-build` override to `glob@14`, clearing the `glob` and `minimatch` moderates | `frontend/package.json`, lockfile |
+| Leaked-password check at sign-up and reset | `app/auth/breach.py`, `app/auth/routes.py`, `AccountUi.tsx`, `ResetPasswordPage.tsx` |
+
+The override is nested, not global, because `filelist` needs `minimatch` 5. npm's suggested fix (`vite-plugin-pwa@1.1.0`) was not usable: that version does not support Vite 8.
+
+#### 5.25.3 Leaked-password check
+
+Sign-up and password reset send the first five characters of the password's SHA-1 to the Have I Been Pwned range API with `Add-Padding`, and compare locally. A match is `422 VALIDATION_FAILED`, field `password`, code `BREACHED`; on reset this happens before the one-time link is spent. Any failure counts `breach_check.skipped` and lets the request continue. `PASSWORD_BREACH_CHECK_ENABLED` (default on) and `PASSWORD_BREACH_TIMEOUT_SECONDS` (default 2) control it; tests turn it off and inject a fake.
+
+Supabase's own switch needs a paid plan and the organisation is on Free, so the owner chose this backend check on 6 November.
+
+#### 5.25.4 Evidence
+
+| Check | Result |
+|---|---|
+| `check_committed_secrets.py` | Pass |
+| `ruff`, `mypy` (81 files) | Pass |
+| `pytest -m "not integration"` | 378 passed |
+| `tests/test_auth.py`, `tests/test_breach.py` on PostgreSQL | 47 and 17 passed |
+| Live range API | `password123` refused, a random password accepted, nothing skipped |
+| Frontend `npm ci`, build, tests, public-bundle guard | Pass; 40 precached entries on `glob@14` |
+| Frontend `npm audit` | 0 production; 4 low entries, all the single `deepmerge` advisory |
+| Staff and ops `npm audit` | 0 |
+| Chrome, production build on `glob@14` | Service worker active; destination saved; with backend and web server stopped the page and saved list still open |
+| Git history, 148 commits, all refs | The only password in a Supabase URL is the `pw` test placeholder; `Security_Abhijatra.pdf` scans clean |
+
+**Not run locally:** the full integration suite (memory), `pip-audit` and `docker build` (TLS interception). CI runs all of them; the `backend` job passed on run 42204992770 (Ubuntu 26.04, 7m24s).
+
+**gitleaks follow-up.** Once it could run, it flagged three made-up test passwords in commit dc31d41. They were never secrets. The test file now builds those values at run time, and `.gitleaksignore` lists exactly those three fingerprints, because gitleaks scans commits and pushed history is not rewritten. Proven with gitleaks locally on the same 3 commits: no leaks with the file, exactly 3 with it emptied.
+
+#### 5.25.5 Offline readiness audit of the live API
+
+No backend change is needed for R13 or R15.
+
+| Check, on the live system | Result |
+|---|---|
+| Manifest, download, SHA-256, size, schema through the website, all 5 destinations | All verified, through gzip, with Node `fetch` and WebCrypto |
+| Inside a real browser with IndexedDB | **Not run**; the Chrome extension was disconnected |
+| `If-None-Match` | `304` for pack and manifest, despite gzip weakening the `ETag` |
+| Stale `version`, unknown id, freshness | `409`, `404`, all `AVAILABLE` and matching stored `content_version` |
+| Privacy of pack content | No private fields; no media links |
+| Direct latency, median | Manifest 0.43 s, pack 0.27 s; up to 20 s for a pair after idle |
+| Burst limiter | Fires on one connection at about 20 a minute |
+| Limiter through the website | No `429` on 30 downloads by one user: traffic reaches the API from Vercel's addresses, so the burst limit does not separate website users. Safe for downloads; the durable limits were not tested for this and are worth checking under real load |
+
+The offline guideline records what this means for the client: the edge cache (5.1a), the `409` retry, a download deadline, and the limit of three new guest drafts a day per scope.
+
+#### 5.25.6 Open, and accepted
+
+| Item | State |
+|---|---|
+| **Database separation of duties, Security.md 4.4** | **Open, a real gap.** The API connects as `postgres`, which bypasses RLS, and no policies exist. No exposure through the Supabase client APIs (RLS on every table, zero grants to `anon` and `authenticated`), but the database would not contain a flaw in the API. Needs roles, per-table policies and new Railway credentials. |
+| Supabase advisor: "RLS enabled, no policy" (43 tables, INFO) | Stays until the item above is done |
+| Supabase advisor: leaked password protection (WARN) | Stays listed; the switch needs a paid plan. Covered by the backend check |
+| `deepmerge` prototype-poisoning advisory (low) | Accepted: no patched release, build-time only, below the CI gate |
+| F-01 password rotation (5.12) | **No record that it was done.** Owner to confirm |
+| Dependabot alerts, secret scanning, push protection | Off; the repository is public; needs a repository admin |
+| `Docs/internal/` | Public, because the repository is; move it out if it is meant to be private |
+
+## 6. Complete backend workflow (state on 6 November 2026)
+
+This section explains the whole backend in one place. Each part names where the detail lives.
+
+### 6.1 Architecture
+
+| Part | What it is |
+|---|---|
+| API | FastAPI (`backend/app`), Docker image, deployed on Railway (`abhijatri-backend.up.railway.app`). `APP_ENV=production` fails closed on missing secrets, Turnstile or CORS settings (`config.py`). |
+| Database | Supabase PostgreSQL, reached through a pooler; every table has row-level security and no client grants. Migrations `0001` to `0022` (Alembic) are applied in CI to an empty database and must match the models (`alembic check`). |
+| Auth | Supabase Auth issues sessions kept in HttpOnly cookies; the API verifies them and requires a CSRF token on member and staff writes (section 5.14). |
+| Redis | Upstash; visit counters and the ops dashboard metrics (5.11). Durable rate-limit counters live in PostgreSQL. |
+| Storage | Supabase private bucket for review media and verification evidence (5.16). |
+| Frontends | Public site on Vercel, which forwards `/api/*` to the API so cookies belong to the site; staff and ops dashboards are separate builds. |
+
+### 6.2 The life of a request
+
+1. CORS: explicit origin list, credentials allowed, request headers `Content-Type`, `Idempotency-Key`, `Authorization`, `X-CSRF-Token`; exposed headers `Idempotent-Replayed` and `Retry-After`.
+2. Body-size and request-timeout limits; the client address is read only from the provider-appended header.
+3. Route-level burst limit (in memory), then the durable per-scope, per-receipt and per-network counters for writes.
+4. Credentials: none (public reads), receipt secret, member session plus CSRF token, staff session with a role and MFA, or the ops bearer token for `/ops/*`.
+5. Business transaction in `services.py` and the route; one commit.
+6. One error body for every failure, `{ error: { code, message, request_id, field_errors } }`, in Bangla and English (`errors.py`).
+7. Cache headers: public destination routes and offline packs `public, max-age=60` with an `ETag`; everything else, including all errors, `no-store`.
+
+### 6.3 A review from draft to rating
+
+1. The browser holds a `client_draft_id`, a receipt secret and a guest scope secret, and sends an `Idempotency-Key` for the submission.
+2. `POST /reviews/guest`: schema and receipt format; an existing draft is recovered for free; an `Idempotency-Key` replay is returned; then the emergency switch, Turnstile, durable counters and pending ceilings; then the review and its first revision are created as `PENDING` (5.2).
+3. Only digests of the receipt and scope are stored (keyring `RECEIPT_KEYS`).
+4. A moderation task is queued. A moderator claims it with a lease and decides, for example publish, reject, request changes, hide or restore (5.14, 5.22). The decision, the audit event and the notification commit together.
+5. On publication the rating aggregates change in the same transaction: Guest Feedback is a plain average; Community uses the Bayesian score over eligible Verified Member reviews (5.21). Hide, withdrawal or conflict reverse it.
+6. The author can check status with the receipt, edit while `PENDING` or `CHANGES_REQUESTED`, withdraw, or appeal a rejection within 30 days; a different moderator decides the appeal (5.18). Each of these accepts an `Idempotency-Key` (5.24).
+7. Signed-in members use `POST /reviews/member` with a session and CSRF token, may add photos and one video through a signed upload and a server check (5.16), and are listed in `GET /reviews/mine`.
+
+### 6.4 Moderation, reports and audit
+
+Staff routes live under `/api/v1/admin` and need a role and a second factor. Reports and removal requests (5.22) create tasks; every decision writes an append-only audit event (database triggers block updates and deletes). Staff decisions are retry-safe through the older `idempotency_keys` table (Moderation spec 8.2).
+
+### 6.5 Notifications
+
+Domain events go to an outbox in the same transaction; a delivery worker sends in-app and email messages and the browser receives them over server-sent events (5.17). Processed events are purged after 30 days.
+
+### 6.6 Offline packs (R14) and the frontend service worker
+
+`GET /destinations/{id}/pack/manifest`, `.../pack?version=` and `GET /packs/freshness` (5.23) give a device a versioned, hash-checked pack of one published destination. They send `public, max-age=60`; these pack routes are ready for R13, which is not built yet. Today the frontend service worker (R12) saves destination pages and their review feeds, same-origin only, and refuses any response marked `no-store` or `private`. Verified on 6 November 2026 on the live site (after the B5 fix) and in the offline run of 5.24.7.
+
+### 6.7 Retry safety (R16)
+
+Two layers: `client_draft_id` gives permanent duplicate prevention for reviews; `Idempotency-Key` gives a 72-hour replay of the first success on the five review write routes (5.24).
+
+### 6.8 Scheduled jobs
+
+| Job | What it does |
+|---|---|
+| `retention` (daily) | Purges expired verification files, rejected reviews, report contacts, notifications, outbox events and abandoned uploads; ends expired sanctions; deletes expired idempotency rows |
+| `visit-rollup`, `rating-reconciliation` (nightly) | Roll up visit counts; recompute ratings and report drift |
+
+### 6.9 Quality gates and deploy
+
+CI (`.github/workflows/ci.yml`) runs on every pull request: backend (ruff, mypy, unit tests, migration round trip, PostgreSQL integration tests with coverage, Docker build), security (pip-audit, committed-secrets check, gitleaks), frontend (lint, build, tests, no ops code in the public bundle), staff and ops (build, tests). Merge to `main` deploys the API on Railway and the sites on Vercel.
+
+### 6.10 Progress by requirement
+
+| Gantt | Task | Backend state | Where |
+|---|---|---|---|
+| R01 | One complete bilingual seeded destination | Done: five seeded destinations | 2.5 |
+| R02 | Destination, advisory and contact services | Done | 1 |
+| R03 | Destination list and detail screens | Frontend task | `Frontend-Implemented.md` |
+| R04 | Registration, verification, sign-in, reset | Done | 5.14 |
+| R05 | Account and session screens | Frontend task | `Frontend-Implemented.md` |
+| R06 | Review fields, lifecycle, moderation policy | Specification task | `Features/`, `Moderation-Dashboard-Specification.md` |
+| R07 | Guest and Member submission, ownership, pagination | Done | 5.16, 5.18 |
+| R08 | Bayesian score and exclusion | Done | 5.21 |
+| R09 | Review form, list, filters, author controls | Frontend task; it now sends `Idempotency-Key` | 5.24 |
+| R10 | Moderation queue, reason capture, audit view | Staff UI task | 5.14, 5.22 |
+| R11 | Reporting, moderation actions, audit log | Done | 5.22 |
+| R12 | Installable PWA shell, cached public views | Frontend; live, and checked in Chrome on 6 Nov | 5.24.7 |
+| R13 | Versioned pack in IndexedDB | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.23 |
+| R14 | Pack manifest, version, freshness | Done, merged and live | 5.23 |
+| R15 | Offline drafts, idempotent reconnect | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.24 |
+| R16 | Idempotency-key storage and expiry | Built, tested, CI green; **in PR #39, not deployed** | 5.24 |
+| R17 to R20 | QA and release | Not tracked in this record | |
+
+Open handoff item: B6 needs the Railway variable change and the 10-minute check (5.24). B1 was closed on 6 November by correcting API.md 5.10: `counted_rating` is the contribution currently in an aggregate, for Guest and Member reviews alike.

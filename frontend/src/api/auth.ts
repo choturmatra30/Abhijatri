@@ -31,15 +31,21 @@ interface CallOptions {
   body?: unknown;
   /** True for a write made with a session cookie: it carries `X-CSRF-Token`. */
   session?: boolean;
+  /** `Idempotency-Key` of the user action (R16); the CSRF retry below reuses it. */
+  idempotencyKey?: string;
 }
 
-export async function call<T>(path: string, { method = 'POST', body, session = false }: CallOptions = {}): Promise<T> {
+export async function call<T>(
+  path: string,
+  { method = 'POST', body, session = false, idempotencyKey }: CallOptions = {},
+): Promise<T> {
   const attempt = async (): Promise<T> =>
     apiRequest<T>(path.startsWith('/api/') ? path : `${BASE}${path}`, {
       method,
       body,
       credentials: 'include',
       headers: session ? { 'X-CSRF-Token': await csrf() } : undefined,
+      idempotencyKey,
     });
   try {
     return await attempt();

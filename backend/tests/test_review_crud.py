@@ -375,6 +375,18 @@ def test_a_guest_still_withdraws_with_the_receipt(client: TestClient, postgres_s
     assert ok.status_code == 200 and ok.json()["status"] == "WITHDRAWN"
 
 
+def test_a_published_guest_review_reports_its_counted_rating(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue) -> None:
+    """B1, API.md 5.10: counted_rating is the contribution in an aggregate, for a Guest review as well."""
+    destination = _destination(postgres_session)
+    review = _guest_review(postgres_session, destination, new_receipt())
+    published = _moderate(client, postgres_session, fake, review.id, "PUBLISH", "b1-mod@example.com", "203.0.113.70")
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "PUBLISHED" and published.json()["counted_rating"] == 5
+    postgres_session.expire_all()
+    stats = postgres_session.get(DestinationRatingStats, destination.id)
+    assert stats is not None and stats.guest_rating_sum == 5 and stats.community_rating_count == 0
+
+
 # ============================ guest appeal ============================
 
 
