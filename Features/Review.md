@@ -25,7 +25,7 @@ The mandatory release includes:
 - Database-managed staff roles and protected administration.
 - Text-first, low-bandwidth review presentation.
 
-Verified Member image upload is part of the mandatory release (amendment A1, section 13). Guests submit text only. Multiple communities, video, chat, tour groups, vendors, agencies, bookings, and payments are future specifications.
+Verified Member image upload is part of the mandatory release (amendment A1, section 13). Guests submit text only. Multiple communities, vendors, agencies, bookings, and payments are future specifications. Group tours and tour chat are specified in `Features/Verified Users Interface.md` (6 Nov 2026).
 
 ### 1.1 Resolved decisions
 
@@ -93,12 +93,12 @@ The semester implementation may use ordinary FastAPI policy functions. Keeping o
 
 ### 2.3 Verification evidence
 
-The semester demonstration uses controlled test accounts. If verification evidence is inspected, it is uploaded to private quarantine, never shown publicly, and never placed in a public cache.
+**Amended 6 Nov 2026 (A5).** Verified Member status is approved by a moderator from an identity document photo (NID, passport or driving licence), a live selfie with a server-issued code, and a verified phone number, collected by the form in `Features/Verified user sign-up form.md`. Evidence is uploaded to private quarantine, never shown publicly, and never placed in a public cache.
 
-- Pending evidence expires after seven days.
-- Evidence is erased within 24 hours after approval or rejection.
-- The permanent record contains the method, result, approver, decision time, expiry, and revocation information, not the document image.
-- Real NID verification is outside the semester MVP.
+- Drafts and their images expire after 14 days; cases pending 7 days raise the queue-overdue alert.
+- Evidence and the full document number are erased 24 hours after approval, and 30 days after rejection or withdrawal (never while an appeal is open).
+- The permanent record contains the method, result, approver, decision time, expiry, revocation, the document's last 4 digits and a keyed hash, and the verified gender, birth year and student status, not the document image.
+- An Election Commission NID check through an authorised partner is a later addition.
 
 ## 3. Review content and submission workflows
 
@@ -493,7 +493,7 @@ These cases are mandatory (amendment A1):
 
 ### 12.4 Explicit exclusions
 
-The Review MVP does not include video, automated Bangla sentiment analysis, real NID verification, Verified Visit proof, arbitrary private groups, live chat, vendor responses, guide or agency onboarding, booking, payment, or machine-learning moderation. These are separate future features and must not delay the accepted vertical slice.
+The Review MVP does not include video, automated Bangla sentiment analysis, Verified Visit proof, vendor responses, guide or agency onboarding, booking, payment, or machine-learning moderation. These are separate future features and must not delay the accepted vertical slice. Identity-document verification, group tours and tour chat are no longer exclusions; they are specified in `Features/Verified user sign-up form.md` and `Features/Verified Users Interface.md` (owner, 6 Nov 2026).
 
 ## 13. Amendments
 
@@ -503,7 +503,8 @@ Approved by Shahriar Islam (scope owner) on 20 October 2026, requested by the fr
 |---|---|---|
 | A1 | Verified Member image upload moves from a conditional post-core extension into the mandatory release. Limits in section 8 are unchanged (five images, JPEG/PNG/WebP, 8 MiB, 20 megapixels, quarantine, re-encode, moderation). Guests remain text-only. | 1, 2.1, 8, 12.1 step 10, 12.3 |
 | A2 | The review form is the seven section 3.1 category ratings (each optional, 1 to 5) plus the required overall rating and a free-text note (the body), for Guests and Members. No other question set is used. The request field is `category_ratings` (`Docs/api/API.md` 5.2). | 3.1 |
-| A3 | Verified Member status stays a manually approved verification record (section 2.3). No NID, birth-registration number or national verification API is used; section 12.4 still excludes real NID verification. | 2.3 (confirmed, unchanged) |
+| A3 | ~~Verified Member status stays a manually approved verification record (section 2.3). No NID, birth-registration number or national verification API is used; section 12.4 still excludes real NID verification.~~ **Superseded by A5 (6 Nov 2026).** | 2.3 |
+| A5 (owner, 6 Nov 2026) | Verified Member status is still a manually approved verification record, now from an ID document photo, a live selfie and a verified phone (`Features/Verified user sign-up form.md`). Only the document's last 4 digits and a keyed hash are kept. An Election Commission NID check is added later. | 2.3, 12.4 |
 
 ### 13.1 Proposed amendment (not approved; nothing is built from it)
 
