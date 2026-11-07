@@ -2,7 +2,7 @@
 
 **From:** Abdullah (frontend). **Date:** 6 November 2026.
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
-**Updated 7 November 2026:** B5 withdrawn (it was a measurement error) and DEP1 closed (deployed). Still open: B6, and R16 if not finished.
+**Updated 7 November 2026:** B5 withdrawn (it was a measurement error), DEP1 closed (deployed), R16 merged and live. Still open: B6 (Railway variable) and question Q1.
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
 **Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
@@ -13,7 +13,8 @@
 | [B6](#b6-shared-database-runs-out-of-connections) | Shared database runs out of connections (`EMAXCONNSESSION`) | Muhtasim, Supabase owner | Local development, possibly live | **High** | **Code done** (`DB_PREPARED_STATEMENTS`, auto-off on port 6543). Pending: set Railway `DATABASE_URL` to port 6543 and run the 10-minute check |
 | [DEP1](#dep1-closed-the-abd-work-is-live) | ~~Live site has none of the `abd` work~~ **Closed: deployed** | Abdullah, Shahriar | nothing | Closed |
 | [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Merged and live (PR #37).** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
-| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Built, in PR #39** (migration `0022` applied to the shared database, API.md section 3); awaiting merge and deploy |
+| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Merged and live (PR #39, 7 Nov 2026).** Live check passed: the API exposes `Idempotent-Replayed, Retry-After` (Offline-Frontend-Guideline 7). Remaining: test group R (guideline 9.6) |
+| [Q1](#q1-where-does-the-guest-scope-secret-live) | **Question:** where the guest scope secret is stored (two specs disagree) | Muhtasim (spec owner) | R15 offline drafts | Answer before R15 | **Open (7 Nov 2026)** |
 
 ---
 
@@ -103,6 +104,31 @@ and then answers `503 SERVICE_UNAVAILABLE` to every route.
 - Also confirm `POST /reviews/member` has the same `client_draft_id` recovery as the guest route.
 
 **Done when** retry tests pass (same key twice returns one review; different body returns `409`), and API.md section 6 no longer lists the header as ignored.
+
+---
+
+## Q1: Where does the guest scope secret live?
+
+**Asked by Abdullah, 7 November 2026. Please answer before R15 (offline drafts) starts.**
+
+Two documents disagree:
+
+| Source | Says |
+|---|---|
+| `Features/Platform-Foundation.md` 18.1 | IndexedDB may hold "the guest scope secret" (and lists what each store may hold) |
+| `Docs/Guest-Identity-and-Visits.md` (the `localStorage` key table) | The secret is stored in `localStorage` |
+| `Docs/Offline-Frontend-Guideline.md` 4.3 | Copy it into IndexedDB `meta`, keep `localStorage` as the reader for now |
+
+**Today** it is only in `localStorage` (`getGuestScopeSecret()` in `frontend/src/api/reviews.ts`). R13 step A deliberately left it there.
+
+**Hard rule either way:** the value must never change. A new secret gives the visitor a new guest tag and breaks recovery of their reviews.
+
+**Questions:**
+1. Which document is right? If IndexedDB, should `Guest-Identity-and-Visits.md` be updated to say so?
+2. If IndexedDB: is "write-through, `localStorage` stays the reader" (guideline 4.3) acceptable as the final state for M1, or must the app read from IndexedDB too (an async change touching every caller)?
+3. R15 stores an unsent guest draft with its scope (guideline 6.2). Should the draft keep its own copy of the secret, so it can be sent after "Start as a new guest", as test D10 expects?
+
+**Done when** the answer is written here and the losing document is corrected.
 
 ---
 
