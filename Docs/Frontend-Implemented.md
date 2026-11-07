@@ -351,6 +351,28 @@ Method: the production build with its service worker in Chrome (Claude in Chrome
 
 Evidence: `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean (JS 111 KB gzip, precache 40 files, 608 KiB). Each fix above was re-checked in Chrome on the rebuilt app after activating the new worker.
 
+## 5k. R13: offline destination packs (7 November 2026)
+
+Built to `Offline-Frontend-Guideline.md` tasks 1 to 7 (steps A, B, C), against the live R14 API (API.md 5.23).
+
+| Step | What | Files |
+|---|---|---|
+| A | IndexedDB `abhijatri-offline` v1 (`packs`, `drafts`, `meta`), honest failure results (`quota`, `unavailable`), storage status; `idb` 8.0.4, `fake-indexeddb` 6.2.6 (tests) | `offline/db.ts`, `offline/storageStatus.ts`, pack types in `types/index.ts` |
+| B | Manifest, pack bytes, freshness; download → SHA-256 check → format and build check → one-transaction save; one retry for a cold start or a superseded build; the old pack is kept on any failure; advisory states recomputed on the Asia/Dhaka date with the backend's rules; pack → page shapes | `api/packs.ts`, `api/client.ts` (`toApiError`), `offline/packs.ts`, `offline/packStore.ts`, `offline/advisoryState.ts`, `offline/packAdapter.ts` |
+| C | Pages read packs offline (pack first, then the opened-page cache); review snapshot; offline lists merge packs and opened pages (pack wins); Save for offline button with size; Offline packs page (states, Update, Delete with confirmation, storage status); reconnect check (freshness, update, remove with notice); "Soon" removed from the sidebar | `offline/destinationSource.ts`, `offline/freshness.ts`, `offline/packManager.ts`, `hooks/useOfflinePacks.ts`, `components/offline/*`, `pages/OfflinePacksPage.tsx`, `DestinationDetailPage.tsx`, `ReviewFeedSection.tsx`, `useDestinationCatalog.ts` |
+
+**Decisions (owner, 7 Nov 2026).** Delivered in three reviewed steps. The guest scope secret is not moved (question Q1 in `Handoff-Backend.md`). On reconnect, changed packs update automatically, one at a time. An expired pack is still shown, labelled "Out of date", and never as current guidance. Guideline section 10 default kept: packs and opened pages both exist; the pack wins.
+
+**Rules kept.** A stored pack is removed only on a clear server answer (`410` withdrawn, `404` or freshness `WITHDRAWN`/`NOT_FOUND`), with a notice; a failed check, `429` or `503` never deletes. Pack routes are not in the service worker cache. Packs are user-selected and need no sign-in.
+
+Evidence (7 Nov 2026):
+- `tsc -b` and `tsc -p tsconfig.sw.json` clean; 174 tests pass (35 new: storage, download and verification, advisory states including the Dhaka midnight boundary, adapter, every row of guideline table 5.3, reconnect runs).
+- Real Chrome, live API: all 5 packs downloaded and verified (9 to 13 KB, about 0.25 s each); a pack with one byte changed was refused as `integrity` and the old pack kept; offline advisory counts matched the live server.
+- Built app with its service worker, live API, real offline (`navigator.onLine` false), guideline group P: size shown before download (P1); Downloading → Ready, listed on Offline packs (P2); offline the pack opens with its banner and emergency numbers (P3); the review snapshot shows with filters hidden (P4); the Offline packs page works offline with storage status and no Update button (P5); Delete asks for confirmation and removes only that pack (P6); offline Destinations lists only the pack; an unsaved destination says it is not saved; the reconnect check updated `last_checked_at`; no pack or private URL in Cache Storage; no page errors. Bangla mode at 390 px: Bangla digits throughout, no overflow.
+- Initial JavaScript 118 KB gzip (was 111 KB); the Offline packs page loads separately (16 KB).
+
+**Not covered by these checks:** P7 to P16 (dropped connection mid-download, staff hide and archive, device date changes, full storage, private window, sign-out, phone restart). They are in the guideline's group P for R18.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

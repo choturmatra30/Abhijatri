@@ -69,7 +69,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelBn: 'অফলাইন প্যাক',
       labelEn: 'Offline packs',
       icon: DownloadCloud,
-      soon: true,
     },
     {
       to: '/trips',

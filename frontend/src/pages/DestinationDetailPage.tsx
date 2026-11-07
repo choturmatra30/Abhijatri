@@ -11,7 +11,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { getDestination } from '../api/destinations';
+import { loadDestination } from '../offline/destinationSource';
 import { ApiError } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
@@ -20,6 +20,8 @@ import { ProvenanceNote } from '../components/destination/ProvenanceNote';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { CategoryAverages } from '../components/destination/CategoryAverages';
 import { ReviewFeedSection } from '../components/reviews/ReviewFeedSection';
+import { PackBanner } from '../components/offline/PackBanner';
+import { PackDownloadButton } from '../components/offline/PackDownloadButton';
 import type { GuideCategory, GuideItem } from '../types';
 import { formatCalendarDate, formatNumber, pick } from '../utils/format';
 
@@ -38,10 +40,12 @@ export const DestinationDetailPage: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const { language, t } = useLanguage();
   const validId = UUID_PATTERN.test(id);
-  const { data: destination, error, loading, reload } = useApiResource(
-    (signal) => (validId ? getDestination(id, { signal }) : Promise.reject(new ApiError(404, 'NOT_FOUND', ''))),
+  // Online the network; offline the downloaded pack first, then the opened-page copy (R13).
+  const { data: loaded, error, loading, reload } = useApiResource(
+    (signal) => (validId ? loadDestination(id, { signal }) : Promise.reject(new ApiError(404, 'NOT_FOUND', ''))),
     [id],
   );
+  const destination = loaded?.profile ?? null;
 
   const backLink = (
     <Link
@@ -100,6 +104,7 @@ export const DestinationDetailPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-8 pb-12 max-w-5xl mx-auto">
       {backLink}
+      {loaded?.source === 'pack' && loaded.stored && <PackBanner stored={loaded.stored} />}
 
       {/* Header */}
       <header className="tonal-card p-6 sm:p-8 flex flex-col gap-4 bg-surface-sage/60 dark:bg-dark-surface-1">
@@ -140,6 +145,8 @@ export const DestinationDetailPage: React.FC = () => {
           </p>
         )}
       </header>
+
+      <PackDownloadButton destinationId={destination.id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
