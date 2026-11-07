@@ -5,6 +5,7 @@ import { Compass } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { PreferenceToggles } from './PreferenceToggles';
 import { NetworkBanner, SessionExpiredBanner } from '../common/StatusBanners';
+import { PackNotices } from '../offline/PackNotices';
 
 /** Shell for pages outside the app (landing, sign-in): brand, preferences, no sidebar. */
 export const PublicLayout: React.FC = () => {
@@ -26,6 +27,7 @@ export const PublicLayout: React.FC = () => {
 
       <NetworkBanner />
       <SessionExpiredBanner />
+        <PackNotices />
       <main className="flex-1 w-full">
         <Suspense fallback={<LoadingState />}>
             <Outlet />

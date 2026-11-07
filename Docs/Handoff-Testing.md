@@ -8,11 +8,13 @@
 
 | Needed | Why | Status |
 |---|---|---|
-| `abd` merged to `main` and deployed (DEP1 in `Handoff-Backend.md`) | The live site does not have offline mode yet | **Done, 6 Nov 2026** |
-| Live API sends `public, max-age=60` on destination routes (B5) | Otherwise nothing is saved for offline on the live site | **Done, 6 Nov 2026** |
+| `abd` merged to `main` and deployed (DEP1) | The live site needs offline mode | **Done (7 Nov 2026)** |
+| Live API sends `public, max-age=60` on destination routes | Otherwise nothing is saved for offline | **Confirmed (7 Nov 2026)** |
+| R13 offline packs and R15 part 1 deployed (DEP2 in `Handoff-Backend.md`) | Needed for the pack tests (guideline group P) and the draft tests below | **Not yet (7 Nov 2026)**: R12 tests only on the live site for now |
+| Turnstile site key on Vercel (TS1) | Needed to send a guest review on the live site | **Not yet (7 Nov 2026)** |
 | An Android phone with Chrome (Android 10+), and if possible an iPhone with Safari (iOS 16.4+) | PF 19.1 targets | |
 
-Until both blockers are fixed, sections A to F can be run **locally** on a computer: `cd frontend && npm run preview:offline`, then open `http://localhost:4173`. The local backend must be running with a working database (see B6). Offline mode is **off** in `npm run dev` on purpose, so do not test offline there.
+**R12 (sections A to F) can be tested on `https://abhijatri.vercel.app` now. R13 packs and R15 drafts need DEP2 first; until then run them locally.** Sections A to F can also be run **locally** on a computer: `cd frontend && npm run preview:offline`, then open `http://localhost:4173`. The local backend must be running with a working database (see B6). Offline mode is **off** in `npm run dev` on purpose, so do not test offline there.
 
 How to simulate, on a computer, in Chrome DevTools (F12):
 - **No connection:** Network tab → throttling → *Offline*.
@@ -82,7 +84,7 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 |---|---|---|
 | F1 | Sign in, use account pages, then DevTools → Application → Cache Storage. | No URLs containing `session`, `account`, `receipt`, `notification`, `report`, `guest` in any cache. |
 | F2 | Same, check for review submission responses. | Not cached. |
-| F3 | Offline, try to write a review. | Message that sending a review needs a connection. (Offline drafts are R15, not built.) |
+| F3 | Offline, try to write a review. | Live site today: message that sending a review needs a connection. After DEP2: the form opens offline, saves the draft and keeps Send disabled with "Your draft is saved on this device" (guideline D1). |
 
 ## G. States that were fixed in the audit (quick re-check)
 
@@ -98,8 +100,9 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 ## Known limits (not bugs)
 
 - Installability cannot be checked on plain `http://localhost` with automated Chrome; use HTTPS (the deployed site).
-- `navigator.storage.persisted()` may be `false`; the browser decides. A status display arrives with R13.
-- Offline review drafts (R15) and deliberate pack download and delete (R13) are not built yet.
+- `navigator.storage.persisted()` may be `false`; the browser decides. R13 shows it on the Offline packs page ("Storage on this device").
+- R13 packs and R15 part 1 drafts are built but not deployed yet (DEP2). Their test cases are `Offline-Frontend-Guideline.md` 9.4 (group P) and 9.5 (D1 to D4, D16 and D2 now; the rest after R15 part 2).
+- Sending queued drafts on reconnect (R15 part 2) waits for question Q1.
 
 ## Where to report
 

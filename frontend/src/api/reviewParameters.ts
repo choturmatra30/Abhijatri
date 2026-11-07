@@ -5,17 +5,28 @@
  */
 
 import type { ReviewParameters } from '../types';
+import { storeParameters, storedParameters } from '../offline/parameters';
 import { apiRequest } from './client';
 
 let cached: Promise<ReviewParameters> | null = null;
 
-/** One request per page load; a failure is not cached, so the next caller retries. */
+/**
+ * One request per page load; a failure is not cached, so the next caller retries. The last answer is
+ * kept on the device and used when the request fails, e.g. offline (Offline-Frontend-Guideline 6.3).
+ */
 export function getReviewParameters(): Promise<ReviewParameters> {
   if (!cached) {
-    cached = apiRequest<ReviewParameters>('/api/v1/review-parameters').catch((error: unknown) => {
-      cached = null;
-      throw error;
-    });
+    cached = apiRequest<ReviewParameters>('/api/v1/review-parameters')
+      .then((parameters) => {
+        void storeParameters(parameters);
+        return parameters;
+      })
+      .catch(async (error: unknown) => {
+        cached = null;
+        const stored = await storedParameters();
+        if (stored) return stored;
+        throw error;
+      });
   }
   return cached;
 }

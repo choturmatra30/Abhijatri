@@ -36,8 +36,8 @@ export const NetworkBanner: React.FC = () => {
           <span>
             <strong>{t('আপনি অফলাইনে আছেন।', 'You are offline.')}</strong>{' '}
             {t(
-              'গত ৭ দিনে খোলা গন্তব্য পাতা দেখা যাবে (সংরক্ষিত কপি, হালনাগাদ না-ও হতে পারে)। ছবি, নতুন তথ্য ও জমা দেওয়া সংযোগ ফিরলে চলবে।',
-              'Destination pages you opened in the last 7 days still show (saved copies, possibly out of date). Photos, new content and sending work again when you are back online.',
+              'অফলাইন প্যাকে সংরক্ষিত গন্তব্য এবং গত ৭ দিনে খোলা গন্তব্য পাতা দেখা যাবে (সংরক্ষিত কপি, হালনাগাদ না-ও হতে পারে)। ছবি, নতুন তথ্য ও জমা দেওয়া সংযোগ ফিরলে চলবে।',
+              'Destinations saved as offline packs, and pages you opened in the last 7 days, still show (saved copies, possibly out of date). Photos, new content and sending work again when you are back online.',
             )}
           </span>
         </p>

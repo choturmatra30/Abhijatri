@@ -469,3 +469,109 @@ export interface AppealableDecision {
   open: boolean;
   appeal_state: string | null;
 }
+// ---------------------------------------------------------------------------
+// Offline destination packs (R13; API.md 5.23; checked against the live API on 7 Nov 2026)
+// ---------------------------------------------------------------------------
+
+/** `GET /destinations/{id}/pack/manifest`. */
+export interface PackManifest {
+  schema_version: number;
+  destination_id: string;
+  pack_version: number;
+  /** SHA-256 (hex) of the canonical content; changes exactly when something a reader sees changes. */
+  content_version: string;
+  /** SHA-256 (hex) of the exact pack bytes. */
+  sha256: string;
+  size_bytes: number;
+  generated_at: string;
+  expires_at: string;
+  max_age_seconds: number;
+  stale_after_days: number;
+  /** Oldest verification date of the included advisories; null when there are none. */
+  advisories_verified_on: string | null;
+  languages: Language[];
+  review_snapshot: { count: number; limit: number };
+  pack_url: string;
+}
+
+/** Pack advisories carry no `state`: it is recomputed on the device from the dates (API.md 5.13). */
+export type PackAdvisory = Omit<Advisory, 'state'>;
+
+/** Pack media has no link: it opens only when online (RV 7.4). */
+export interface PackMedia {
+  id: string;
+  kind: 'image' | 'video';
+  alt_text: string;
+  caption: string | null;
+}
+
+export interface PackReview {
+  id: string;
+  author_type: 'GUEST' | 'MEMBER';
+  guest_tag: string | null;
+  author_display_name: string | null;
+  overall_rating: number;
+  category_ratings: CategoryRatings;
+  published_at: string;
+  title: string;
+  body: string;
+  media: PackMedia[];
+}
+
+export type PackDestination = Pick<
+  DestinationProfile,
+  | 'id'
+  | 'name_bn'
+  | 'name_en'
+  | 'region_bn'
+  | 'region_en'
+  | 'summary_bn'
+  | 'summary_en'
+  | 'seasonality_bn'
+  | 'seasonality_en'
+  | 'restrictions_bn'
+  | 'restrictions_en'
+  | 'latitude'
+  | 'longitude'
+  | 'content_licence'
+  | 'content_verified_on'
+  | 'community_rating'
+  | 'guest_feedback'
+>;
+
+/** `GET /destinations/{id}/pack?version=N`: the stored bytes, parsed. */
+export interface PackDocument {
+  schema_version: number;
+  destination_id: string;
+  pack_version: number;
+  content_version: string;
+  generated_at: string;
+  /** Asia/Dhaka date of generation; `advisory_states` was evaluated on it. */
+  generated_on: string;
+  expires_at: string;
+  max_age_seconds: number;
+  stale_after_days: number;
+  advisories_verified_on: string | null;
+  languages: Language[];
+  destination: PackDestination;
+  guide_items: GuideItem[];
+  advisories: PackAdvisory[];
+  advisory_states: { id: string; state: AdvisoryState }[];
+  contacts: Contact[];
+  reviews: { limit: number; count: number; items: PackReview[] };
+}
+
+export type PackFreshnessStatus = 'AVAILABLE' | 'WITHDRAWN' | 'NOT_FOUND';
+
+/** One item of `GET /packs/freshness`; every field but the first two is null unless AVAILABLE. */
+export interface PackFreshnessItem {
+  destination_id: string;
+  status: PackFreshnessStatus;
+  pack_version: number | null;
+  content_version: string | null;
+  sha256: string | null;
+  size_bytes: number | null;
+  generated_at: string | null;
+  expires_at: string | null;
+  pack_url: string | null;
+}

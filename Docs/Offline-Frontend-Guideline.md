@@ -560,10 +560,12 @@ Sign-out clears session-derived state; public packs may stay (Security 7.4). Def
 Do this once PR #39 is merged and deployed.
 
 ```bash
-curl -sI -H "Origin: https://abhijatri.vercel.app" https://abhijatri-backend.up.railway.app/api/v1/health | grep -i expose-headers
+curl -s -D - -o /dev/null -H "Origin: https://abhijatri.vercel.app" https://abhijatri-backend.up.railway.app/api/v1/health | grep -i expose-headers
 ```
 
 It must print `Idempotent-Replayed, Retry-After`. Then run test group R in section 9.
+
+**Use GET, not `curl -I`.** `-I` sends a HEAD request, which this API answers with `405` and `no-store`, so header checks made with it are wrong (that is how B5 in `Handoff-Backend.md` was raised by mistake). Corrected 7 November 2026; on that date this check passed on the live API: `access-control-expose-headers: Idempotent-Replayed, Retry-After`.
 
 **What the frontend already does:** one key per user action, reused on retry, renewed when the request changes (`api/idempotency.ts`), on guest and member submit, edit, withdraw and guest appeal. No further work is needed for those. The limit is that the key lives in memory, so a page refresh loses it; R15 fixes this for drafts.
 

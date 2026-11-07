@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, MessageSquareText, ReceiptText } from 'lucide-react';
+import { ArrowRight, CloudOff, MessageSquareText, ReceiptText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { listAllDestinations } from '../api/destinations';
-import { useApiResource } from '../hooks/useApiResource';
+import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
 import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
 import { GuestReviewForm, type SubmittedReview } from '../components/reviews/GuestReviewForm';
 import { ReceiptPanel } from '../components/reviews/ReceiptPanel';
@@ -49,7 +48,11 @@ export const WriteReviewPage: React.FC = () => {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState<SubmittedReview | null>(null);
-  const { data: destinations, error, loading, reload } = useApiResource((signal) => listAllDestinations(signal), []);
+  // Offline the choice is the destinations saved on this device (packs and opened pages), so a draft
+  // can be written without a connection (Offline-Frontend-Guideline 6.3).
+  const { data: catalog, error, loading, reload } = useDestinationCatalog();
+  const destinations = catalog?.items ?? null;
+  const savedOnly = catalog?.saved ?? false;
 
   return (
     <div className="flex flex-col gap-6 pb-12 max-w-3xl mx-auto">
@@ -76,6 +79,19 @@ export const WriteReviewPage: React.FC = () => {
             'Sending a review needs a connection. Come back here when you are online.',
           )}
         />
+      ) : savedOnly && destinations && destinations.length === 0 ? (
+        <div role="status" className="tonal-card p-10 flex flex-col items-center gap-3 text-center">
+          <CloudOff size={28} className="text-amber-700 dark:text-amber-300" aria-hidden="true" />
+          <p className="text-base font-bold font-title text-foreground">
+            {t('অফলাইনে রিভিউ লিখতে আগে একটি গন্তব্য সংরক্ষণ করুন', 'To write a review offline, save a destination first')}
+          </p>
+          <p className="text-xs text-muted-foreground max-w-md">
+            {t(
+              'অনলাইনে থাকার সময় গন্তব্য খুলুন বা "অফলাইনের জন্য সংরক্ষণ করুন" চাপুন; তারপর ইন্টারনেট ছাড়াই খসড়া লেখা যাবে।',
+              'Open a destination or press "Save for offline use" while online; then you can write a draft without internet.',
+            )}
+          </p>
+        </div>
       ) : destinations && destinations.length > 0 ? (
         <GuestReviewForm destinations={destinations} initialDestinationId={searchParams.get('destination')} onSubmitted={setSubmitted} />
       ) : (

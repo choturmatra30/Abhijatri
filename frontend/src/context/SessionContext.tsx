@@ -27,7 +27,7 @@ import {
  */
 export type Session =
   | { kind: 'guest'; displayName: string | null; guestTag: string | null }
-  | { kind: 'member'; displayName: string; email: string; verifiedMember: boolean; role: StaffRole | null };
+  | { kind: 'member'; userId: string; displayName: string; email: string; verifiedMember: boolean; role: StaffRole | null };
 
 interface SessionContextValue {
   session: Session;
@@ -194,6 +194,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       session: account
         ? {
             kind: 'member',
+            userId: account.user.id,
             displayName: account.user.display_name,
             email: account.user.email,
             verifiedMember: account.verified_member, // an approved verification, not email verification alone

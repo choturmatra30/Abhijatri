@@ -320,12 +320,14 @@ Evidence (6 Nov 2026), built app with its service worker in Edge, real destinati
 - Data Saver: only `*-480.webp` requested; normal: the open panel full size, closed panels 480 px.
 - `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean.
 
-**Open items.** Handoffs for other people: `Handoff-Backend.md` (B5, B6, DEP1, R14, R16) and `Handoff-Testing.md` (R12 test checklist).
+**Open items.** Handoffs for other people: `Handoff-Backend.md` (B6, DEP2, TS1, DOC1, Q1; closed: B5, DEP1, R14, R16) and `Handoff-Testing.md` (test checklist).
 1. **Installability: resolved, no defect.** Chrome's check reported "no-acceptable-icon" only on plain-HTTP `localhost` under automation. A minimal test app with a plain solid icon failed the same way there, and over HTTPS both that app and the built Abhijatri app pass with no installability errors and the icon fetched (local HTTPS server, Chrome, 6 Nov 2026). Real users are on HTTPS. To check installability locally, serve `dist/` over HTTPS, not `vite preview`.
-2. **Live API sends `no-store`: see section 6, B5.** Until it is fixed, live destination pages are not saved for offline.
-3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display, draft export and the review-snapshot age label belong to R13 and R15.
+2. **Live API caching: fine** (B5 withdrawn, section 6).
+3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display and the review-snapshot date now exist (R13, section 5k); draft export belongs to R15 part 2.
 4. The real-phone airplane-mode acceptance test (Gantt R12) needs the HTTPS deployment.
-5. **Not deployed: see section 6, DEP1.** The live site still runs `main` from 1 Nov 2026.
+5. **Deployed** (DEP1 closed, section 6). Emulated acceptance on the live HTTPS site passed on 7 Nov 2026 (see below); only the real-phone run remains.
+
+**Live acceptance, emulated (7 November 2026).** On `https://abhijatri.vercel.app` with the real API and no stubbing, Chrome emulating an Android phone: no installability errors and the icon fetched; Bandarban opened online and saved (page and reviews); fully offline the app opened, Bandarban reopened with its emergency contacts, Destinations listed only Bandarban, and a new tab still opened it; no page errors. Not yet done: the same on a real phone in airplane mode (`Handoff-Testing.md` section B). In the emulation the saved notice read "The server cannot be reached" rather than "You are offline", because Playwright's offline mode may leave `navigator.onLine` true; test B4 confirms the wording on a phone.
 
 ## 5j. Persistence, load-weight and state audit in Chrome (6 November 2026)
 
@@ -349,6 +351,48 @@ Method: the production build with its service worker in Chrome (Claude in Chrome
 
 Evidence: `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean (JS 111 KB gzip, precache 40 files, 608 KiB). Each fix above was re-checked in Chrome on the rebuilt app after activating the new worker.
 
+## 5k. R13: offline destination packs (7 November 2026)
+
+Built to `Offline-Frontend-Guideline.md` tasks 1 to 7 (steps A, B, C), against the live R14 API (API.md 5.23).
+
+| Step | What | Files |
+|---|---|---|
+| A | IndexedDB `abhijatri-offline` v1 (`packs`, `drafts`, `meta`), honest failure results (`quota`, `unavailable`), storage status; `idb` 8.0.4, `fake-indexeddb` 6.2.6 (tests) | `offline/db.ts`, `offline/storageStatus.ts`, pack types in `types/index.ts` |
+| B | Manifest, pack bytes, freshness; download → SHA-256 check → format and build check → one-transaction save; one retry for a cold start or a superseded build; the old pack is kept on any failure; advisory states recomputed on the Asia/Dhaka date with the backend's rules; pack → page shapes | `api/packs.ts`, `api/client.ts` (`toApiError`), `offline/packs.ts`, `offline/packStore.ts`, `offline/advisoryState.ts`, `offline/packAdapter.ts` |
+| C | Pages read packs offline (pack first, then the opened-page cache); review snapshot; offline lists merge packs and opened pages (pack wins); Save for offline button with size; Offline packs page (states, Update, Delete with confirmation, storage status); reconnect check (freshness, update, remove with notice); "Soon" removed from the sidebar | `offline/destinationSource.ts`, `offline/freshness.ts`, `offline/packManager.ts`, `hooks/useOfflinePacks.ts`, `components/offline/*`, `pages/OfflinePacksPage.tsx`, `DestinationDetailPage.tsx`, `ReviewFeedSection.tsx`, `useDestinationCatalog.ts` |
+
+**Decisions (owner, 7 Nov 2026).** Delivered in three reviewed steps. The guest scope secret is not moved (question Q1 in `Handoff-Backend.md`). On reconnect, changed packs update automatically, one at a time. An expired pack is still shown, labelled "Out of date", and never as current guidance. Guideline section 10 default kept: packs and opened pages both exist; the pack wins.
+
+**Rules kept.** A stored pack is removed only on a clear server answer (`410` withdrawn, `404` or freshness `WITHDRAWN`/`NOT_FOUND`), with a notice; a failed check, `429` or `503` never deletes. Pack routes are not in the service worker cache. Packs are user-selected and need no sign-in.
+
+Evidence (7 Nov 2026):
+- `tsc -b` and `tsc -p tsconfig.sw.json` clean; 174 tests pass (35 new: storage, download and verification, advisory states including the Dhaka midnight boundary, adapter, every row of guideline table 5.3, reconnect runs).
+- Real Chrome, live API: all 5 packs downloaded and verified (9 to 13 KB, about 0.25 s each); a pack with one byte changed was refused as `integrity` and the old pack kept; offline advisory counts matched the live server.
+- Built app with its service worker, live API, real offline (`navigator.onLine` false), guideline group P: size shown before download (P1); Downloading → Ready, listed on Offline packs (P2); offline the pack opens with its banner and emergency numbers (P3); the review snapshot shows with filters hidden (P4); the Offline packs page works offline with storage status and no Update button (P5); Delete asks for confirmation and removes only that pack (P6); offline Destinations lists only the pack; an unsaved destination says it is not saved; the reconnect check updated `last_checked_at`; no pack or private URL in Cache Storage; no page errors. Bangla mode at 390 px: Bangla digits throughout, no overflow.
+- Initial JavaScript 118 KB gzip (was 111 KB); the Offline packs page loads separately (16 KB).
+
+**Not covered by these checks:** P7 to P16 (dropped connection mid-download, staff hide and archive, device date changes, full storage, private window, sign-out, phone restart). They are in the guideline's group P for R18.
+
+## 5l. R15 part 1: review drafts saved on the device, form works offline (7 November 2026)
+
+`Offline-Frontend-Guideline.md` tasks 8 and 9 only. Sending queued drafts, the stored `Idempotency-Key`, the pending list, receipt custody and export (tasks 10 and 11) wait for question Q1 in `Handoff-Backend.md` (where the guest scope secret lives), because a draft must carry a copy of it (guideline 6.2).
+
+| Item | Files |
+|---|---|
+| Draft store (`drafts` in IndexedDB): fields, `client_draft_id`, receipt, `consent_version`, `local_revision`, author | `offline/draftStore.ts` |
+| Autosave (500 ms), restore, destination switching, delete | `hooks/useReviewDraft.ts`, `components/reviews/GuestReviewForm.tsx` |
+| Review parameters kept for offline | `offline/parameters.ts`, `api/reviewParameters.ts` |
+| Offline form: saved destinations only; none saved → explains to save one first | `pages/ReviewsPage.tsx` |
+| Member session exposes `userId` (account id from `/auth/session`) | `context/SessionContext.tsx` |
+
+**Owner decisions (7 Nov 2026).** One draft per destination. Offline, Send is disabled with "Your draft is saved on this device; send it when you are back online"; the security check is not rendered offline. When the sign-in cannot be confirmed (offline), only guest drafts show and a new draft is saved as `pending`; once the sign-in is known online it goes to the member signed in, or to the guest when nobody is. Member drafts show only to that member.
+
+**Behaviour.** Text typed before choosing a destination belongs to the destination then chosen. Switching to a destination that has its own draft restores it; switching to one without starts a fresh form and the previous destination keeps its draft. A restored tick of consent counts only for the current `CONSENT_VERSION`. Photos and videos are not kept in drafts (the form says so). After the server accepts the review the draft and its receipt leave the device and the receipt is shown once, as before. Drafts are stored unencrypted; the form says so and offers Delete with a confirmation.
+
+Evidence (7 Nov 2026): 185 tests pass (11 new: visibility rules, newest draft per destination, Bangla text and receipt kept, pending drafts going to the member or the guest, delete one, parameters). Built app, live API reads, real offline (only the review POST answered by the test, so no review was created): D1 offline form with only the saved destination, Send disabled with the saved note; D3 a reload offline restores the text (Bangla included); D4 a new tab offline restores it; back online the offline draft is the guest's and is restored; one draft per destination across switches; D16 Delete removes only that draft; sending posts the draft's own `client_draft_id` and `receipt_secret`, then no draft is left; D2 offline with nothing saved explains what to do; no page errors.
+
+Found and fixed during the check: an offline draft was hidden from the same guest back online; switching destination moved an existing draft; a sign-in change could clear the form; a destination change could drop the last half second of typing.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
@@ -357,8 +401,8 @@ Evidence: `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build cl
 | B2 | `tests/test_config.py::test_unset_environment_fails_closed` fails unless `DATABASE_URL` is set in the shell. | Backend (Muhtasim) | The test does not clear `DATABASE_URL`, and production now requires an explicit one. CI passes only because CI sets the variable. |
 | B4 | The Railway deployment (`https://abhijatri-backend.up.railway.app`) runs backend code from before the `backend-dev` merge. | Railway owner (Muhtasim or Shahriar) | Checked 19 Oct 2026: `/health` and `/health/ready` return `200` and CORS allows `http://localhost:5173`, but `GET /destinations` is `404`, `POST /review-receipts/exchange` (removed) still exists, `POST /review-receipts/status` is `404`, errors use the old `{"detail": ...}` shape, and `GET /destinations/{id}/reviews` returns `500` for every valid id. Redeploy from current code. If it shares the Supabase database migrated to `0005` on 19 Oct, its old receipt routes will also fail (`0004` renamed `review_receipts.token_hash` to `digest`). The current frontend cannot use this deployment until then. |
 | B3 | The local `backend/.env` lists `https://abhijatri-backend.up.railway.app/` as an allowed CORS origin. | Whoever owns that `.env` | That is the API's own address, not a browser origin. The architecture also names Render, not Railway; the deployment target needs one answer. |
-| B5 | **Open (6 Nov 2026).** The live API answers the public destination routes with `Cache-Control: no-store`, so the R12 service worker refuses to save them and offline destination pages do not work on the live site. | Railway owner (Muhtasim or Shahriar) | Checked 6 Nov 2026: `GET /api/v1/destinations`, `/destinations/{id}` and `/destinations/{id}/reviews` on `https://abhijatri-backend.up.railway.app` (and through `https://abhijatri.vercel.app/api`) all return `Cache-Control: no-store`. The code on `main` and `abd` sends `public, max-age=60` for exactly these three routes (`app/destination_api.py` `public_cache_headers`, applied in `app/api.py`; `app/main.py` adds `no-store` only with `setdefault`, so it never overrides a route's own header). Verified locally with FastAPI's `TestClient`: all three return `public, max-age=60` and no `Set-Cookie`. So Railway is running older code or something in front of it rewrites the header. **Fix:** redeploy Railway from current `main`; check `PUBLIC_CACHE_MAX_AGE_SECONDS` is unset or a positive number in Railway's variables (0 gives `max-age=0`, which also defeats offline). **Done when** `curl -sI https://abhijatri-backend.up.railway.app/api/v1/destinations \| grep -i cache-control` prints `public, max-age=60`. Do **not** make the service worker ignore `no-store`: Security.md 7.4 requires honouring it. |
-| DEP1 | **Open (6 Nov 2026).** The live site does not have any `abd` work: R12 (offline, install), shadcn/ui and the new theme, the review split, the destination selector. | Abdullah (pull request `abd` to `main`); whoever reviews and merges (Shahriar deploys Vercel) | Vercel builds `main`, last changed 1 Nov 2026 (PR #34). On `https://abhijatri.vercel.app`, `/sw.js`, `/manifest.webmanifest` and `/icons/icon-192.png` return the web page (`text/html`) instead of the files, because they do not exist in that build and the SPA rewrite answers. **Fix:** open and merge a pull request from `abd` to `main`; Vercel redeploys. No Vercel setting changes are needed: `frontend/vercel.json` already serves `sw.js` and the manifest with `no-cache`. **Done when** `curl -sI https://abhijatri.vercel.app/sw.js` shows `content-type: application/javascript` (or `text/javascript`) and `/manifest.webmanifest` shows `application/manifest+json`. Then, with B5 fixed, run the R12 acceptance on a real phone: open a destination online, switch on airplane mode, reopen it. |
+| B5 | **Withdrawn 7 Nov 2026: not a defect.** The check used `curl -I`, a HEAD request; the API answers HEAD with `405` and `no-store`, and the status line was filtered out. With GET, the live API (through Vercel and on Railway) sends `Cache-Control: public, max-age=60` on `/destinations`, `/destinations/{id}`, `/destinations/{id}/reviews` and `/destinations/{id}/pack/manifest`. Check headers with `curl -s -D - -o /dev/null <url>`, never `curl -I`. | Railway owner (Muhtasim or Shahriar) | See the note. |
+| DEP1 | **Closed 7 Nov 2026.** `abd` reached `main` through PR #38 and Vercel deployed it: `/sw.js` is served as `application/javascript` and `/manifest.webmanifest` as `application/manifest+json`. | Abdullah (pull request `abd` to `main`); whoever reviews and merges (Shahriar deploys Vercel) | See the note. |
 | B6 | **Open (6 Nov 2026).** The shared Supabase database refuses connections: `FATAL: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15`. The local backend then answers 503 to everything. | Backend (Muhtasim); whoever manages the Supabase project | `DATABASE_URL` uses the session-mode pooler (`aws-0-ap-southeast-1.pooler.supabase.com:5432`), capped at 15 clients for everyone together. Each backend process may hold `DB_POOL_SIZE` 5 + `DB_MAX_OVERFLOW` 2 = 7 (`app/config.py`), so Railway plus two local backends already exceed the cap. **Options:** (a) local `.env`: `DB_POOL_SIZE=2`, `DB_MAX_OVERFLOW=0`; (b) use the transaction-mode pooler (port 6543), which needs psycopg prepared statements off (`prepare_threshold=None` in the engine's `connect_args`) and a test pass; (c) give local development its own database (the test database on `127.0.0.1:54322` already exists). **Done when** two local backends and Railway run together without the error. |
 
 ## 7. Verification evidence (19 October 2026)

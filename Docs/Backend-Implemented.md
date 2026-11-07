@@ -286,9 +286,9 @@ Findings for the backend owner, recorded in `Docs/Frontend-Implemented.md` secti
 
 ---
 
-### 2.6 Open deployment defect found by the frontend (6 November 2026)
+### 2.6 Withdrawn: cache headers on the live API (7 November 2026)
 
-The live Railway API sends `Cache-Control: no-store` on `GET /destinations`, `/destinations/{id}` and `/destinations/{id}/reviews`, while this code sends `public, max-age=60` (section 1.11 evidence; `PUBLIC_CACHE_MAX_AGE_SECONDS`). The R12 service worker honours `no-store`, so offline destination pages cannot work on the live site until Railway runs current `main`. Details, fix and the one-line check: `Frontend-Implemented.md` section 6, B5.
+The frontend reported on 6 November that the live API sent `no-store` on the public destination routes. That was a measurement error (`curl -I` sends HEAD, which answers `405 no-store`). With GET the live API sends `public, max-age=60` as designed. No action needed.
 
 ### 2.7 Open: shared database connection cap (6 November 2026)
 

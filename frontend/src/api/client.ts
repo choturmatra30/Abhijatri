@@ -131,25 +131,31 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     callerSignal?.removeEventListener('abort', onCallerAbort);
   }
 
-  if (!response.ok) {
-    let parsed: unknown = null;
-    try {
-      parsed = await response.json();
-    } catch {
-      // Non-JSON error body (proxy or gateway page)
-    }
-    if (isErrorBody(parsed)) {
-      const { code, message, request_id, field_errors } = parsed.error;
-      if (response.status === 401 && code === 'AUTH_REQUIRED') {
-        // A signed-in member's session ended on the server (expired or revoked). SessionContext
-        // listens and switches the page to the guest view with a "session expired" notice.
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
-      }
-      throw new ApiError(response.status, code, message, request_id, field_errors ?? []);
-    }
-    throw new ApiError(response.status, `HTTP_${response.status}`, response.statusText || `HTTP ${response.status}`);
-  }
+  if (!response.ok) throw await toApiError(response);
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/**
+ * Turns a non-OK response into an `ApiError` (the PF 12.3 error contract). Shared by `apiRequest` and
+ * callers that need the raw body, such as the offline pack download (`api/packs.ts`).
+ */
+export async function toApiError(response: Response): Promise<ApiError> {
+  let parsed: unknown = null;
+  try {
+    parsed = await response.json();
+  } catch {
+    // Non-JSON error body (proxy or gateway page)
+  }
+  if (isErrorBody(parsed)) {
+    const { code, message, request_id, field_errors } = parsed.error;
+    if (response.status === 401 && code === 'AUTH_REQUIRED') {
+      // A signed-in member's session ended on the server (expired or revoked). SessionContext
+      // listens and switches the page to the guest view with a "session expired" notice.
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+    }
+    return new ApiError(response.status, code, message, request_id, field_errors ?? []);
+  }
+  return new ApiError(response.status, `HTTP_${response.status}`, response.statusText || `HTTP ${response.status}`);
 }

@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SessionProvider } from './context/SessionContext';
 import { AppBackground } from './components/layout/AppBackground';
 import { UpdatePrompt } from './components/common/UpdatePrompt';
+import { useReconnectPackCheck } from './hooks/useOfflinePacks';
 import { AppLayout } from './components/layout/AppLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { LandingPage } from './pages/LandingPage';
@@ -39,6 +40,12 @@ const HealthCheckPage = page(() => import('./pages/HealthCheckPage'), 'HealthChe
 const WriteReviewPage = page(() => import('./pages/ReviewsPage'), 'WriteReviewPage');
 const ReviewReceiptPage = page(() => import('./pages/ReviewsPage'), 'ReviewReceiptPage');
 
+/** Checks downloaded packs whenever the connection returns (R13, Offline-Frontend-Guideline 5.3). */
+const PackReconnect: React.FC = () => {
+  useReconnectPackCheck();
+  return null;
+};
+
 /** Old `/reviews` links (including `?destination=`) open the writing page. */
 const ReviewsRedirect: React.FC = () => {
   const { search } = useLocation();
@@ -52,6 +59,7 @@ export const App: React.FC = () => {
         <SessionProvider>
           <AppBackground />
           <UpdatePrompt />
+          <PackReconnect />
           <BrowserRouter>
             <Routes>
               {/* Public entry: choose guest or sign in. It is an entry point, never a gate:

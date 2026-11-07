@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, MessageSquarePlus, Star } from 'lucide-react';
+import { CloudOff, ImageOff, Loader2, MessageSquarePlus, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { detectReviewLanguage, getReviewFeed } from '../../api/reviews';
-import type { CategoryAverage, PublicReview } from '../../types';
+import type { CategoryAverage, PackMedia, PublicReview } from '../../types';
 import { formatNumber, formatTimestamp } from '../../utils/format';
 import { DEFAULT_FILTERS, applyReviewFilters, filtersActive, type ReviewFilters } from '../../utils/reviewAuthor';
-import { describeError, EmptyState, ErrorState, LoadingState } from '../common/StatusViews';
+import { describeError, EmptyState, ErrorState, LoadingState, failureKind } from '../common/StatusViews';
+import { readPack } from '../../offline/packStore';
+import { packReviewToPublic } from '../../offline/packAdapter';
 import { CategoryAverages, CategoryChips } from '../destination/CategoryAverages';
 import { ReportReview } from './ReportReview';
 import { ReviewMediaGallery } from './ReviewMediaGallery';
@@ -35,24 +37,49 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
   const [moreError, setMoreError] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
   const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
+  /** Offline with a downloaded pack: its review snapshot (RV 7.1; Offline-Frontend-Guideline 5.6). */
+  const [snapshot, setSnapshot] = useState<{ generatedAt: string; media: Record<string, PackMedia[]> } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getReviewFeed(destinationId, { limit: PAGE_SIZE, signal: controller.signal })
-      .then((feed) => {
+    setSnapshot(null);
+
+    /** Shows the downloaded pack's review snapshot; false when there is no pack. */
+    const showPack = async (): Promise<boolean> => {
+      const read = await readPack(destinationId);
+      if (controller.signal.aborted || !read.ok || !read.value) return false;
+      const { pack } = read.value;
+      setItems(pack.reviews.items.map(packReviewToPublic));
+      setCursor(null);
+      setGuest({ average: pack.destination.guest_feedback.average, count: pack.destination.guest_feedback.count });
+      setGuestCategories(pack.destination.guest_feedback.category_averages ?? []);
+      setSnapshot({ generatedAt: pack.generated_at, media: Object.fromEntries(pack.reviews.items.map((r) => [r.id, r.media])) });
+      return true;
+    };
+
+    const load = async () => {
+      // Offline, the downloaded pack comes first, then the service worker's opened-page copy
+      // (Offline-Frontend-Guideline 3, "Destination reviews").
+      if (typeof navigator !== 'undefined' && navigator.onLine === false && (await showPack())) return;
+      try {
+        const feed = await getReviewFeed(destinationId, { limit: PAGE_SIZE, signal: controller.signal });
         setItems(feed.items);
         setCursor(feed.next_cursor);
         setGuest({ average: feed.guest_rating_average, count: feed.guest_rating_count });
         setGuestCategories(feed.guest_category_averages ?? []);
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
+        if (controller.signal.aborted) return;
+        const kind = failureKind(err);
+        if ((kind === 'offline' || kind === 'timeout') && (await showPack())) return;
         if (!controller.signal.aborted) setError(err);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+      }
+    };
+
+    void load().finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
     return () => controller.abort();
   }, [destinationId, attempt]);
 
@@ -91,6 +118,15 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
                 : t('মডারেশনের পর প্রকাশিত রিভিউ এখানে দেখা যাবে।', 'Reviews appear here after moderation.')}
             </p>
           )}
+          {snapshot && (
+            <p role="status" className="mt-1 inline-flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+              <CloudOff size={13} className="shrink-0 mt-0.5" aria-hidden="true" />
+              {t(
+                `অফলাইন কপি (${formatTimestamp(snapshot.generatedAt, language)}): সর্বশেষ ${formatNumber(items.length, language)}টি প্রকাশিত রিভিউ।`,
+                `Offline copy (${formatTimestamp(snapshot.generatedAt, language)}): the newest ${items.length} published review${items.length === 1 ? '' : 's'}.`,
+              )}
+            </p>
+          )}
         </div>
         <Link
           to={`/reviews/write?destination=${destinationId}`}
@@ -108,7 +144,7 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
         />
       )}
 
-      {!loading && !error && items.length > 0 && (
+      {!loading && !error && !snapshot && items.length > 0 && (
         <form role="search" aria-label={t('রিভিউ ফিল্টার', 'Review filters')} className="flex flex-col gap-3 p-3 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2" onSubmit={(e) => e.preventDefault()}>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
@@ -196,8 +232,18 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
               <h3 lang={reviewLang(review)} className="text-base font-bold font-title text-on-surface dark:text-on-dark">{review.title}</h3>
               <p lang={reviewLang(review)} className="text-sm font-body leading-relaxed text-on-surface dark:text-on-dark whitespace-pre-line">{review.body}</p>
               <ReviewMediaGallery media={review.media} />
+              {snapshot && (snapshot.media[review.id]?.length ?? 0) > 0 && (
+                <p className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant dark:text-on-dark-muted">
+                  <ImageOff size={13} aria-hidden="true" />
+                  {t(
+                    `${formatNumber(snapshot.media[review.id].length, language)}টি ছবি বা ভিডিও সংযোগ ফিরলে খোলা যাবে`,
+                    `${snapshot.media[review.id].length} photo or video item(s) open when you are online`,
+                  )}
+                </p>
+              )}
               <CategoryChips ratings={review.category_ratings} />
-              <ReportReview reviewId={review.id} />
+              {/* Reporting needs the server; it returns with the connection. */}
+              {!snapshot && <ReportReview reviewId={review.id} />}
             </li>
           ))}
         </ul>
