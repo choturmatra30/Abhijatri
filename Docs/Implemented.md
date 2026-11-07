@@ -1,6 +1,6 @@
 # Implemented status
 
-Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 19 October 2026 (R01/R03/R09 frontend integration).
+Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 7 November 2026 (R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
 
 | Area | Status | Evidence |
 |---|---|---|

@@ -52,9 +52,11 @@ App shell (AppLayout: sidebar, top bar, session card)
 ├── /overview                     Overview: counts, destinations with advisories
 ├── /destinations                 Destination list with bilingual filter
 │   └── /destinations/:id         Profile: advisories first, seasonality, guide, restrictions, contacts, reviews
-├── /reviews[?destination=:id]    Guest review form, receipt shown once, receipt status and withdrawal
+├── /reviews/write[?destination=:id]  Review form (drafts saved on the device, usable offline), receipt shown once
+├── /reviews/receipt             Receipt status, withdrawal, removal request
+├── /reviews[?destination=:id]    Redirects to /reviews/write
 ├── /planner                      Prototype (E08)
-├── /offline-packs                Prototype (R13)
+├── /offline-packs                Offline packs: saved packs, states, update, delete, storage status (R13)
 ├── /trips                        Prototype (E09)
 └── /health                       System status (diagnostic)
 
@@ -118,15 +120,17 @@ Each component owns its bilingual behaviour; pages compose them. Status: **Built
 | Destination | `CategoryAverages` | Per-category averages for each audience, never merged | Paired category names; L7 digits | Built |
 | Destination | `AdvisoryCard` | Severity, state, validity, source | Paired severity and state labels; dates per L7 | Built |
 | Destination | `ProvenanceNote` | Source, publisher, verification date | Publisher name stays as published | Built |
-| Reviews | `GuestReviewForm` | Structured review, notice and consent, client checks, retry-safe identity | Language detection (L6); paired field errors; focus to first error | Built |
+| Reviews | `GuestReviewForm` | Structured review, notice and consent, client checks, retry-safe identity; draft saved on the device (one per destination), Delete draft, Send disabled offline | Language detection (L6); paired field errors; focus to first error | Built |
 | Reviews | `CategoryRatings` | Seven categories with prompts | Names and prompts from `GET /review-parameters` | Built |
 | Reviews | `TurnstileWidget` | Challenge on guest writes | Widget language follows the interface; re-renders on switch (L3) | Built |
 | Reviews | `ReviewPhotos` | Locked for guests; picker for Verified Members | Paired limits and notices; member-written alt text | Partial (upload waits for R07) |
 | Reviews | `ReceiptPanel`, `ReceiptStatusPanel` | Receipt shown once; status, withdrawal, appeal deadline | Receipt and IDs Latin (L7) | Built |
-| Reviews | `ReviewFeedSection` | Published reviews with paging | L6: each review needs its own `lang` (U3); star label digits (U14) | Partial |
+| Reviews | `ReviewFeedSection` | Published reviews with paging; offline, the pack's review snapshot with its date (filters, paging and Report hidden) | L6: each review needs its own `lang` (U3); star label digits (U14) | Partial |
 | Pages | Landing, GuestEntry, SignIn, Overview, Destinations, DestinationDetail, Reviews | Route screens | Compose the above | Built |
 | Pages | HealthCheck | Diagnostics | Mostly English (U6) | Partial |
-| Pages | Planner, OfflinePacks, SavedTrips | Prototypes | English fragments and unlocalised numbers (U7) | Prototype |
+| Pages | Planner, SavedTrips | Not available yet (honest placeholder until E08, E09) | Paired text | Placeholder |
+| Pages | OfflinePacks | Saved packs with state, size, snapshot and expiry dates; Open, Update, Delete (with confirmation); storage status | Paired text; Bangla digits in sizes and dates | Built (R13) |
+| Offline | `PackDownloadButton`, `PackBanner`, `PackNotices` (`components/offline/`) | Save for offline with size; offline-copy and Out of date banners; removed-pack notice | Paired text; failure reasons in `packText.ts`; Bangla digits | Built (R13) |
 | Planned | `AccountForms` (register, verify email, reset) | R05 | Paired validation; paste allowed in password fields (PF 20) | Planned |
 | Planned | `OfflineStatus`, `PackCard` | R12, R13 | Freshness and storage-refusal messages | Planned |
 | Planned | `ReportDialog` | R11 | Paired reasons (API 5.7) | Planned |

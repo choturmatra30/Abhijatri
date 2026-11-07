@@ -320,10 +320,10 @@ Evidence (6 Nov 2026), built app with its service worker in Edge, real destinati
 - Data Saver: only `*-480.webp` requested; normal: the open panel full size, closed panels 480 px.
 - `tsc -b` and `tsc -p tsconfig.sw.json` clean, 123 tests pass, build clean.
 
-**Open items.** Handoffs for other people: `Handoff-Backend.md` (B5, B6, DEP1, R14, R16) and `Handoff-Testing.md` (R12 test checklist).
+**Open items.** Handoffs for other people: `Handoff-Backend.md` (B6, DEP2, TS1, DOC1, Q1; closed: B5, DEP1, R14, R16) and `Handoff-Testing.md` (test checklist).
 1. **Installability: resolved, no defect.** Chrome's check reported "no-acceptable-icon" only on plain-HTTP `localhost` under automation. A minimal test app with a plain solid icon failed the same way there, and over HTTPS both that app and the built Abhijatri app pass with no installability errors and the icon fetched (local HTTPS server, Chrome, 6 Nov 2026). Real users are on HTTPS. To check installability locally, serve `dist/` over HTTPS, not `vite preview`.
 2. **Live API caching: fine** (B5 withdrawn, section 6).
-3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display, draft export and the review-snapshot age label belong to R13 and R15.
+3. `navigator.storage.persist()` is requested; headless Edge refused it (expected without site engagement). The persistence-status display and the review-snapshot date now exist (R13, section 5k); draft export belongs to R15 part 2.
 4. The real-phone airplane-mode acceptance test (Gantt R12) needs the HTTPS deployment.
 5. **Deployed** (DEP1 closed, section 6). Emulated acceptance on the live HTTPS site passed on 7 Nov 2026 (see below); only the real-phone run remains.
 

@@ -17,6 +17,22 @@ This log records build-time decisions without reopening the frozen Review specif
 | Caching | `public, max-age=60` with an ETag on all three routes; the pack has a strong ETag equal to its SHA-256 and a `Content-Digest`. Not `immutable`. | Security 7.1 "versioned public destination packs"; a short TTL keeps a moderation removal from living long in shared caches. |
 | Package | New `app/offline/` package (PF 3.2). | The first offline backend feature; the other flat modules are unchanged. |
 
+## 2026-11-07 (R13 offline packs, R15 part 1 drafts)
+
+Decided by the frontend owner while building `Offline-Frontend-Guideline.md` tasks 1 to 9. Details and evidence: `Frontend-Implemented.md` 5k and 5l.
+
+| Decision | Rule | Reason |
+|---|---|---|
+| Delivery | R13 in three reviewed steps (storage, download and verification, pages); R15 in two parts, part 2 after question Q1. | Smaller reviews; R15 part 2 depends on where the guest scope secret lives. |
+| Libraries | `idb` 8.0.4 (runtime) and `fake-indexeddb` 6.2.6 (tests), pinned to exact versions at least three weeks old. | The guideline names them; exact pins limit supply-chain risk. |
+| Guest scope secret during R13 | Not moved: it stays in `localStorage`. | The guest tag must not change; Q1 in `Handoff-Backend.md`. |
+| Pack updates on reconnect | Automatic, one pack at a time; a failed check never deletes a pack. | Safety information and removed reviews stay current (guideline 5.3). |
+| Expired packs | Still shown, with an "Out of date" warning; advisories are never presented as current. | Old safety information is still useful offline when clearly marked (PF 18.4, Security 7.4). |
+| Packs and opened pages | Both kept; in lists and on pages the pack wins. | Guideline section 10 default. |
+| Drafts | One draft per destination; text typed before a destination is chosen belongs to the one then chosen; another destination starts its own draft. | One review per trip; nothing typed is moved or lost. |
+| Offline Send | The form works offline and autosaves; Send is disabled with "Your draft is saved on this device; send it when you are back online". | Honest until R15 part 2 adds sending queued drafts. |
+| Drafts when the sign-in is unknown | Offline, only guest drafts show and new drafts are saved as `pending`; once the sign-in is known online they go to the member signed in, or to the guest when nobody is. Member drafts show only to that member. | Session data is never stored offline (PF 18.1), so a member cannot be confirmed offline. |
+
 ## 2026-11-06 (R12 offline shell)
 
 | Decision | Rule | Reason |
