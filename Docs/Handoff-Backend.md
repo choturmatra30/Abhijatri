@@ -2,44 +2,30 @@
 
 **From:** Abdullah (frontend). **Date:** 6 November 2026.
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
+**Updated 7 November 2026:** B5 withdrawn (it was a measurement error) and DEP1 closed (deployed). Still open: B6, and R16 if not finished.
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
 **Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
 
 | ID | What | Owner | Blocks | Priority | Status (6 Nov 2026) |
 |---|---|---|---|---|---|
-| [B5](#b5-live-api-sends-no-store-on-public-destination-routes) | Live API sends `Cache-Control: no-store` on public destination routes | Railway owner | R12 acceptance, R13 | **High** | **Fixed**: all three routes answer `public, max-age=60`; the service worker now caches them |
+| [B5](#b5-withdrawn-cache-headers-are-correct) | ~~Live API sends `no-store`~~ **Withdrawn: headers are correct** | none | nothing | Closed |
 | [B6](#b6-shared-database-runs-out-of-connections) | Shared database runs out of connections (`EMAXCONNSESSION`) | Muhtasim, Supabase owner | Local development, possibly live | **High** | **Code done** (`DB_PREPARED_STATEMENTS`, auto-off on port 6543). Pending: set Railway `DATABASE_URL` to port 6543 and run the 10-minute check |
-| [DEP1](#dep1-the-live-site-does-not-have-the-abd-work) | Live site has none of the `abd` work | Abdullah (PR), Shahriar (merge) | R12 acceptance | **High** | **Fixed**: `/sw.js` is `application/javascript`, the manifest `application/manifest+json` (PR #38 merged) |
+| [DEP1](#dep1-closed-the-abd-work-is-live) | ~~Live site has none of the `abd` work~~ **Closed: deployed** | Abdullah, Shahriar | nothing | Closed |
 | [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Merged and live (PR #37).** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
 | [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Built, in PR #39** (migration `0022` applied to the shared database, API.md section 3); awaiting merge and deploy |
 
 ---
 
-## B5: Live API sends `no-store` on public destination routes
+## B5: Withdrawn, cache headers are correct
 
-**What is wrong.** On the live API, these three routes answer `Cache-Control: no-store`:
+**7 November 2026.** This was a mistake in the frontend's check, not a backend defect. `curl -I` sends a HEAD request; the API answers HEAD with `405` and `Cache-Control: no-store`, and the status line was filtered out. With a normal GET, the live API (through Vercel and on Railway) sends `Cache-Control: public, max-age=60` on `/destinations`, `/destinations/{id}`, `/destinations/{id}/reviews` and `/destinations/{id}/pack/manifest`, exactly as designed. **No action needed.** Sorry for the noise.
 
-- `GET /api/v1/destinations`
-- `GET /api/v1/destinations/{id}`
-- `GET /api/v1/destinations/{id}/reviews`
-
-The code on `main` sends `public, max-age=60` for exactly these routes (`app/destination_api.py` `public_cache_headers`, used in `app/api.py`). `app/main.py` adds `no-store` with `setdefault`, so it never overrides a route's own header. Locally (FastAPI `TestClient`) all three return `public, max-age=60` with no `Set-Cookie`. So Railway runs older code, or something in front of it rewrites the header.
-
-**Why it matters.** The offline service worker (R12) must honour `no-store` (Security.md 7.4), so on the live site no destination is ever saved for offline. Offline mode works locally and will not work live until this is fixed.
-
-**What to do.**
-1. Redeploy Railway from current `main`.
-2. In Railway's variables, check `PUBLIC_CACHE_MAX_AGE_SECONDS` is unset or a positive number (`0` gives `max-age=0`, which also defeats offline).
-3. Do **not** ask the frontend to ignore `no-store`; the security rules forbid it.
-
-**Done when:**
+To check headers in future, use GET:
 
 ```
-curl -sI https://abhijatri-backend.up.railway.app/api/v1/destinations | grep -i cache-control
+curl -s -D - -o /dev/null https://abhijatri-backend.up.railway.app/api/v1/destinations | grep -i cache-control
 ```
-
-prints `Cache-Control: public, max-age=60` (and the same for a destination id and its `/reviews`).
 
 ---
 
@@ -64,19 +50,9 @@ and then answers `503 SERVICE_UNAVAILABLE` to every route.
 
 ---
 
-## DEP1: The live site does not have the `abd` work
+## DEP1: Closed, the `abd` work is live
 
-**What is wrong.** Vercel builds `main`, last changed 1 November 2026 (PR #34). None of the frontend work since then is live: offline mode and installability (R12), shadcn/ui and the new theme, the review split, the destination selector, the Chrome audit fixes. On `https://abhijatri.vercel.app`, `/sw.js` and `/manifest.webmanifest` return the web page instead of the files.
-
-**What to do.** Abdullah opens a pull request from `abd` to `main`; Shahriar reviews and merges; Vercel redeploys. No Vercel settings need changing (`frontend/vercel.json` already serves `sw.js` and the manifest with `no-cache`).
-
-**Done when:**
-
-```
-curl -sI https://abhijatri.vercel.app/sw.js | grep -i content-type
-```
-
-shows `javascript`, and `/manifest.webmanifest` shows `application/manifest+json`.
+**7 November 2026.** PR #38 merged `abd` into `main` and Vercel deployed it. `https://abhijatri.vercel.app/sw.js` is served as `application/javascript` and `/manifest.webmanifest` as `application/manifest+json`. Offline mode works on the live site (emulated acceptance passed; the real-phone run is in `Handoff-Testing.md`).
 
 ---
 
