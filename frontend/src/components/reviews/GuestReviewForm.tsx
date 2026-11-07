@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Send, ShieldCheck, Star } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CloudOff, HardDrive, Send, ShieldCheck, Star, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
 import { ApiError } from '../../api/client';
@@ -7,6 +7,7 @@ import { getReviewParameters } from '../../api/reviewParameters';
 import { useApiResource } from '../../hooks/useApiResource';
 import { useIdempotencyKeys } from '../../hooks/useIdempotencyKeys';
 import {
+  CONSENT_VERSION,
   CATEGORY_RATINGS_ENABLED,
   buildGuestReviewPayload,
   detectReviewLanguage,
@@ -17,12 +18,18 @@ import {
   uploadReviewMedia,
 } from '../../api/reviews';
 import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
-import { currentDisplayMonth, pick } from '../../utils/format';
+import { currentDisplayMonth, formatTimestamp, pick } from '../../utils/format';
 import { photoMetadataComplete } from '../../utils/reviewPhotos';
 import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
 import { ReviewPhotos, SERVER_MEDIA_TEXT, type ReviewPhoto } from './ReviewPhotos';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from './TurnstileWidget';
+import { useOnlineStatus } from '../../hooks/useNetworkState';
+import { useReviewDraft, type DraftIdentity } from '../../hooks/useReviewDraft';
+import type { DraftFields, StoredDraft } from '../../offline/draftStore';
+import { FAILURE_TEXT } from '../offline/packText';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 /** Must match the API's expected Turnstile action (backend app/turnstile.py). */
 const TURNSTILE_ACTION = 'guest-review';
@@ -35,11 +42,6 @@ export interface SubmittedReview extends GuestReviewCreated {
   /** Member reviews: how many photos/videos were uploaded, and the names of any that were refused. */
   mediaUploaded?: number;
   mediaFailed?: string[];
-}
-
-interface DraftIdentity {
-  clientDraftId: string;
-  receipt: string;
 }
 
 const newIdentity = (): DraftIdentity => ({ clientDraftId: crypto.randomUUID(), receipt: generateReceipt() });
@@ -93,6 +95,69 @@ export const GuestReviewForm: React.FC<{
   const [identity, setIdentity] = useState<DraftIdentity>(newIdentity);
   // Idempotency-Key (R16): kept while the request is unchanged, renewed when the draft changes.
   const submitKeys = useIdempotencyKeys();
+  const online = useOnlineStatus();
+
+  // The draft is kept on this device as the reviewer types (R15 tasks 8 and 9).
+  const draftFields: DraftFields = {
+    display_name: displayName,
+    language: chosenLanguage,
+    traveller_type: travellerType,
+    comfort_tier: comfortTier,
+    visit_month: visitMonth,
+    overall_rating: rating,
+    category_ratings: categoryRatings,
+    title,
+    body,
+    consent,
+  };
+  const restoreDraft = useCallback(
+    (draft: StoredDraft) => {
+      const f = draft.fields;
+      if (!isMember) setDisplayName(f.display_name);
+      setChosenLanguage(f.language);
+      setTravellerType(f.traveller_type);
+      setComfortTier(f.comfort_tier);
+      setVisitMonth(f.visit_month);
+      setRating(f.overall_rating);
+      setCategoryRatings(f.category_ratings);
+      setTitle(f.title);
+      setBody(f.body);
+      // A tick given for an older consent text does not count for the current one.
+      setConsent(f.consent && draft.consent_version === CONSENT_VERSION);
+      setIdentity({ clientDraftId: draft.client_draft_id, receipt: draft.receipt });
+      submitKeys.reset();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMember],
+  );
+  const { draftStatus, discard } = useReviewDraft({
+    destinationId,
+    fields: draftFields,
+    identity,
+    onRestore: restoreDraft,
+    onStartFresh: () => {
+      submitKeys.reset();
+      setIdentity(newIdentity());
+      clearForm();
+    },
+  });
+
+  function clearForm() {
+    setTitle('');
+    setBody('');
+    setRating(0);
+    setCategoryRatings({});
+    setPhotos([]);
+    setChosenLanguage(null);
+    setConsent(false);
+  }
+
+  const deleteThisDraft = async () => {
+    await discard();
+    submitKeys.reset();
+    setIdentity(newIdentity());
+    clearForm();
+  };
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -157,6 +222,7 @@ export const GuestReviewForm: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!online) return; // Send is disabled offline; the draft stays saved on this device
     setFormError(null);
     const errors = validate();
     setFieldErrors(errors);
@@ -207,16 +273,13 @@ export const GuestReviewForm: React.FC<{
         const key = submitKeys.keyFor(guestPayload);
         created = await submitGuestReview({ ...guestPayload, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) }, key);
       }
+      // The server has the review: the draft and its receipt leave the device (PF 13.5); the receipt is
+      // shown once on the next screen.
+      await discard();
       onSubmitted({ ...created, receipt: identity.receipt, destinationId, mediaUploaded, mediaFailed });
       submitKeys.reset();
       setIdentity(newIdentity());
-      setTitle('');
-      setBody('');
-      setRating(0);
-      setCategoryRatings({});
-      setPhotos([]);
-      setChosenLanguage(null);
-      setConsent(false);
+      clearForm();
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         if (error.fieldErrors.length > 0) {
@@ -230,8 +293,10 @@ export const GuestReviewForm: React.FC<{
           setFieldErrors({ guest_display_name: error.message });
         }
         if (error.code === 'DRAFT_ALREADY_SUBMITTED' || error.code === 'IDEMPOTENCY_KEY_REUSED') {
+          // This draft identity is spent: drop its saved copy; the text is saved again under a new one.
+          await discard();
           submitKeys.reset();
-          setIdentity(newIdentity()); // this draft identity is spent; start a fresh one
+          setIdentity(newIdentity());
         }
       }
       setFormError(describeError(error, t));
@@ -274,6 +339,54 @@ export const GuestReviewForm: React.FC<{
         </select>
         {errorFor('destination_id')}
       </div>
+
+      {(draftStatus.savedAt || draftStatus.error) && (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          <HardDrive size={14} className="shrink-0" aria-hidden="true" />
+          {draftStatus.error ? (
+            <span>{t(...FAILURE_TEXT[draftStatus.error])} {t('খসড়া এই ডিভাইসে রাখা যাচ্ছে না।', 'The draft cannot be kept on this device.')}</span>
+          ) : (
+            <span className="flex-1 min-w-48">
+              {draftStatus.restored
+                ? t('আপনার সংরক্ষিত খসড়া ফিরিয়ে আনা হয়েছে।', 'Your saved draft was restored.') + ' '
+                : ''}
+              {t(
+                `খসড়া এই ডিভাইসে সংরক্ষিত (${formatTimestamp(draftStatus.savedAt ?? '', language)}), এনক্রিপ্ট করা নয়।`,
+                `Draft saved on this device (${formatTimestamp(draftStatus.savedAt ?? '', language)}), not encrypted.`,
+              )}
+            </span>
+          )}
+          {draftStatus.savedAt && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                  <Trash2 aria-hidden="true" />
+                  {t('খসড়া মুছুন', 'Delete draft')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('খসড়াটি মুছবেন?', 'Delete this draft?')}</DialogTitle>
+                  <DialogDescription>
+                    {t('এই ডিভাইস থেকে খসড়াটি মুছে যাবে এবং ফর্ম খালি হবে। এটি ফেরানো যাবে না।', 'The draft is removed from this device and the form is cleared. This cannot be undone.')}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">{t('বাতিল', 'Cancel')}</Button>
+                  </DialogClose>
+                  <DialogClose asChild>
+                    <Button type="button" variant="destructive" onClick={() => void deleteThisDraft()}>
+                      <Trash2 aria-hidden="true" />
+                      {t('মুছুন', 'Delete')}
+                    </Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {isMember ? (
@@ -445,6 +558,11 @@ export const GuestReviewForm: React.FC<{
 
       <div className="flex flex-col gap-1.5">
         <ReviewPhotos photos={photos} onChange={setPhotos} />
+        {isMember && (
+          <p className="text-[11px] text-muted-foreground">
+            {t('ছবি ও ভিডিও খসড়ায় সংরক্ষিত হয় না; পাঠানোর আগে যোগ করুন।', 'Photos and videos are not kept in a saved draft; add them before sending.')}
+          </p>
+        )}
         {errorFor('media')}
       </div>
 
@@ -474,7 +592,7 @@ export const GuestReviewForm: React.FC<{
         {errorFor('consent')}
       </div>
 
-      {!isMember && TURNSTILE_SITE_KEY && (
+      {!isMember && TURNSTILE_SITE_KEY && online && (
         <div aria-describedby={describedBy('turnstile')}>
           <TurnstileWidget key={turnstileKey} action={TURNSTILE_ACTION} onToken={setTurnstileToken} />
           {errorFor('turnstile')}
@@ -487,9 +605,23 @@ export const GuestReviewForm: React.FC<{
         </p>
       )}
 
+      {!online && (
+        <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+          <CloudOff size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            {draftStatus.error
+              ? t('আপনি অফলাইনে আছেন, আর এই ডিভাইসে খসড়া রাখা যাচ্ছে না। সংযোগ ফিরলে পাঠান, এই পাতা বন্ধ করবেন না।', 'You are offline and this device cannot keep the draft. Send it when you are back online, and keep this page open.')
+              : t(
+                  'আপনি অফলাইনে আছেন। খসড়াটি এই ডিভাইসে সংরক্ষিত থাকছে; সংযোগ ফিরলে পাঠান। নিরাপত্তা যাচাই পাঠানোর সময় হবে।',
+                  'You are offline. Your draft is saved on this device; send it when you are back online. The security check runs when you send.',
+                )}
+          </span>
+        </p>
+      )}
+
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || !online}
         className="self-start inline-flex items-center gap-2 min-h-[44px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title disabled:opacity-60"
       >
         <Send size={16} aria-hidden="true" />

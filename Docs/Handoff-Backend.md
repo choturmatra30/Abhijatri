@@ -2,7 +2,7 @@
 
 **From:** Abdullah (frontend). **Date:** 6 November 2026.
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
-**Updated 7 November 2026:** B5 withdrawn (it was a measurement error), DEP1 closed (deployed), R16 merged and live. Still open: B6 (Railway variable) and question Q1.
+**Updated 7 November 2026 (afternoon):** B5 withdrawn (a measurement error), DEP1 closed, R16 merged and live. **New: DEP2 (R13 not deployed), TS1 (Turnstile site key missing on Vercel), DOC1 (guideline status table out of date).** Q1 has a likely answer in Decisions.md (see Q1). Still open: B6.
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
 **Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
@@ -14,7 +14,10 @@
 | [DEP1](#dep1-closed-the-abd-work-is-live) | ~~Live site has none of the `abd` work~~ **Closed: deployed** | Abdullah, Shahriar | nothing | Closed |
 | [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Merged and live (PR #37).** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
 | [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Merged and live (PR #39, 7 Nov 2026).** Live check passed: the API exposes `Idempotent-Replayed, Retry-After` (Offline-Frontend-Guideline 7). Remaining: test group R (guideline 9.6) |
-| [Q1](#q1-where-does-the-guest-scope-secret-live) | **Question:** where the guest scope secret is stored (two specs disagree) | Muhtasim (spec owner) | R15 offline drafts | Answer before R15 | **Open (7 Nov 2026)** |
+| [Q1](#q1-where-does-the-guest-scope-secret-live) | **Question:** where the guest scope secret is stored (two specs disagree) | Muhtasim (spec owner) | R15 offline drafts | Answer before R15 | **Open; likely answered by Decisions 2026-10-19** (see Q1) |
+| [DEP2](#dep2-r13-offline-packs-are-not-on-the-live-site) | R13 offline packs (and R15 part 1 once committed) are not on the live site | Abdullah (PR), Shahriar (merge) | R13 phone tests (guideline group P) | **High** | **Open (7 Nov 2026)** |
+| [TS1](#ts1-turnstile-site-key-missing-on-vercel) | `VITE_TURNSTILE_SITE_KEY` is not set on Vercel: the review form shows no security check | Shahriar (Vercel), whoever holds the Cloudflare widget | Guest review submission on the live site (likely) | **High** | **Open (7 Nov 2026), not yet confirmed by a submission** |
+| [DOC1](#doc1-offline-frontend-guideline-section-1-is-out-of-date) | `Offline-Frontend-Guideline.md` section 1 status table is out of date | Muhtasim (document owner) | Nothing; misleads readers | Low | **Open (7 Nov 2026)** |
 
 ---
 
@@ -129,6 +132,45 @@ Two documents disagree:
 3. R15 stores an unsent guest draft with its scope (guideline 6.2). Should the draft keep its own copy of the secret, so it can be sent after "Start as a new guest", as test D10 expects?
 
 **Done when** the answer is written here and the losing document is corrected.
+
+**Update, 7 November 2026: a recorded decision already covers most of this.** `Decisions.md`, 2026-10-19 (Frontend integration), row "Guest scope secret storage": *kept in `localStorage` until the IndexedDB draft store (R15) exists, then moved there.* The draft store now exists (R15 part 1, `frontend/src/offline/draftStore.ts`). Unless someone objects, the frontend will:
+1. follow that decision with the guideline 4.3 approach: copy the secret into IndexedDB `meta` with the **same value**, keeping `localStorage` as the reader for now (so the guest tag cannot change);
+2. give each draft its own copy of the secret when it is created (guideline 6.2, test D10);
+3. update `Guest-Identity-and-Visits.md` to say so.
+
+Please confirm or object. The same decision row also says *"the receipt is never stored"*. That is stricter than PF 13.5, PF 18.1 and guideline 6.5, which allow the receipt of an **unsent** draft to be stored with it until the server acknowledges the review. R15 part 1 does store it, and deletes it after a successful send. The frontend proposes amending the row to: "the receipt of an unsent draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5)."
+
+---
+
+## DEP2: R13 offline packs are not on the live site
+
+**Found 7 November 2026, in Chrome on the live site.** `abd` is 5 commits ahead of `main` (R13 steps A, B, C and their docs), and Vercel deploys `main`. On `https://abhijatri.vercel.app` the sidebar still says "Offline packs **Soon**", `/offline-packs` shows the old "Not available yet" page, and destination pages have no "Save for offline use" button. R12 itself is live and works.
+
+**What to do.** Abdullah opens a pull request from `abd` to `main` (after committing R15 part 1, so it goes in the same deploy); Shahriar reviews and merges.
+
+**Done when** the live sidebar shows "Offline packs" without "Soon" and a destination page shows "Save for offline use (… KB)". Then the testers can run guideline group P (and D1 to D4, D2, D16 for R15 part 1) on phones.
+
+---
+
+## TS1: Turnstile site key missing on Vercel
+
+**Found 7 November 2026.** None of the 33 JavaScript files of the live site contains a Turnstile site key, and the live review form renders no security check. The widget appears only when `VITE_TURNSTILE_SITE_KEY` is set at build time (`frontend/src/components/reviews/TurnstileWidget.tsx`; `.env.example` says it is "required wherever the API runs with TURNSTILE_ENABLED=true (every production deploy)"). The production backend requires Turnstile (`app/config.py` refuses to start in production without `TURNSTILE_ENABLED`, `TURNSTILE_SECRET` and `TURNSTILE_HOSTNAME`).
+
+**Likely effect.** Guest review submission on the live site fails with `403 CHALLENGE_FAILED` (no token is sent). **Not yet confirmed:** the frontend did not submit a real review to find out.
+
+**How to confirm safely.** On the live site, open DevTools → Network, submit a short test review, and look at the `POST /api/v1/reviews/guest` answer. If it was accepted after all, withdraw it at once with its receipt on the Check with receipt page.
+
+**What to do.** In Vercel → Project → Settings → Environment Variables, set `VITE_TURNSTILE_SITE_KEY` to the **site key** of the same Cloudflare Turnstile widget whose **secret** Railway uses (`TURNSTILE_SECRET`), with the widget's hostname matching `TURNSTILE_HOSTNAME` (`abhijatri.vercel.app`). Redeploy (the key is read at build time).
+
+**Done when** the live review form shows the Cloudflare check, and a test review submits (then withdraw it).
+
+---
+
+## DOC1: Offline-Frontend-Guideline section 1 is out of date
+
+`Docs/Offline-Frontend-Guideline.md` section 1 ("Where things stand") still says: IndexedDB "Not started", Offline packs page "Placeholder", offline drafts "Not started", R16 "In PR #39". Now: IndexedDB, packs and the Offline packs page are built (R13, `Frontend-Implemented.md` 5k, not yet deployed: DEP2); draft saving and the offline form are built (R15 part 1, 5l, uncommitted); R16 is live. Section 7 was already corrected on 7 November (GET instead of `curl -I`).
+
+**What to do.** Muhtasim updates the table, or tells Abdullah to do it.
 
 ---
 

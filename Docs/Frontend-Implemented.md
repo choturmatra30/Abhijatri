@@ -373,6 +373,26 @@ Evidence (7 Nov 2026):
 
 **Not covered by these checks:** P7 to P16 (dropped connection mid-download, staff hide and archive, device date changes, full storage, private window, sign-out, phone restart). They are in the guideline's group P for R18.
 
+## 5l. R15 part 1: review drafts saved on the device, form works offline (7 November 2026)
+
+`Offline-Frontend-Guideline.md` tasks 8 and 9 only. Sending queued drafts, the stored `Idempotency-Key`, the pending list, receipt custody and export (tasks 10 and 11) wait for question Q1 in `Handoff-Backend.md` (where the guest scope secret lives), because a draft must carry a copy of it (guideline 6.2).
+
+| Item | Files |
+|---|---|
+| Draft store (`drafts` in IndexedDB): fields, `client_draft_id`, receipt, `consent_version`, `local_revision`, author | `offline/draftStore.ts` |
+| Autosave (500 ms), restore, destination switching, delete | `hooks/useReviewDraft.ts`, `components/reviews/GuestReviewForm.tsx` |
+| Review parameters kept for offline | `offline/parameters.ts`, `api/reviewParameters.ts` |
+| Offline form: saved destinations only; none saved → explains to save one first | `pages/ReviewsPage.tsx` |
+| Member session exposes `userId` (account id from `/auth/session`) | `context/SessionContext.tsx` |
+
+**Owner decisions (7 Nov 2026).** One draft per destination. Offline, Send is disabled with "Your draft is saved on this device; send it when you are back online"; the security check is not rendered offline. When the sign-in cannot be confirmed (offline), only guest drafts show and a new draft is saved as `pending`; once the sign-in is known online it goes to the member signed in, or to the guest when nobody is. Member drafts show only to that member.
+
+**Behaviour.** Text typed before choosing a destination belongs to the destination then chosen. Switching to a destination that has its own draft restores it; switching to one without starts a fresh form and the previous destination keeps its draft. A restored tick of consent counts only for the current `CONSENT_VERSION`. Photos and videos are not kept in drafts (the form says so). After the server accepts the review the draft and its receipt leave the device and the receipt is shown once, as before. Drafts are stored unencrypted; the form says so and offers Delete with a confirmation.
+
+Evidence (7 Nov 2026): 185 tests pass (11 new: visibility rules, newest draft per destination, Bangla text and receipt kept, pending drafts going to the member or the guest, delete one, parameters). Built app, live API reads, real offline (only the review POST answered by the test, so no review was created): D1 offline form with only the saved destination, Send disabled with the saved note; D3 a reload offline restores the text (Bangla included); D4 a new tab offline restores it; back online the offline draft is the guest's and is restored; one draft per destination across switches; D16 Delete removes only that draft; sending posts the draft's own `client_draft_id` and `receipt_secret`, then no draft is left; D2 offline with nothing saved explains what to do; no page errors.
+
+Found and fixed during the check: an offline draft was hidden from the same guest back online; switching destination moved an existing draft; a sign-in change could clear the form; a destination change could drop the last half second of typing.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
