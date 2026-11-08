@@ -10,8 +10,8 @@
 |---|---|---|
 | `abd` merged to `main` and deployed (DEP1) | The live site needs offline mode | **Done (7 Nov 2026)** |
 | Live API sends `public, max-age=60` on destination routes | Otherwise nothing is saved for offline | **Confirmed (7 Nov 2026)** |
-| R13 offline packs and R15 part 1 deployed (DEP2 in `Handoff-Backend.md`) | Needed for the pack tests (guideline group P) and the draft tests below | **Not yet (7 Nov 2026)**: R12 tests only on the live site for now |
-| Turnstile site key on Vercel (TS1) | Needed to send a guest review on the live site | **Not yet (7 Nov 2026)** |
+| R13 offline packs and R15 part 1 deployed (DEP2 in `Handoff-Backend.md`) | Needed for the pack tests (section H) | **Done (8 Nov 2026)**, PR #55 |
+| Turnstile site key on Vercel (TS1) | Needed to send a guest review on the live site | **Key in the live bundle (8 Nov 2026)**; one live submission still to confirm |
 | An Android phone with Chrome (Android 10+), and if possible an iPhone with Safari (iOS 16.4+) | PF 19.1 targets | |
 
 **R12 (sections A to F) can be tested on `https://abhijatri.vercel.app` now. R13 packs and R15 drafts need DEP2 first; until then run them locally.** Sections A to F can also be run **locally** on a computer: `cd frontend && npm run preview:offline`, then open `http://localhost:4173`. The local backend must be running with a working database (see B6). Offline mode is **off** in `npm run dev` on purpose, so do not test offline there.
@@ -97,12 +97,104 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 
 ---
 
+## H. Offline packs (R13) and offline drafts (R15 part 1): manual tests
+
+**Added 8 November 2026.** Run on `https://abhijatri.vercel.app` (DevTools → Network → *Offline*, or airplane mode on a phone) or locally with `npm run preview:offline`. The last column is the result of the Chrome run on 8 Nov 2026 against a local backend and database: **Pass**, **Fail** (see F1 to F3 in `Handoff-Backend.md`) or **Not run** (needs a real phone, a full disk or a staff screen).
+
+**Important on a computer:** use DevTools *Offline* or turn Wi-Fi off. Only stopping the server leaves `navigator.onLine` true, and then the app may show the older opened-page copy instead of the pack (F2).
+
+### H1. Download and storage
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H1.1 | Online, English, open Bandarban. | Box "Keep the guide… readable without internet" and **Save for offline use (… KB)**. | Pass (10 KB) |
+| H1.2 | Press Save for offline use. | Becomes "Saved for offline use · Snapshot: date · size" with an **Offline packs** link. | Pass |
+| H1.3 | Open **Offline packs** in the sidebar (no "Soon" mark). | Bandarban: snapshot date, size, review count, **Valid until** (7 days later), state **Ready**, Open / Update / Delete. "Storage on this device" shows whether the browser keeps data and the space used. | Pass |
+| H1.4 | DevTools → Application → IndexedDB → `abhijatri-offline`. | Stores `packs`, `drafts`, `meta` only. `packs` has one row keyed by the destination id. | Pass |
+| H1.5 | Save a second destination (Sylhet). | Both listed. | Pass |
+| H1.6 | Private / Incognito window, save a pack. | Honest "saving unavailable" or a working save; the site keeps working, no crash. | Not run |
+| H1.7 | Phone nearly full, save a pack. | "Storage is full"; old packs intact; no crash. | Not run |
+| H1.8 | Start a download, switch to Offline before it finishes. | "Download failed" with Retry; an older pack of the same place stays. | Not run (unit-tested) |
+
+### H2. Reading offline
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H2.1 | Go offline. Open Destinations. | "You are offline. Showing the N destination(s) saved on this device"; the pack's Guest Feedback score and count show. | Pass |
+| H2.2 | Open Bandarban. | Yellow "You are offline" banner, a second banner "You are reading the offline copy made on … Advisories verified on …". Guide, advisories, restrictions, emergency numbers all show, with no 4-second wait. | Pass |
+| H2.3 | Scroll to Traveller reviews. | "Offline copy (date): the newest N published reviews." Reviews listed; no filters, no Load more; photos say they open when online. | Pass with real offline; **Fail with server down only (F2)** |
+| H2.4 | Offline, open a destination that was never saved. | "This destination is not saved on this device…", never "Something went wrong". | Pass (R12, unchanged) |
+| H2.5 | Close the browser completely, reopen offline, open the pack. | Opens. | Not run |
+| H2.6 | Phone: save, airplane mode, restart the phone, open from the home-screen app. | Opens full screen with the guide. | Not run (real phone) |
+
+### H3. Expiry and advisories
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H3.1 | Set the device date 8 days ahead (or wait), open Offline packs offline. | Red "Out of date: update when online"; Valid until is in the past. | Pass (expiry edited in IndexedDB) |
+| H3.2 | Open that pack's guide. | Red "Out of date. This offline copy is from …" banner **and no advisory labelled Current**. | **Fail (F1):** banner shows, but the advisory badge still says "Current" |
+| H3.3 | An advisory whose `valid_until` is today: open offline, then set the date to tomorrow. | It disappears on the next Dhaka day, with no network. | Not run (unit-tested in `advisoryState.test.ts`) |
+| H3.4 | Set the date back, go online. | State returns to Ready (or the pack updates). | Pass |
+
+### H4. Updates after reconnect
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H4.1 | Save a pack. Have a new review published by staff. Reload the app online. | Pack updates by itself: review count rises, snapshot changes. | Pass (0 to 3 reviews) |
+| H4.2 | Staff hides one of those reviews. Go offline, then back online, wait 5 seconds. | The hidden review is gone from the pack before it shows as current. | Pass (3 to 2) |
+| H4.3 | Staff archives the destination. Offline, then online. | Notice "Bandarban has been withdrawn, so its offline pack was removed"; the list is empty. | Pass |
+| H4.4 | Online with the server down (or `503`), then reconnect. | Packs are kept; nothing deleted on a failed check. | Pass |
+| H4.5 | Server comes back while the device stays online. | Packs are not checked until the next app start or offline-to-online change. | Known limit (F3) |
+
+### H5. Delete
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H5.1 | Offline packs → Delete on Sylhet. | Dialog "Delete the offline pack for Sylhet?" with Cancel and Delete. | Pass |
+| H5.2 | Cancel. | Nothing removed. | Pass |
+| H5.3 | Delete. | Sylhet gone from the page and from IndexedDB; Bandarban kept. | Pass |
+| H5.4 | Sign out (as a member) with packs saved. | Packs remain; no account data left in IndexedDB or caches. | Not run |
+
+### H6. Offline review drafts (R15 part 1)
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H6.1 | Offline, open a pack, press **Write a review**. | The form opens; the destination list offers only saved destinations. | Pass |
+| H6.2 | Offline with nothing saved, open Write a review. | Explains a guide must be saved first. | Not run |
+| H6.3 | Type a name and pick 4 stars, wait 1 second, reload offline. | "Your saved draft was restored. Draft saved on this device (date), not encrypted." with **Delete draft**; the fields are back. | Pass |
+| H6.4 | Delete draft. | Asks first; the draft is gone from IndexedDB `drafts`. | Not run |
+| H6.5 | Online, submit the restored draft. | Receipt shown once; the draft and its stored receipt leave IndexedDB. | Pass |
+| H6.6 | Queue a draft offline, reconnect. | Today: the draft stays in the form; there is no pending list and nothing sends by itself (R15 part 2 not built). | Pass (nothing auto-sent) |
+
+### H7. Retry without duplicates (R16, guideline group R)
+
+Paste the snippet from `Offline-Frontend-Guideline.md` 9.6 in the Console before each case; it lets the request reach the server and then reports a network failure.
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H7.1 (R1) | Submit a guest review, then press Submit again. | First "Could not reach the server"; then "This review was already submitted" with the receipt. **One** review in the database. | Pass |
+| H7.2 (R2) | Receipt page → Edit → change the title → Save, then Save again. | "Saved"; the second answer has `Idempotent-Replayed: true`. | Pass |
+| H7.3 (R3) | Receipt page → Withdraw → Yes, then Yes again. | "Withdrawn"; second answer `Idempotent-Replayed: true`. | Pass |
+| H7.4 (R4) | Network tab on each write. | `Idempotency-Key` header; the same value on a retry. | Pass |
+| H7.5 (R5) | After a failed save, change the text and save. | A **new** key; never `409 IDEMPOTENCY_KEY_REUSED`. Because the lost save was applied, the server answers `409 REVIEW_VERSION_CONFLICT` and the form says "This review changed while you were editing. Reload…", keeping your text. | Pass |
+| H7.6 (R6) | Register or reset with `password123`. | "This password appears in a known data breach." | Not run |
+
+### H8. Privacy (must pass)
+
+| # | Steps | Expected | 8 Nov |
+|---|---|---|---|
+| H8.1 | After all of the above: Application → Cache Storage. | Only the precache, fonts and `abj-public-api-v1` (destination and review lists). No `session`, `account`, `receipt`, `notification`, `report`, `guest`, `auth` or pack URLs. | Pass |
+| H8.2 | Application → IndexedDB. | `packs`, `drafts`, `meta` only; no tokens; no receipt of a submitted review. | Pass |
+| H8.3 | Application → Local Storage. | Language, theme, visit dates and `abhijatri_guest_scope` only. | Pass |
+
+---
+
 ## Known limits (not bugs)
 
 - Installability cannot be checked on plain `http://localhost` with automated Chrome; use HTTPS (the deployed site).
 - `navigator.storage.persisted()` may be `false`; the browser decides. R13 shows it on the Offline packs page ("Storage on this device").
-- R13 packs and R15 part 1 drafts are built but not deployed yet (DEP2). Their test cases are `Offline-Frontend-Guideline.md` 9.4 (group P) and 9.5 (D1 to D4, D16 and D2 now; the rest after R15 part 2).
-- Sending queued drafts on reconnect (R15 part 2) waits for question Q1.
+- R13 packs and R15 part 1 drafts are live (PR #55). Section H covers them. Sending queued drafts after reconnect (R15 part 2) is not built yet; Q1 is answered (Decisions 2026-11-08).
+- Pack freshness runs on app start and when the device goes from offline to online, not when only the server comes back (F3 in `Handoff-Backend.md`).
 
 ## Where to report
 

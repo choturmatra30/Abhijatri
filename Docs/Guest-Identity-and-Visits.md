@@ -55,12 +55,14 @@ display   = XXXXX-XXXXX        alphabet 0123456789ABCDEFGHJKMNPQRSTVWXYZ
 
 | `localStorage` key | Value | Status |
 |---|---|---|
-| `abhijatri_guest_scope` | Guest scope secret | Existing; now created on first visit |
+| `abhijatri_guest_scope` | Guest scope secret | Existing; now created on first visit. **The reader for M1.** The same value is also written to IndexedDB `meta` (Decisions 2026-11-08) |
 | `abhijatri_guest_name` | Name typed on `/guest` | Existing |
 | `abhijatri_guest_name_seen_on` | Dhaka date the name was last seen; the name is forgotten after 30 days without a visit | Existing |
 | `abhijatri_first_visit_on` | Dhaka date of this browser's first visit | New |
 | `abhijatri_last_visit_on` | Dhaka date of the last counted visit | New; replaces `abhijatri_guest_last_visit` (read once, then removed) |
 | `abhijatri_guest_number` | Old "Guest #N" | Retired; read once only to mark the browser as returning |
+
+**IndexedDB copy (Decisions 2026-11-08, Handoff Q1).** The scope secret is also written, with the **same value**, to IndexedDB `meta` (PF 18.1, Offline-Frontend-Guideline 4.3); `localStorage` stays the synchronous reader. Each unsent offline draft keeps its own copy of the secret and is always sent with it, so "Start as a new guest" cannot turn a queued draft into a second review. The receipt of an unsent draft is stored with that draft until the server acknowledges the review; receipts of submitted reviews are never stored (PF 13.5).
 
 The tag itself is not stored, because it is derived. All reads and writes are guarded for blocked storage, as `src/api/guests.ts` already does. Blocked storage means a one-off tag for that tab, and the visit is counted as new.
 
@@ -75,7 +77,7 @@ The tag itself is not stored, because it is derived. All reads and writes are gu
 
 The tag stays in Latin letters in both languages, like the receipt, because it is an identifier. "Anonymous" here means "no account", and the submission notice says so: *"Your reviews from this browser show the same guest tag, so readers can see they came from the same guest."* (Security 3.4 notice change.)
 
-**Reset.** `/guest` offers "Start as a new guest". It makes a new scope secret, and therefore a new tag, only when no unsent draft is waiting. It does not reset the visit dates, so it does not inflate "new guests". Until drafts are stored on the device (R15), a draft lives only in the review form's state, and the form and `/guest` are separate pages, so no unsent draft can exist while the button is shown. The "no unsent draft" check is added with R15.
+**Reset.** `/guest` offers "Start as a new guest". It makes a new scope secret, and therefore a new tag, only when no unsent draft is waiting. It does not reset the visit dates, so it does not inflate "new guests". Since R15 drafts are stored on the device (`offline/draftStore.ts`). A draft carries its own copy of the scope secret (Decisions 2026-11-08), so a reset never changes the scope a queued draft is sent under; the "no unsent draft" check on `/guest` is part of R15.
 
 ### 3.4 Sign-in, sign-out and loss
 
