@@ -54,7 +54,8 @@ def smtp_settings(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None
 
 
 def test_sends_with_starttls_and_login() -> None:
-    assert isinstance(providers.get_provider(), SmtpProvider)
+    wrapped = providers.get_provider()
+    assert isinstance(wrapped, providers.LinkGuard) and isinstance(wrapped._inner, SmtpProvider)  # noqa: SLF001
     message_id = SmtpProvider().send(EMAIL)
     server = FakeSMTP.instances[0]
     assert (server.host, server.port) == ("smtp.gmail.com", 587)

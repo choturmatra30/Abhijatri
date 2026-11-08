@@ -29,7 +29,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -810,7 +810,7 @@ class ModerationTask(Base):
         CheckConstraint("status IN ('open', 'done', 'cancelled')", name="ck_moderation_tasks_status"),
         CheckConstraint("required_role IN ('moderator', 'superadmin')", name="ck_moderation_tasks_role"),
         CheckConstraint(
-            "task_type IN ('review_moderation', 'report', 'verification', 'appeal', 'enforcement')",
+            "task_type IN ('review_moderation', 'report', 'verification', 'appeal', 'enforcement', 'tour_report', 'chat_report', 'tour_safety')",
             name="ck_moderation_tasks_type",
         ),
         Index(
@@ -896,25 +896,41 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
-OPEN_CASE_STATES = "('submitted', 'in_review', 'needs_clarification', 'escalated')"
+OPEN_CASE_STATES = "('draft', 'submitted', 'in_review', 'needs_clarification', 'escalated')"
 
 
 class VerificationCase(Base):
-    """A member's request to become a Verified Member (Moderation spec 6.2, 7.1). One open case per member."""
+    """A member's application to become a Verified Member (sign-up form 4 to 8; Moderation spec 6.2, 7.1).
+
+    One open case (including a draft) per member. Personal and document fields are sealed with
+    ``app.fieldcrypt``; only the birth year, the claimed gender, district and occupation are plain,
+    because eligibility and age bands need them. The full document number is destroyed at approval.
+    """
 
     __tablename__ = "verification_cases"
     __table_args__ = (
         CheckConstraint(
-            "state IN ('submitted', 'in_review', 'needs_clarification', 'approved', 'rejected', 'escalated', 'withdrawn')",
+            "state IN ('draft', 'submitted', 'in_review', 'needs_clarification', 'approved', 'rejected', 'escalated', 'withdrawn', 'expired')",
             name="ck_verification_cases_state",
         ),
+        CheckConstraint("purpose IN ('initial', 'renewal', 'student_update')", name="ck_verification_cases_purpose"),
+        CheckConstraint("birth_year IS NULL OR birth_year BETWEEN 1900 AND 2100", name="ck_verification_cases_birth_year"),
+        CheckConstraint("gender_claimed IS NULL OR gender_claimed IN ('FEMALE', 'MALE', 'THIRD')", name="ck_verification_cases_gender"),
+        CheckConstraint("doc_type IS NULL OR doc_type IN ('NID', 'PASSPORT', 'DRIVING_LICENCE')", name="ck_verification_cases_doc_type"),
+        CheckConstraint(
+            "occupation IS NULL OR occupation IN ('STUDENT', 'EMPLOYED', 'SELF_EMPLOYED', 'NOT_WORKING', 'OTHER')",
+            name="ck_verification_cases_occupation",
+        ),
         Index("uq_verification_cases_one_open", "applicant_user_id", unique=True, postgresql_where=text(f"state IN {OPEN_CASE_STATES}")),
+        Index("one_document_per_person", "doc_hash", unique=True, postgresql_where=text("state = 'approved'")),
+        Index("ix_verification_cases_doc_hash", "doc_hash"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     applicant_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     statement: Mapped[str | None] = mapped_column(String(1000))
-    state: Mapped[str] = mapped_column(String(24), nullable=False, default="submitted", server_default="submitted")
+    state: Mapped[str] = mapped_column(String(24), nullable=False, default="draft", server_default="draft")
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="initial", server_default="initial")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -923,13 +939,59 @@ class VerificationCase(Base):
     purge_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    # Step 1
+    age_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Step 2 (legal names and date of birth sealed; birth year plain for age bands)
+    legal_name_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    legal_name_bn_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    dob_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    birth_year: Mapped[int | None] = mapped_column(SmallInteger)
+    gender_claimed: Mapped[str | None] = mapped_column(String(10))
+    home_district: Mapped[str | None] = mapped_column(String(40))
+    current_area: Mapped[str | None] = mapped_column(String(60))
+    occupation: Mapped[str | None] = mapped_column(String(20))
+    # Step 3
+    phone_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("phone_numbers.id", ondelete="SET NULL"))
+    # Step 4 (full number sealed and destroyed at approval; last 4 and a keyed hash kept)
+    doc_type: Mapped[str | None] = mapped_column(String(20))
+    doc_number_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    doc_last4: Mapped[str | None] = mapped_column(String(4))
+    doc_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+    doc_expiry: Mapped[date | None] = mapped_column(Date)
+    # Step 5
+    is_student_claim: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("institutions.id", ondelete="SET NULL"))
+    institution_other: Mapped[str | None] = mapped_column(String(120))
+    institution_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    study_end_month: Mapped[date | None] = mapped_column(Date)
+    # Step 6 (issued by the server, never by the client)
+    liveness_code: Mapped[str | None] = mapped_column(String(4))
+    liveness_gesture: Mapped[str | None] = mapped_column(String(40))
+    liveness_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Step 7 and review
+    declaration_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    clarification_steps: Mapped[list[str] | None] = mapped_column(ARRAY(String(20)))
+    risk_flags: Mapped[list[str]] = mapped_column(ARRAY(String(40)), nullable=False, default=list, server_default=text("'{}'::varchar[]"))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    draft_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    clarification_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    network_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+
+
+EVIDENCE_KINDS = ("DOC_FRONT", "DOC_BACK", "SELFIE", "STUDENT_CARD")
 
 
 class VerificationEvidence(Base):
-    """Metadata of a private evidence file; the bytes live in a private Storage bucket (spec 3.3)."""
+    """One evidence image. The browser uploads to a quarantine object; the server checks it, strips its
+    metadata, re-encodes it, seals it and keeps only the sealed copy (sign-up form 9)."""
 
     __tablename__ = "verification_evidence"
-    __table_args__ = (CheckConstraint("status IN ('pending', 'uploaded', 'deleted')", name="ck_verification_evidence_status"),)
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'uploaded', 'deleted')", name="ck_verification_evidence_status"),
+        CheckConstraint("kind IN ('DOC_FRONT', 'DOC_BACK', 'SELFIE', 'STUDENT_CARD', 'LEGACY')", name="ck_verification_evidence_kind"),
+        Index("ix_verification_evidence_sha256", "sha256"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("verification_cases.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -939,6 +1001,121 @@ class VerificationEvidence(Base):
     uploaded_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="LEGACY", server_default="LEGACY")
+    sha256: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+    phash: Mapped[bytes | None] = mapped_column(LargeBinary(8))
+    sealed_key: Mapped[str | None] = mapped_column(String(300))  # the sealed, cleaned copy; None for legacy files
+    challenge: Mapped[str | None] = mapped_column(String(80))  # SELFIE: the code and gesture shown when it was taken
+    flags: Mapped[list[str]] = mapped_column(ARRAY(String(40)), nullable=False, default=list, server_default=text("'{}'::varchar[]"))
+
+
+class Institution(Base):
+    """Universities, colleges and madrasas offered in Step 5 (UGC and board lists; staff maintain it)."""
+
+    __tablename__ = "institutions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name_en: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    name_bn: Mapped[str | None] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    email_domain: Mapped[str | None] = mapped_column(String(80))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+
+
+class PhoneNumber(Base):
+    """A member's phone: a keyed hash for the one-account rule, the number sealed, the last 4 digits plain."""
+
+    __tablename__ = "phone_numbers"
+    __table_args__ = (
+        Index("one_verified_phone", "phone_hash", unique=True, postgresql_where=text("verified_at IS NOT NULL")),
+        Index("ix_phone_numbers_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    phone_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    phone_enc: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    last4: Mapped[str] = mapped_column(String(4), nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class VerificationAttributes(Base):
+    """Facts a moderator confirmed from the documents. Written only by the approval transaction and staff
+    routes; tours read eligibility only from here (sign-up form 8; VF-10)."""
+
+    __tablename__ = "verification_attributes"
+    __table_args__ = (
+        CheckConstraint("gender IN ('FEMALE', 'MALE', 'THIRD')", name="ck_verification_attributes_gender"),
+        CheckConstraint("birth_year BETWEEN 1900 AND 2100", name="ck_verification_attributes_birth_year"),
+        CheckConstraint("NOT is_student OR student_until IS NOT NULL", name="ck_verification_attributes_student_until"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    gender: Mapped[str] = mapped_column(String(10), nullable=False)
+    birth_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    is_student: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    student_until: Mapped[date | None] = mapped_column(Date)
+    home_district: Mapped[str | None] = mapped_column(String(40))
+    set_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class EmergencyContactDefault(Base):
+    """The default emergency contact from Step 7, sealed (name, relationship, phone as one JSON value)."""
+
+    __tablename__ = "emergency_contacts_default"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    sealed: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class VerificationBan(Base):
+    """A ban on verifying again (sign-up form 10.3). Document and phone hashes catch a new account too."""
+
+    __tablename__ = "verification_bans"
+    __table_args__ = (
+        Index("ix_verification_bans_user", "user_id"),
+        Index("ix_verification_bans_doc", "doc_hash"),
+        Index("ix_verification_bans_phone", "phone_hash"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    doc_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+    phone_hash: Mapped[bytes | None] = mapped_column(LargeBinary(32))
+    reason: Mapped[str] = mapped_column(String(60), nullable=False)
+    until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # None: permanent
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    lifted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    lifted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OneTimeCode(Base):
+    """A 6-digit code sent by SMS or email. Only keyed hashes of the code and the target are stored,
+    plus the target sealed so the verified number can be kept without asking for it again."""
+
+    __tablename__ = "one_time_codes"
+    __table_args__ = (
+        CheckConstraint("channel IN ('sms', 'email')", name="ck_one_time_codes_channel"),
+        Index("ix_one_time_codes_user_created", "user_id", "created_at"),
+        Index("ix_one_time_codes_target_created", "target_hash", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("verification_cases.id", ondelete="CASCADE"))
+    channel: Mapped[str] = mapped_column(String(8), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    target_enc: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    code_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
 class EnforcementCase(Base):
@@ -946,15 +1123,19 @@ class EnforcementCase(Base):
 
     __tablename__ = "enforcement_cases"
     __table_args__ = (
-        CheckConstraint("kind IN ('takedown', 'account')", name="ck_enforcement_cases_kind"),
+        CheckConstraint("kind IN ('takedown', 'account', 'tour')", name="ck_enforcement_cases_kind"),
         CheckConstraint("state IN ('taken_down', 'removed', 'restored', 'open', 'closed')", name="ck_enforcement_cases_state"),
-        CheckConstraint("num_nonnulls(review_id, subject_user_id) = 1", name="ck_enforcement_cases_one_subject"),
+        CheckConstraint("num_nonnulls(review_id, subject_user_id, tour_id, tour_member_id, chat_message_id) = 1", name="ck_enforcement_cases_one_subject"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     kind: Mapped[str] = mapped_column(String(12), nullable=False)
     review_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"))
     subject_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Tour Operations subjects (Verified Users Interface 16.2; architecture 5.6)
+    tour_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tours.id", ondelete="CASCADE"))
+    tour_member_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tour_members.id", ondelete="CASCADE"))
+    chat_message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("chat_messages.id", ondelete="CASCADE"))
     state: Mapped[str] = mapped_column(String(12), nullable=False)
     emergency: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     counts_toward_rating: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
@@ -973,7 +1154,7 @@ class Sanction(Base):
 
     __tablename__ = "sanctions"
     __table_args__ = (
-        CheckConstraint("kind IN ('warning', 'posting_restriction', 'suspension')", name="ck_sanctions_kind"),
+        CheckConstraint("kind IN ('warning', 'posting_restriction', 'suspension', 'tourmate_restriction')", name="ck_sanctions_kind"),
         CheckConstraint("state IN ('active', 'expired', 'reversed')", name="ck_sanctions_state"),
         CheckConstraint("ends_at IS NOT NULL OR review_on IS NOT NULL", name="ck_sanctions_has_end"),
         Index("ix_sanctions_user_active", "user_id", postgresql_where=text("state = 'active'")),
@@ -1333,3 +1514,7 @@ class ReviewMedia(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# Tours and TourMates (registered here so Alembic and the tests see every table).
+from app.tours import models as _tour_models  # noqa: E402, F401

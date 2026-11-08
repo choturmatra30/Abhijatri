@@ -22,6 +22,19 @@ FIXED = frozenset(
         "staff.mfa_reset", "staff.role_changed", "staff.role_granted", "staff.role_revoked",
         "task.assigned", "task.claimed", "task.escalated", "task.released",
         "verification.revoke_for_abuse", "verification.submitted",
+        # verification application (Verified user sign-up form)
+        "verification.draft_started", "verification.step_saved", "verification.phone_code_sent", "verification.phone_verified",
+        "verification.student_email_verified", "verification.liveness_issued", "verification.duplicate_blocked",
+        "verification.details_viewed", "verification.responded", "verification.expired", "verification.reopened",
+        "verification.banned", "verification.ban_lifted", "retention.case_shredded",
+        # user blocks (tours)
+        "block.created", "block.removed",
+        # Tours and Tour Operations
+        "tour.created", "tour.published", "tour.confirmed", "tour.cancelled",
+        "tour.request_approved", "tour.request_declined", "tour.member_removed",
+        "tour.report_created", "tour.sos_raised", "tour.safety_revealed", "tour.safety_purged",
+        "tour.suspended", "tour.restored", "tour.staff_cancel_requested", "tour.staff_cancelled",
+        "tour.message_hidden", "tour.user_restricted", "tour.breakglass_granted", "tour.breakglass_viewed",
     }
 )
 # Names built from a state or decision: `<prefix>.<suffix>`.

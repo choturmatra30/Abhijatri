@@ -27,24 +27,26 @@ async function csrf(): Promise<string> {
 }
 
 interface CallOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'PUT';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   /** True for a write made with a session cookie: it carries `X-CSRF-Token`. */
   session?: boolean;
   /** `Idempotency-Key` of the user action (R16); the CSRF retry below reuses it. */
   idempotencyKey?: string;
+  /** Additional request headers such as optimistic-concurrency `If-Match`. */
+  headers?: Record<string, string>;
 }
 
 export async function call<T>(
   path: string,
-  { method = 'POST', body, session = false, idempotencyKey }: CallOptions = {},
+  { method = 'POST', body, session = false, idempotencyKey, headers }: CallOptions = {},
 ): Promise<T> {
   const attempt = async (): Promise<T> =>
     apiRequest<T>(path.startsWith('/api/') ? path : `${BASE}${path}`, {
       method,
       body,
       credentials: 'include',
-      headers: session ? { 'X-CSRF-Token': await csrf() } : undefined,
+      headers: { ...headers, ...(session ? { 'X-CSRF-Token': await csrf() } : {}) },
       idempotencyKey,
     });
   try {

@@ -75,6 +75,16 @@ class Endpoint:
     REVIEW_WITHDRAW = "reviews.withdraw"
     REVIEW_EDIT_PENDING = "reviews.edit_pending"
     GUEST_APPEAL_CREATE = "review_receipts.appeal.create"
+    VERIFICATION_SUBMIT = "verifications.submit"
+    VERIFICATION_RESPOND = "verifications.respond"
+    VERIFICATION_WITHDRAW = "verifications.withdraw"
+    TOUR_CREATE = "tours.create"
+    TOUR_REQUEST = "tours.request"
+    TOUR_DECIDE = "tours.request.decide"
+    TOUR_INVITE = "tours.invite"
+    TOUR_INVITATION_ANSWER = "tours.invitation.answer"
+    TOUR_EXPENSE = "tours.expense"
+    TOUR_SOS = "tours.sos"
 
 
 @dataclass(frozen=True)
@@ -218,3 +228,21 @@ def purge_expired(session: Session, *, now: datetime | None = None, batch: int =
     victims = select(*columns).where(RequestIdempotency.expires_at <= moment).limit(batch)
     result = session.execute(delete(RequestIdempotency).where(tuple_(*columns).in_(victims)))
     return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+
+def finish_json(session: Session, claim: Claim | None, status_code: int, body: dict[str, Any]) -> None:
+    """``finish`` for routes that answer with a plain JSON object (verification, tours)."""
+    if claim is None:
+        return
+    if not 200 <= status_code <= 299:
+        raise ValueError("only successful responses are stored")
+    row = session.get(RequestIdempotency, (claim.scope, claim.endpoint, claim.key_digest))
+    if row is None:  # pragma: no cover - the reservation is in this transaction
+        raise RuntimeError("idempotency reservation vanished inside its own transaction")
+    row.status_code = status_code
+    row.response = json.loads(json.dumps(body, default=str))
+
+
+def fingerprint_json(*, method: str, path: Mapping[str, Any], body: Mapping[str, Any] | None) -> str:
+    payload = {k: v for k, v in (body or {}).items() if k not in VOLATILE_FIELDS}
+    return fingerprint({"method": method, "path": {k: str(v) for k, v in path.items()}, "body": payload})

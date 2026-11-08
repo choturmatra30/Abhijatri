@@ -30,7 +30,7 @@ export interface Enrollment {
   qr_code: string;
 }
 
-export type TaskType = 'review_moderation' | 'report' | 'verification' | 'appeal' | 'enforcement';
+export type TaskType = 'review_moderation' | 'report' | 'verification' | 'appeal' | 'enforcement' | 'tour_report' | 'chat_report' | 'tour_safety';
 
 export interface ReviewSubject {
   kind: 'review';
@@ -214,10 +214,37 @@ export interface VerificationSubject {
   case_id: string;
   state: 'submitted' | 'in_review' | 'needs_clarification' | 'approved' | 'rejected' | 'escalated' | 'withdrawn';
   version: number;
+  purpose: 'initial' | 'renewal' | 'student_update';
   statement: string | null;
   applicant: { display_name: string; email: string } | null;
-  evidence: { id: string; content_type: string }[];
+  evidence: { id: string; content_type: string; kind: string; flags: string[] }[];
+  doc_type: string | null;
+  occupation: string | null;
+  is_student: boolean;
+  risk_flags: string[];
+  legacy: boolean;
+  submitted_at: string | null;
   created_at: string;
+}
+
+export interface VerificationDetails {
+  case_id: string;
+  state: VerificationSubject['state'];
+  purpose: VerificationSubject['purpose'];
+  version: number;
+  applicant: { user_id: string; display_name: string; email: string; joined_at: string } | null;
+  personal: { legal_name_en: string | null; legal_name_bn: string | null; date_of_birth: string | null; gender: string | null; home_district: string | null; home_division: string | null; current_area: string | null; occupation: string | null };
+  phone: { last4: string; verified: boolean } | null;
+  document: { doc_type: string; number: string | null; last4: string; expiry: string | null } | null;
+  student: { institution: string | null; study_end: string | null; email_verified: boolean; max_student_until: string } | null;
+  liveness: { code: string; gesture: string; gesture_en: string } | null;
+  evidence: { id: string; kind: string; flags: string[]; challenge: string | null; created_at: string; sealed: boolean }[];
+  risk_flags: string[];
+  required_checks: string[];
+  previous_rejections: number;
+  statement: string | null;
+  submitted_at: string | null;
+  clarification_steps: string[];
 }
 
 export interface AppealSubject {
@@ -252,6 +279,37 @@ export interface EnforcementCase {
 
 export interface EnforcementSubject extends EnforcementCase {
   kind: 'enforcement';
+}
+
+export interface StaffTourCard {
+  public_id: string;
+  title: string;
+  lifecycle: string;
+  recruitment: string;
+  is_at_risk: boolean;
+  suspended: boolean;
+  policy: string;
+  destinations: { id: string; name_bn: string; name_en: string }[];
+  start_date: string;
+  end_date: string;
+  members: { approved: number; minimum: number; maximum: number } | StaffTourMember[];
+}
+
+export interface StaffTourMember {
+  member_id: string;
+  user_id: string;
+  name: string;
+  first_name: string;
+  role: string;
+  state: string;
+  seats: number;
+  joined_at: string | null;
+}
+
+export interface StaffTourDetail extends Omit<StaffTourCard, 'members'> {
+  members: StaffTourMember[];
+  reports: { id: string; subject_kind: string; reason_code: string; state: string; created_at: string }[];
+  changes: { kind: string; key_change: boolean; before: Record<string, unknown>; after: Record<string, unknown>; at: string }[];
 }
 // ---- notifications (API.md 5.21) ----
 

@@ -25,9 +25,19 @@ MEDIA_BUCKET = "review-media"
 MEDIA_MAX_BYTES = 50 * 1024 * 1024
 MEDIA_TYPES = ("image/jpeg", "image/png", "image/webp", "video/mp4")
 
+# Verification application evidence (sign-up form 9): the browser uploads to quarantine; the server checks,
+# strips and re-encodes the image, seals it (app.fieldcrypt) and keeps only the sealed copy. Both private.
+QUARANTINE_BUCKET = "verification-quarantine"
+QUARANTINE_MAX_BYTES = 10 * 1024 * 1024
+QUARANTINE_TYPES = ("image/jpeg", "image/png", "image/webp")
+SEALED_BUCKET = "verification-sealed"
+SEALED_MAX_BYTES = 12 * 1024 * 1024
+
 _BUCKETS: dict[str, tuple[int, tuple[str, ...]]] = {
     BUCKET: (MAX_BYTES, ALLOWED_TYPES),
     MEDIA_BUCKET: (MEDIA_MAX_BYTES, MEDIA_TYPES),
+    QUARANTINE_BUCKET: (QUARANTINE_MAX_BYTES, QUARANTINE_TYPES),
+    SEALED_BUCKET: (SEALED_MAX_BYTES, ("application/octet-stream",)),
 }
 
 

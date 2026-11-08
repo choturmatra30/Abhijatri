@@ -57,6 +57,13 @@ def set_staff_role(
         if (active_superadmins or 0) <= 1:
             raise ApiError("LAST_SUPERADMIN")
 
+    if role == "moderator":
+        # P-02 (Moderation spec; sign-up form 6): every reviewer has passed the same identity check.
+        from app.admin.cases import is_verified_member
+
+        if not is_verified_member(session, target_user_id):
+            raise ApiError("VERIFICATION_REQUIRED")
+
     now = datetime.now(UTC)
     previous = current.role if current else None
     if current is not None:

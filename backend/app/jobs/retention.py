@@ -54,12 +54,22 @@ IDEMPOTENCY_PURGE_BATCH = idempotency.PURGE_BATCH
 
 
 def purge_verification(sessions: Callable[[], Session], storage: StorageClient, now: datetime) -> dict[str, int]:
-    evidence_files = cases_deleted = 0
+    """Delete evidence and crypto-shred sensitive fields once a case's window has passed (sign-up form 9.5; VF-07).
+
+    24 hours after approval; 30 days after rejection, withdrawal or an expired clarification; at once for a
+    discarded or expired draft. An open appeal postpones it. Evidence bytes are deleted from every bucket they
+    can be in (the sealed copy, a quarantine leftover, an old unsealed file) and the sealed fields are set to
+    NULL: each held its own data key, so nothing anywhere can open them again. The case row itself is kept,
+    reduced to its decision, because the cooldown and ban rules (10.3) count earlier rejections.
+    """
+    from app.storage import QUARANTINE_BUCKET, SEALED_BUCKET
+
+    evidence_files = cases_shredded = 0
     with sessions() as session:
         candidates = list(
             session.scalars(
                 select(VerificationCase.id).where(
-                    VerificationCase.purge_after < now, VerificationCase.state.in_(("approved", "rejected", "withdrawn"))
+                    VerificationCase.purge_after < now, VerificationCase.state.in_(("approved", "rejected", "withdrawn", "expired"))
                 )
             )
         )
@@ -72,22 +82,35 @@ def purge_verification(sessions: Callable[[], Session], storage: StorageClient, 
                 continue  # preserved while the appeal is open
             files = list(session.scalars(select(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status != "deleted")))
             try:
-                storage.delete([f.object_key for f in files])
+                legacy = [f.object_key for f in files if f.kind == "LEGACY"]
+                sealed = [f.sealed_key for f in files if f.sealed_key]
+                quarantined = [f.object_key for f in files if f.kind != "LEGACY"]
+                if legacy:
+                    storage.delete(legacy)
+                if sealed:
+                    storage.delete(sealed, bucket=SEALED_BUCKET)
+                if quarantined:
+                    storage.delete(quarantined, bucket=QUARANTINE_BUCKET)
             except StorageUnavailable:
                 logger.warning("evidence purge postponed: storage unavailable")
                 continue
             for item in files:
-                item.status, item.deleted_at = "deleted", now
+                item.status, item.deleted_at, item.sealed_key = "deleted", now, None
             evidence_files += len(files)
-            if case.state in ("rejected", "withdrawn"):
-                audit.record(session, actor=None, action="retention.case_purged", target_type="verification_case", target_id=case.id, metadata={"files": len(files)})
-                session.delete(case)
-                cases_deleted += 1
+            case.doc_number_enc = None
+            case.liveness_code = case.liveness_gesture = None
+            if case.state != "approved":
+                # Not verified: nothing personal is kept. The decision, dates and keyed document hash stay for
+                # the cooldown, ban and duplicate rules; the hash cannot be turned back into a number.
+                case.legal_name_enc = case.legal_name_bn_enc = case.dob_enc = None
+                case.current_area = case.statement = None
+                audit.record(session, actor=None, action="retention.case_shredded", target_type="verification_case", target_id=case.id, metadata={"files": len(files)})
+                cases_shredded += 1
             else:
                 audit.record(session, actor=None, action="retention.evidence_purged", target_type="verification_case", target_id=case.id, metadata={"files": len(files)})
-                case.purge_after = None
+            case.purge_after = None
             session.commit()
-    return {"evidence_files": evidence_files, "cases": cases_deleted}
+    return {"evidence_files": evidence_files, "cases": cases_shredded}
 
 
 REJECTED_REVIEW_DAYS = 30

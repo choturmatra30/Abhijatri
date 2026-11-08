@@ -27,6 +27,15 @@ const VerifyEmailPage = page(() => import('./pages/VerifyEmailPage'), 'VerifyEma
 const ForgotPasswordPage = page(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
 const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 const VerificationPage = page(() => import('./pages/VerificationPage'), 'VerificationPage');
+const ToursPage = page(() => import('./pages/ToursPage'), 'ToursPage');
+const FindToursPage = page(() => import('./pages/ToursPage'), 'FindToursPage');
+const CreateTourPage = page(() => import('./pages/ToursPage'), 'CreateTourPage');
+const TourDetailPage = page(() => import('./pages/ToursPage'), 'TourDetailPage');
+const TourCodePage = page(() => import('./pages/ToursPage'), 'TourCodePage');
+const TourPreferencesPage = page(() => import('./pages/ToursPage'), 'TourPreferencesPage');
+const FindPeoplePage = page(() => import('./pages/ToursPage'), 'FindPeoplePage');
+const TourRequestsPage = page(() => import('./pages/ToursPage'), 'TourRequestsPage');
+const TourInvitationsPage = page(() => import('./pages/ToursPage'), 'TourInvitationsPage');
 const AppealsPage = page(() => import('./pages/AppealsPage'), 'AppealsPage');
 const MyReportsPage = page(() => import('./pages/MyReportsPage'), 'MyReportsPage');
 const MyReviewsPage = page(() => import('./pages/MyReviewsPage'), 'MyReviewsPage');
@@ -85,7 +94,19 @@ export const App: React.FC = () => {
                 <Route path="reviews/write" element={<WriteReviewPage />} />
                 <Route path="reviews/receipt" element={<ReviewReceiptPage />} />
                 <Route path="health" element={<HealthCheckPage />} />
-                <Route path="account/verification" element={<VerificationPage />} />
+                <Route path="verify" element={<VerificationPage />} />
+                <Route path="verify/status" element={<VerificationPage />} />
+                <Route path="account/verification" element={<Navigate to="/verify" replace />} />
+                <Route path="tours" element={<ToursPage />} />
+                <Route path="tours/find" element={<FindToursPage />} />
+                <Route path="tours/find/people" element={<FindPeoplePage />} />
+                <Route path="tours/new" element={<CreateTourPage />} />
+                <Route path="tours/preferences" element={<TourPreferencesPage />} />
+                <Route path="tours/requests" element={<TourRequestsPage />} />
+                <Route path="tours/invitations" element={<TourInvitationsPage />} />
+                <Route path="tours/:publicId" element={<TourDetailPage />} />
+                <Route path="tours/:publicId/:tab" element={<TourDetailPage />} />
+                <Route path="t/:code" element={<TourCodePage />} />
                 <Route path="account" element={<Navigate to="/account/reviews" replace />} />
                 <Route path="account/reviews" element={<MyReviewsPage />} />
                 <Route path="account/reviews/:id" element={<ReviewDetailPage />} />

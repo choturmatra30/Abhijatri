@@ -10,6 +10,8 @@ accepted, and raises ``SendAmbiguous`` when it may have been (a timeout after th
 """
 
 import base64
+import logging
+import re
 import smtplib
 import ssl
 import threading
@@ -17,11 +19,13 @@ import time
 from dataclasses import dataclass, field
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class SendFailed(Exception):
@@ -241,13 +245,11 @@ class GmailProvider:
         settings = get_settings()
         message = EmailMessage()
         message["From"] = settings.email_from
-        message["Reply-To"] = settings.email_from_address
         message["To"] = email.to
         message["Subject"] = email.subject
         message["Date"] = formatdate(localtime=False, usegmt=True)
-        sender_domain = settings.email_from_address.rpartition("@")[2]
-        message["Message-ID"] = make_msgid(domain=sender_domain or "localhost")
-        message["X-Abhijatri-Key"] = email.idempotency_key
+        # No Message-ID, Reply-To or custom X- headers: Gmail assigns its own Message-ID, and one made up
+        # here for @gmail.com reads as forged to spam filters. Reply-To equal to From only adds noise.
         message.set_content(email.text)
         message.add_alternative(email.html, subtype="html")
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
@@ -267,16 +269,34 @@ class GmailProvider:
         return str(response.json().get("id", ""))
 
 
+_UNSAFE_LINK = re.compile(r"http://|//localhost\b|//127\.0\.0\.1\b|//\[::1\]", re.IGNORECASE)
+
+
+class LinkGuard:
+    """Wraps every provider that delivers to real inboxes. A message linking to ``localhost`` or to plain
+    ``http://`` is refused permanently instead of sent: inbox providers treat such links as a strong spam
+    signal, and every one sent lowers the reputation of the sending address the live site also uses.
+    Local development should use ``EMAIL_PROVIDER=mailpit`` (the local inbox), which is never wrapped."""
+
+    def __init__(self, inner: Provider) -> None:
+        self._inner = inner
+        self.name = inner.name
+
+    def send(self, email: Email) -> str:
+        if _UNSAFE_LINK.search(email.text) or _UNSAFE_LINK.search(email.html):
+            logger.warning(
+                "email not sent via %s: it links to localhost or plain http (FRONTEND_BASE_URL / STAFF_BASE_URL). "
+                "Use EMAIL_PROVIDER=mailpit for local development.", self._inner.name,
+            )
+            raise SendFailed("unsafe link in a real email", permanent=True, code="unsafe_link")
+        return self._inner.send(email)
+
+
 def get_provider() -> Provider | None:
     provider = get_settings().email_provider
     if provider == "mailpit":
         return MailpitProvider()
-    if provider == "resend":
-        return ResendProvider()
-    if provider == "smtp":
-        return SmtpProvider()
-    if provider == "brevo":
-        return BrevoProvider()
-    if provider == "gmail":
-        return GmailProvider()
+    real: dict[str, type[Any]] = {"resend": ResendProvider, "smtp": SmtpProvider, "brevo": BrevoProvider, "gmail": GmailProvider}
+    if provider in real:
+        return LinkGuard(real[provider]())
     return None

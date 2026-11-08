@@ -24,7 +24,7 @@ afterEach(async () => {
 describe('offline database', () => {
   it('creates the packs, drafts and meta stores', async () => {
     const result = await withDb(async (db) => [...db.objectStoreNames].sort());
-    expect(result).toEqual({ ok: true, value: ['drafts', 'meta', 'packs'] });
+    expect(result).toEqual({ ok: true, value: ['chat_messages', 'chat_outbox', 'drafts', 'meta', 'packs'] });
   });
 
   it('stores and reads a pack by destination id', async () => {

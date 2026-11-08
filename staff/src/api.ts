@@ -29,6 +29,9 @@ import type {
   Summary,
   Task,
   UserHit,
+  StaffTourCard,
+  StaffTourDetail,
+  VerificationDetails,
 } from './types';
 
 /**
@@ -311,11 +314,21 @@ export const getSummary = () => send<Summary>('/api/v1/admin/monitoring/summary'
 
 export const transitionVerification = (
   caseId: string,
-  input: { to: string; expectedVersion: number; reasonCode: string; note?: string; taskId: string; leaseToken: string },
+  input: {
+    to: string; expectedVersion: number; reasonCode: string; note?: string; taskId: string; leaseToken: string;
+    checklist?: string[]; attributes?: { gender: string; birth_year: number; is_student: boolean; student_until?: string };
+    steps?: string[];
+  },
 ) =>
   write<{ case_id: string; state: string; version: number }>(`/api/v1/admin/verification-cases/${caseId}/transition`, {
-    body: { to: input.to, expected_version: input.expectedVersion, reason_code: input.reasonCode, note: input.note || undefined, task_id: input.taskId, lease_token: input.leaseToken },
+    body: {
+      to: input.to, expected_version: input.expectedVersion, reason_code: input.reasonCode,
+      note: input.note || undefined, task_id: input.taskId, lease_token: input.leaseToken,
+      checklist: input.checklist, attributes: input.attributes, steps: input.steps,
+    },
   });
+
+export const getVerificationDetails = (caseId: string) => send<VerificationDetails>(`/api/v1/admin/verification-cases/${caseId}`, {});
 
 export const evidenceUrl = (caseId: string, evidenceId: string) =>
   write<{ url: string; expires_in: number; content_type: string }>(`/api/v1/admin/verification-cases/${caseId}/evidence/${evidenceId}/url`, {});
@@ -343,3 +356,23 @@ export const enforcementAction = (
   caseId: string,
   input: { action: 'remove' | 'restore' | 'close' | 'reverse_sanction'; expected_version: number; reason_code: string; note?: string; counts_toward_rating?: boolean; sanction_id?: string },
 ) => write<{ case_id: string; state: string; version: number }>(`/api/v1/admin/enforcement-cases/${caseId}/actions`, { body: input });
+
+// ---- Tour Operations (Verified Users Interface 16) ----
+
+export const searchStaffTours = (filters: { q?: string; lifecycle?: string; flag?: string }) =>
+  send<{ items: StaffTourCard[] }>('/api/v1/admin/tours', { query: filters });
+export const getStaffTour = (publicId: string) => send<StaffTourDetail>(`/api/v1/admin/tours/${publicId}`, {});
+export const suspendStaffTour = (publicId: string, reasonCode: string, note?: string) =>
+  write<StaffTourCard>(`/api/v1/admin/tours/${publicId}/suspend`, { body: { reason_code: reasonCode, note } });
+export const restoreStaffTour = (publicId: string, reasonCode: string) =>
+  write<StaffTourCard>(`/api/v1/admin/tours/${publicId}/restore`, { body: { reason_code: reasonCode } });
+export const cancelStaffTour = (publicId: string, reasonCode: string, note?: string) =>
+  write<{ state: string; action_id?: string; public_id?: string }>(`/api/v1/admin/tours/${publicId}/cancel`, { body: { reason_code: reasonCode, note } });
+export const removeStaffTourMember = (publicId: string, memberId: string, reasonCode: string) =>
+  write<StaffTourCard>(`/api/v1/admin/tours/${publicId}/members/${memberId}/remove`, { body: { reason_code: reasonCode } });
+export const restrictTourUser = (userId: string, reasonCode: string, days: number) =>
+  write<{ restricted: boolean; until: string }>(`/api/v1/admin/tours/users/${userId}/restrict`, { body: { reason_code: reasonCode, days } });
+export const grantTourBreakglass = (publicId: string, reason: string, scope: string[]) =>
+  write<{ id: string; scope: string[]; expires_at: string }>(`/api/v1/admin/tours/${publicId}/breakglass`, { body: { reason, scope } });
+export const getTourPrivateView = (publicId: string, scope: 'chat' | 'safety' | 'expenses') =>
+  send<{ scope: string; items: unknown }>(`/api/v1/admin/tours/${publicId}/private/${scope}`, {});

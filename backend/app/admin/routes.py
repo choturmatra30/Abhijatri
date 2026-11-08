@@ -284,14 +284,23 @@ def _case_summary(session: Session, task: ModerationTask) -> dict[str, Any] | No
             return None
         applicant = session.get(User, case.applicant_user_id)
         evidence = session.scalars(select(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status == "uploaded"))
+        # Queue summary only: no legal name, birth date or document number here (those are on the review
+        # screen, for the claim holder, audited). Sign-up form 6.1 and 7.
         return {
             "kind": "verification",
             "case_id": str(case.id),
             "state": case.state,
+            "purpose": case.purpose,
             "version": case.version,
             "statement": case.statement,
             "applicant": {"display_name": applicant.display_name, "email": applicant.email} if applicant else None,
-            "evidence": [{"id": str(e.id), "content_type": e.content_type} for e in evidence],
+            "evidence": [{"id": str(e.id), "content_type": e.content_type, "kind": e.kind, "flags": e.flags or []} for e in evidence],
+            "doc_type": case.doc_type,
+            "occupation": case.occupation,
+            "is_student": case.is_student_claim,
+            "risk_flags": case.risk_flags or [],
+            "legacy": case.doc_type is None and case.purpose == "initial",
+            "submitted_at": case.submitted_at.isoformat() if case.submitted_at else None,
             "created_at": case.created_at.isoformat(),
         }
     if task.task_type == "appeal":
@@ -817,6 +826,13 @@ def change_staff_role(user_id: uuid.UUID, body: RoleBody, request: Request, prin
 # ---- verification cases (spec 6.2, 7.1) ----
 
 
+class VerificationAttributesBody(_Body):
+    gender: str | None = Field(default=None, pattern="^(FEMALE|MALE|THIRD)$")
+    birth_year: int | None = Field(default=None, ge=1900, le=2100)
+    is_student: bool = False
+    student_until: date | None = None
+
+
 class VerificationTransitionBody(_Body):
     to: str = Field(pattern="^(in_review|needs_clarification|approved|rejected|escalated)$")
     expected_version: int = Field(ge=1)
@@ -824,17 +840,79 @@ class VerificationTransitionBody(_Body):
     note: str | None = Field(default=None, max_length=500)
     task_id: uuid.UUID
     lease_token: uuid.UUID
+    # approved: the checklist the moderator ticked and the attributes set from the documents (sign-up form 6)
+    checklist: list[str] | None = Field(default=None, max_length=12)
+    attributes: VerificationAttributesBody | None = None
+    # needs_clarification: which steps the applicant must redo
+    steps: list[str] | None = Field(default=None, max_length=7)
 
 
 @router.post("/verification-cases/{case_id}/transition")
 def verification_transition(case_id: uuid.UUID, body: VerificationTransitionBody, request: Request, principal: Staff, session: DbSession) -> dict[str, Any]:
+    attributes = body.attributes.model_dump(mode="json") if body.attributes else None
     return _run(
         session, principal, request, "verification.transition", "verification_case", case_id,
         lambda: cases.staff_verification_transition(
             session, principal, case_id=case_id, to=body.to, expected_version=body.expected_version, task_id=body.task_id,
             lease_token=body.lease_token, reason_code=body.reason_code, note=body.note, request_id=_request_id(request),
+            steps=body.steps, attributes=attributes, checklist=body.checklist,
         ),
     )
+
+
+@router.get("/verification-cases/{case_id}")
+def verification_details(case_id: uuid.UUID, request: Request, principal: Staff, session: DbSession) -> dict[str, Any]:
+    """The review screen: entered details, evidence list, flags. Lease holder or superadmin; audited."""
+    try:
+        result = cases.verification_details(session, principal, case_id, request_id=_request_id(request))
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
+
+
+@router.get("/verification-cases/{case_id}/evidence/{evidence_id}/content")
+def evidence_content(
+    case_id: uuid.UUID, evidence_id: uuid.UUID, principal: Staff, session: DbSession, storage: StorageDep,
+    expires: Annotated[int, Query()], token: Annotated[str, Query(max_length=128)],
+) -> Response:
+    """The decrypted, watermarked evidence image behind a 60-second link. Never cached, never a download."""
+    try:
+        jpeg = cases.evidence_content(session, storage, principal, case_id, evidence_id, expires=expires, token=token)
+    except StorageUnavailable as error:
+        raise ApiError("SERVICE_UNAVAILABLE", headers={"Retry-After": "5"}) from error
+    return Response(
+        content=jpeg, media_type="image/jpeg",
+        headers={"Cache-Control": "no-store", "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+class VerificationReopenBody(_Body):
+    reason_code: str = Field(min_length=2, max_length=60)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/verification-cases/{case_id}/reopen")
+def verification_reopen(case_id: uuid.UUID, body: VerificationReopenBody, request: Request, principal: Superadmin, session: DbSession) -> dict[str, Any]:
+    return _run(
+        session, principal, request, "verification.reopen", "verification_case", case_id,
+        lambda: cases.reopen_verification(session, principal, case_id, body.reason_code, body.note, _request_id(request)),
+    )
+
+
+@router.get("/verification-bans")
+def verification_bans(principal: Superadmin, session: DbSession) -> dict[str, Any]:
+    return {"items": cases.list_bans(session)}
+
+
+class LiftBanBody(_Body):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/verification-bans/{ban_id}/lift")
+def lift_verification_ban(ban_id: uuid.UUID, body: LiftBanBody, request: Request, principal: Superadmin, session: DbSession) -> dict[str, Any]:
+    return _run(session, principal, request, "verification.ban_lift", "verification_ban", ban_id, lambda: cases.lift_ban(session, principal, ban_id, body.reason, _request_id(request)))
 
 
 @router.post("/verification-cases/{case_id}/evidence/{evidence_id}/url")

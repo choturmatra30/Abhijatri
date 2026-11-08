@@ -251,6 +251,30 @@ Enums: `destination_status`, `source_type`, `guide_category`, `advisory_severity
 
 ## 3. Planned tables (not yet migrated)
 
+### 2.1 Verified Member application and Tours (migrations 0023–0024)
+
+Verification adds `institutions`, `phone_numbers`, `verification_attributes`,
+`emergency_contacts_default`, `verification_bans`, and `one_time_codes`.
+Identity eligibility used by Tours comes only from `verification_attributes`;
+phone, legal-name, birth-date, document-number and emergency-contact values are
+sealed or hashed as described in the verification specification.
+
+Tours core adds `user_blocks`, `tours`, `tour_destinations`, `tour_members`,
+`tour_join_requests`, `tour_changes`, `tour_invitations`,
+`invitation_optouts`, `travel_preferences`, `discovery_settings`, and
+`abuse_signals`. The database enforces capacity, one creator, one active
+membership, one pending request/invitation, immutable `confirmed_at`, and the
+extended moderation subject checks.
+
+Tours P1 adds `chat_channels`, `chat_messages`, `chat_reads`,
+`itinerary_items`, `itinerary_suggestions`, `expenses`, `expense_shares`,
+`expense_history`, `settlements`, `safety_profiles`, `meeting_points`,
+`checkins`, `checkin_answers`, `sos_events`, `tour_reports`,
+`breakglass_grants`, and `tour_staff_actions`. Expense shares are checked by a
+deferred constraint trigger. Safety fields are envelope-encrypted and
+crypto-shredded by retention. Every new table has RLS enabled and no Data API
+grants.
+
 | Table | Needed by | Notes |
 |---|---|---|
 | `auth_identities` | R04 | Password hash (Argon2id), email-verification and reset token digests with expiry. |

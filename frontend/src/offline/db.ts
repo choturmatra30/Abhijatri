@@ -3,13 +3,13 @@ import type { PackDocument } from '../types';
 
 /*
  * The app's IndexedDB database (R13, R15; Offline-Frontend-Guideline 4.2). This is the only file that
- * touches IndexedDB directly. PF 18.1: it may hold only pack data, the user's own drafts (with the
- * receipt of an unsent draft), the guest scope secret and the language preference. Never sessions,
- * auth responses, staff data or anything marked `no-store`.
+ * touches IndexedDB directly. It holds public packs, the user's own drafts, and the Tours chat rows
+ * and unsent messages explicitly allowed by the Tours offline design. Never sessions, tokens,
+ * verification evidence, safety data, staff data, or arbitrary `no-store` responses.
  */
 
 export const DB_NAME = 'abhijatri-offline';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /** A verified destination pack as stored on the device. */
 export interface StoredPack {
@@ -33,10 +33,28 @@ export interface DraftRecord {
   [field: string]: unknown;
 }
 
+export interface StoredChatMessage {
+  tour_id: string;
+  seq: number;
+  message: Record<string, unknown>;
+  cached_at: string;
+}
+
+export interface ChatOutboxRecord {
+  client_msg_id: string;
+  tour_id: string;
+  body: string;
+  created_at: string;
+  state: 'PENDING' | 'SENDING' | 'FAILED';
+  error?: string;
+}
+
 interface OfflineDb extends DBSchema {
   packs: { key: string; value: StoredPack };
   drafts: { key: string; value: DraftRecord; indexes: { by_state: string } };
   meta: { key: string; value: unknown };
+  chat_messages: { key: [string, number]; value: StoredChatMessage; indexes: { by_tour: string } };
+  chat_outbox: { key: string; value: ChatOutboxRecord; indexes: { by_tour: string; by_state: string } };
 }
 
 export type OfflineDatabase = IDBPDatabase<OfflineDb>;
@@ -59,6 +77,13 @@ function open(): Promise<OfflineDatabase> {
           const drafts = db.createObjectStore('drafts', { keyPath: 'client_draft_id' });
           drafts.createIndex('by_state', 'state');
           db.createObjectStore('meta');
+        }
+        if (oldVersion < 2) {
+          const messages = db.createObjectStore('chat_messages', { keyPath: ['tour_id', 'seq'] });
+          messages.createIndex('by_tour', 'tour_id');
+          const outbox = db.createObjectStore('chat_outbox', { keyPath: 'client_msg_id' });
+          outbox.createIndex('by_tour', 'tour_id');
+          outbox.createIndex('by_state', 'state');
         }
       },
       // Another tab opened a newer version: let it upgrade, and reopen on the next call.

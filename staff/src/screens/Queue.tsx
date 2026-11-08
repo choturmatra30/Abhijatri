@@ -251,6 +251,9 @@ const TYPE_LABEL: Record<QueueItem['task_type'], [string, string]> = {
   verification: ['যাচাই', 'Verification'],
   appeal: ['আপিল', 'Appeal'],
   enforcement: ['এনফোর্সমেন্ট', 'Enforcement'],
+  tour_report: ['ট্যুর রিপোর্ট', 'Tour report'],
+  chat_report: ['চ্যাট রিপোর্ট', 'Chat report'],
+  tour_safety: ['ট্যুর নিরাপত্তা', 'Tour safety'],
 };
 
 interface DetailProps {
