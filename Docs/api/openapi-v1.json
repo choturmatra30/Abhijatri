@@ -7542,6 +7542,64 @@
         ]
       }
     },
+    "/api/v1/admin/tours/reports/{report_id}/resolve": {
+      "post": {
+        "description": "Close a tour, chat or SOS report task (lease required); the chosen action runs in the same transaction.",
+        "operationId": "resolve_report_api_v1_admin_tours_reports__report_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resolve Report Api V1 Admin Tours Reports  Report Id  Resolve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Report",
+        "tags": [
+          "tour-operations"
+        ]
+      }
+    },
     "/api/v1/admin/tours/users/{user_id}/restrict": {
       "post": {
         "operationId": "restrict_user_api_v1_admin_tours_users__user_id__restrict_post",

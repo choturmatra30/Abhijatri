@@ -979,7 +979,7 @@ Safety and chat paths:
 
 Tour Operations paths:
 
-`/admin/tours`, `/admin/tours/{public_id}`,
+`/admin/tours`, `/admin/tours/reports/{report_id}/resolve`, `/admin/tours/{public_id}`,
 `/admin/tours/{public_id}/suspend`, `/admin/tours/{public_id}/restore`,
 `/admin/tours/{public_id}/cancel`,
 `/admin/tours/{public_id}/members/{member_id}/remove`,

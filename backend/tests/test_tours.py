@@ -198,3 +198,49 @@ def test_permission_matrix_matches_spec_table() -> None:
     assert not policy.can("TOURMATE", "tour.approve")
     assert policy.can("TOURMATE", "expense.add")
     assert not policy.can("TOURMATE", "safety.meeting_points")
+
+
+def test_chat_and_tour_reports_reach_the_staff_queue_and_resolve_under_lease(
+    client: TestClient, postgres_session: Session, fake: support.FakeGoTrue
+) -> None:
+    place = destination(postgres_session)
+    owner = verified(client, postgres_session, fake, "owner@example.com", "203.0.113.190")
+    member = verified(client, postgres_session, fake, "member2@example.com", "203.0.113.191")
+    tour = create_and_publish(owner, place, minimum=2)
+    join_and_approve(owner, member, tour["public_id"])
+    sent = member.post(f"/api/v1/tours/{tour['public_id']}/messages", json={"client_msg_id": str(uuid.uuid4()), "body": "rude words"})
+    assert sent.status_code == 201, sent.text
+    seq = sent.json()["seq"]
+
+    # the default reason ("other") is accepted for both report kinds; it used to be "OTHER" and fail validation
+    assert owner.post(f"/api/v1/tours/{tour['public_id']}/reports", json={"details": "Check this tour"}).status_code == 201
+    reported = owner.post(f"/api/v1/tours/{tour['public_id']}/messages/{seq}/report", json={"reason_code": "harassment", "details": "Rude"})
+    assert reported.status_code == 201, reported.text
+
+    moderator = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.192")
+    queue = moderator.get("/api/v1/admin/queue")
+    assert queue.status_code == 200, queue.text
+    task = next(item for item in queue.json()["items"] if item["task_type"] == "chat_report")
+    subject = task["subject"]
+    assert subject["kind"] == "tour_report" and subject["tour"]["public_id"] == tour["public_id"]
+    assert subject["reported_user"]["display_name"] and any(line["reported"] and line["body"] == "rude words" for line in subject["context"])
+    assert any(item["task_type"] == "tour_report" and item["subject"] for item in queue.json()["items"])
+
+    report_id = subject["report_id"]
+    no_lease = moderator.post(f"/api/v1/admin/tours/reports/{report_id}/resolve", json={"action": "hide_message", "task_id": task["id"], "lease_token": str(uuid.uuid4())})
+    assert no_lease.status_code == 409 and no_lease.json()["error"]["code"] == "LEASE_LOST"
+
+    claimed = moderator.post(f"/api/v1/admin/tasks/{task['id']}/claim")
+    assert claimed.status_code == 200, claimed.text
+    resolved = moderator.post(
+        f"/api/v1/admin/tours/reports/{report_id}/resolve",
+        json={"action": "hide_message", "reason_code": "harassment", "note": "Rude message", "task_id": task["id"], "lease_token": claimed.json()["lease_token"]},
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["state"] == "actioned" and resolved.json()["hidden"]
+    history = owner.get(f"/api/v1/tours/{tour['public_id']}/messages").json()["items"]
+    assert next(item for item in history if item["seq"] == seq)["body"] in (None, "")
+    after = moderator.get("/api/v1/admin/queue").json()["items"]
+    assert all(item["id"] != task["id"] for item in after)
+    again = moderator.post(f"/api/v1/admin/tours/reports/{report_id}/resolve", json={"action": "dismiss", "task_id": task["id"], "lease_token": claimed.json()["lease_token"]})
+    assert again.status_code == 409

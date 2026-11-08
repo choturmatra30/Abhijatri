@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.sessions import Principal, staff_principal
 from app.db import get_session
+from app.errors import ApiError
 from app.tours import service, tour_ops
 
 DbSession = Annotated[Session, Depends(get_session)]
@@ -30,6 +31,19 @@ def _commit[T](session: Session, work: Callable[[], T]) -> T:
     except Exception:
         session.rollback()
         raise
+
+
+@router.post("/reports/{report_id}/resolve")
+def resolve_report(report_id: uuid.UUID, body: dict[str, Any], principal: Staff, session: DbSession) -> dict[str, Any]:
+    """Close a tour, chat or SOS report task (lease required); the chosen action runs in the same transaction."""
+    try:
+        task_id, lease = uuid.UUID(str(body["task_id"])), uuid.UUID(str(body["lease_token"]))
+    except (KeyError, ValueError) as error:
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "lease_token", "code": "REQUIRED"}]) from error
+    return _commit(session, lambda: tour_ops.resolve_report(
+        session, principal, report_id, task_id=task_id, lease_token=lease, action=str(body.get("action") or "dismiss"),
+        reason_code=str(body.get("reason_code") or "other"), note=body.get("note"), days=int(body.get("days") or 7),
+    ))
 
 
 @router.get("")

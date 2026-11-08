@@ -305,7 +305,7 @@ def approve_request(public_id: str, request_id: uuid.UUID, principal: Writer, se
 def decline_request(public_id: str, request_id: uuid.UUID, body: dict[str, Any], principal: Writer, session: DbSession, idempotency_key: idem.KeyHeader = None) -> Any:
     viewer = _viewer(session, principal)
     tour = _tour(session, viewer, public_id)
-    return _idempotent(session, principal, idempotency_key, idem.Endpoint.TOUR_DECIDE, {"public_id": public_id, "request_id": request_id}, body, lambda: _request_result(service.decline_request(session, viewer, tour.id, request_id, str(body.get("reason_code") or "OTHER"))))
+    return _idempotent(session, principal, idempotency_key, idem.Endpoint.TOUR_DECIDE, {"public_id": public_id, "request_id": request_id}, body, lambda: _request_result(service.decline_request(session, viewer, tour.id, request_id, str(body.get("reason_code") or "OTHER").upper())))
 
 
 @router.post("/tours/{public_id}/leave")
@@ -319,7 +319,7 @@ def leave_tour(public_id: str, body: dict[str, Any], principal: Writer, session:
 def remove_member(public_id: str, member_id: uuid.UUID, body: dict[str, Any], principal: Writer, session: DbSession) -> dict[str, Any]:
     viewer = _viewer(session, principal)
     tour = _tour(session, viewer, public_id)
-    return _commit(session, lambda: service.card(session, service.remove_member(session, viewer, tour.id, member_id, str(body.get("reason_code") or "OTHER"))))
+    return _commit(session, lambda: service.card(session, service.remove_member(session, viewer, tour.id, member_id, str(body.get("reason_code") or "OTHER").upper())))
 
 
 @router.post("/tours/{public_id}/members/{member_id}/role")
@@ -585,7 +585,7 @@ def report_tour(public_id: str, body: dict[str, Any], principal: Writer, session
 
     def work() -> dict[str, Any]:
         subject_id = uuid.UUID(str(body["subject_id"])) if body.get("subject_id") else None
-        item = reports.report_tour(session, viewer, tour, subject_kind=str(body.get("subject_kind") or "TOUR"), subject_id=subject_id, reason_code=str(body.get("reason_code") or "OTHER"), details=body.get("details"))
+        item = reports.report_tour(session, viewer, tour, subject_kind=str(body.get("subject_kind") or "TOUR"), subject_id=subject_id, reason_code=str(body.get("reason_code") or "other").lower(), details=body.get("details"))
         return {"id": str(item.id), "state": item.state}
 
     return _commit(session, work)
@@ -597,7 +597,7 @@ def report_message(public_id: str, seq: int, body: dict[str, Any], principal: Wr
     tour = _tour(session, viewer, public_id)
 
     def work() -> dict[str, Any]:
-        item = chat.report(session, viewer, tour, seq, str(body.get("reason_code") or "OTHER"), body.get("details"))
+        item = chat.report(session, viewer, tour, seq, str(body.get("reason_code") or "other").lower(), body.get("details"))
         return {"id": str(item.id), "state": item.state}
 
     return _commit(session, work)

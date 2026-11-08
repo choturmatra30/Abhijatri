@@ -447,7 +447,7 @@ def verification_details(session: Session, principal: Principal, case_id: uuid.U
             "email_verified": case.institution_email_verified,
             "max_student_until": _student_limit(case, _now()).isoformat(),
         } if case.is_student_claim else None,
-        "liveness": {"code": case.liveness_code, "gesture": case.liveness_gesture, "gesture_en": (view.get("liveness") or {}).get("gesture_en")} if case.liveness_code else None,
+        "liveness": {"code": case.liveness_code, "gesture": case.liveness_gesture, "gesture_en": next((g[2] for g in service.GESTURES if g[0] == case.liveness_gesture), None)} if case.liveness_code else None,
         "evidence": [
             {"id": str(e.id), "kind": e.kind, "flags": e.flags or [], "challenge": e.challenge, "created_at": e.created_at.isoformat(), "sealed": e.sealed_key is not None}
             for e in evidence

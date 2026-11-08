@@ -1616,3 +1616,14 @@ Not built: P2/P3 chat media, polls, post-tour feedback, learned matching, a
 real SMS provider, KMS/Vault integration, ClamAV/libvips/OCR/NID partner checks,
 Playwright and k6 release suites. Production flags remain off until the UI and
 manual Chrome handover are accepted.
+
+## 9. Three-role Chrome run and report handling (8 November 2026)
+
+Full record, test cases and defect list: [Testing-and-Implementation-Irfan.md](Testing-and-Implementation-Irfan.md).
+
+- Queue summaries for `tour_report`, `chat_report` and `tour_safety` tasks (`tour_ops.report_summary`, wired in `admin/routes._case_summary`).
+- `POST /api/v1/admin/tours/reports/{report_id}/resolve`: actions `dismiss`, `noted`, `hide_message`, `restrict_user`, `suspend_tour`; requires the task lease; audited as `tour.report_resolved` (registered in `audit_actions.py` and `tests/test_audit_log.py`).
+- Tour and chat report reason codes are normalised to lower case (`other` default).
+- Staff verification details read the liveness gesture from the challenge table.
+- Test `test_chat_and_tour_reports_reach_the_staff_queue_and_resolve_under_lease`; 22 tours and verification tests pass, `ruff` and `mypy` clean.
+- Full backend suite after the fixes: 890 tests, 888 passed on the first run; the 2 failures were the OpenAPI snapshot and the `API.md` route list, both updated for the new resolve route and re-run green.

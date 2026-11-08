@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { decideAppeal, enforcementAction, evidenceUrl, getVerificationDetails, transitionVerification } from '../api';
+import { API_BASE, decideAppeal, enforcementAction, evidenceUrl, getVerificationDetails, transitionVerification } from '../api';
 import { enforcementActions, verificationMoves, type VerificationMove } from '../logic';
 import type { AppealSubject, EnforcementSubject, Lang, QueueItem, Role, VerificationDetails, VerificationSubject } from '../types';
 import { Notice, makeT } from '../ui';
@@ -26,11 +26,23 @@ export function VerificationBody({ subject, lang, canView, run }: { subject: Ver
   useEffect(() => {
     if (canView) void getVerificationDetails(subject.case_id).then(setDetails).catch(() => setDetails(null));
   }, [canView, subject.case_id]);
-  const open = (evidenceId: string) =>
+  const [preview, setPreview] = useState<{ id: string; kind: string; src: string } | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.src); }, [preview]);
+  // The image is fetched with the staff session and shown in the panel from memory: no new tab, no file to
+  // save (sign-up form 6.1). The server watermarks it with the reviewer's id and audits every view.
+  const open = (evidenceId: string, kind: string) =>
     run(async () => {
       const link = await evidenceUrl(subject.case_id, evidenceId);
-      window.open(link.url, '_blank', 'noopener,noreferrer');
-      return t('৬০ সেকেন্ডের জন্য গোপন লিংক খোলা হয়েছে (অডিট লগে লেখা হলো)।', 'A private link opened for 60 seconds (recorded in the audit log).');
+      const url = new URL(link.url, `${API_BASE}/`).toString();
+      const response = await fetch(url, { credentials: 'include', cache: 'no-store' });
+      if (!response.ok) throw new Error(`evidence ${response.status}`);
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) {
+        window.open(url, '_blank', 'noopener,noreferrer'); // an old unsealed file (PDF): the 60-second link
+        return t('৬০ সেকেন্ডের জন্য গোপন লিংক খোলা হয়েছে (অডিট লগে লেখা হলো)।', 'A private link opened for 60 seconds (recorded in the audit log).');
+      }
+      setPreview({ id: evidenceId, kind, src: URL.createObjectURL(blob) });
+      return t('ছবিটি দেখানো হচ্ছে (অডিট লগে লেখা হলো)।', 'Showing the image (recorded in the audit log).');
     });
   return (
     <div className="content-box">
@@ -58,11 +70,20 @@ export function VerificationBody({ subject, lang, canView, run }: { subject: Ver
         <strong>{t('প্রমাণ', 'Evidence')}:</strong>
         {subject.evidence.length === 0 && <span className="muted">{t('এখনো কোনো ফাইল নেই', 'no file yet')}</span>}
         {subject.evidence.map((item, index) => (
-          <button key={item.id} type="button" className="ghost" disabled={!canView} onClick={() => void open(item.id)}>
+          <button key={item.id} type="button" className={preview?.id === item.id ? '' : 'ghost'} disabled={!canView} onClick={() => void open(item.id, item.kind || 'FILE')}>
             {item.kind || t('ফাইল', 'File')} {index + 1} ({item.content_type.split('/')[1]}) {item.flags.length ? `⚠ ${item.flags.join(', ')}` : ''}
           </button>
         ))}
       </div>
+      {preview && (
+        <figure className="evidence-preview" onContextMenu={(event) => event.preventDefault()}>
+          <img src={preview.src} alt={`${preview.kind} evidence`} draggable={false} style={{ maxWidth: '100%', maxHeight: 520, borderRadius: 12, display: 'block' }} />
+          <figcaption className="muted small">
+            {preview.kind} · {t('ওয়াটারমার্কযুক্ত; দেখা অডিট লগে লেখা হয়।', 'Watermarked; every view is in the audit log.')}{' '}
+            <button type="button" className="ghost" onClick={() => setPreview(null)}>{t('বন্ধ', 'Close')}</button>
+          </figcaption>
+        </figure>
+      )}
       {!canView && subject.evidence.length > 0 && <p className="muted small">{t('ফাইল দেখতে আগে কাজটি নিন।', 'Claim the task to view the files.')}</p>}
     </div>
   );

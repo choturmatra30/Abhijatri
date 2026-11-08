@@ -1,4 +1,5 @@
 /** Device-local chat cache and idempotent outbox for Tours. */
+import { ApiError } from '../api/client';
 import { postMessage, type ChatMessage } from '../api/tours';
 import { withDb, type ChatOutboxRecord } from './db';
 
@@ -44,6 +45,12 @@ export async function flushChatOutbox(tourId: string): Promise<number> {
       await withDb((db) => db.delete('chat_outbox', row.client_msg_id));
       sent += 1;
     } catch (error) {
+      // The server refused this message for good (read-only, suspended, removed, too long): drop it so it
+      // does not block the messages behind it, and tell the caller. Network errors, 408 and 429 stay queued.
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+        await withDb((db) => db.delete('chat_outbox', row.client_msg_id));
+        throw error;
+      }
       await withDb((db) => db.put('chat_outbox', { ...row, state: 'FAILED', error: error instanceof Error ? error.message : 'Send failed' }));
       break;
     }

@@ -34,7 +34,7 @@ FIXED = frozenset(
         "tour.request_approved", "tour.request_declined", "tour.member_removed",
         "tour.report_created", "tour.sos_raised", "tour.safety_revealed", "tour.safety_purged",
         "tour.suspended", "tour.restored", "tour.staff_cancel_requested", "tour.staff_cancelled",
-        "tour.message_hidden", "tour.user_restricted", "tour.breakglass_granted", "tour.breakglass_viewed",
+        "tour.message_hidden", "tour.user_restricted", "tour.breakglass_granted", "tour.breakglass_viewed", "tour.report_resolved",
     }
 )
 # Names built from a state or decision: `<prefix>.<suffix>`.

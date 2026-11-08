@@ -1,94 +1,115 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
-  <title id="title">Abhijatri main use-case diagram</title>
-  <desc id="desc">Minimal UML use-case diagram for Guests, Members, Verified Members, Moderators and Superadmins.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Abhijatri generic use-case diagram</title>
+  <desc id="desc">Layered UML use-case diagram following the supplied template, with Traveler and Administrator actors and include and extend relationships.</desc>
   <defs>
     <style>
-      .actor { fill: none; stroke: #111827; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-      .actor-label { fill: #111827; font: 700 19px Arial, sans-serif; text-anchor: middle; }
-      .boundary { fill: #79c9eb; stroke: #111827; stroke-width: 3; }
-      .boundary-title { fill: #111827; font: 700 25px Arial, sans-serif; text-anchor: middle; }
-      .section { fill: #0b4f6c; font: 700 16px Arial, sans-serif; letter-spacing: .6px; text-anchor: middle; }
-      .usecase { fill: #bfe8f8; stroke: #0b4f6c; stroke-width: 2.4; }
-      .usecase.staff { fill: #d8f0fa; }
-      .usecase-text { fill: #111827; font: 600 17px Arial, sans-serif; text-anchor: middle; }
-      .association { fill: none; stroke: #1f2937; stroke-width: 2; }
-      .generalization { fill: none; stroke: #1f2937; stroke-width: 2.2; marker-end: url(#hollowTriangle); }
-      .note { fill: #374151; font: 14px Arial, sans-serif; text-anchor: middle; }
+      .boundary { fill:#79c9eb; stroke:#111; stroke-width:2; }
+      .actor { fill:none; stroke:#111; stroke-width:2; stroke-linecap:round; }
+      .actor-label { fill:#111; font:15px Arial,sans-serif; text-anchor:middle; }
+      .system-title { fill:#111; font:16px Arial,sans-serif; text-anchor:middle; }
+      .usecase { fill:#79c9eb; stroke:#111; stroke-width:1.5; }
+      .parent { stroke-width:2.2; }
+      .usecase-text { fill:#111; font:14px Arial,sans-serif; text-anchor:middle; }
+      .parent-text { font-weight:700; }
+      .association { fill:none; stroke:#111; stroke-width:1.8; }
+      .relation { fill:none; stroke:#111; stroke-width:1.3; stroke-dasharray:7 5; marker-end:url(#openArrow); }
+      .relation-label { fill:#111; font:12px Arial,sans-serif; text-anchor:middle; }
+      .layer-label { fill:#17465e; font:700 12px Arial,sans-serif; letter-spacing:.7px; text-anchor:middle; }
     </style>
-    <marker id="hollowTriangle" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="strokeWidth">
-      <path d="M 1 1 L 13 7 L 1 13 Z" fill="#ffffff" stroke="#1f2937" stroke-width="1.4"/>
+    <marker id="openArrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M1,1 L11,6 L1,11" fill="none" stroke="#111" stroke-width="1.2"/>
     </marker>
   </defs>
 
-  <rect width="1920" height="1080" fill="#ffffff"/>
-  <text x="960" y="34" class="boundary-title">Use Case Diagram — Abhijatri</text>
-  <rect x="210" y="58" width="1500" height="960" class="boundary"/>
-  <text x="960" y="92" class="boundary-title">Abhijatri Platform</text>
+  <rect width="1600" height="1000" fill="#fff"/>
+  <rect x="180" y="45" width="1240" height="925" class="boundary"/>
+  <text x="800" y="69" class="system-title">Abhijatri Travel Platform</text>
+  <text x="390" y="91" class="layer-label">TRAVELER GOALS</text>
+  <text x="650" y="91" class="layer-label">INCLUDED / OPTIONAL TASKS</text>
+  <text x="1120" y="91" class="layer-label">PLATFORM ADMINISTRATION</text>
 
-  <text x="500" y="126" class="section">DISCOVERY &amp; REVIEWS</text>
-  <text x="960" y="126" class="section">VERIFIED TRAVEL &amp; TOURS</text>
-  <text x="1430" y="126" class="section">TRUST &amp; OPERATIONS</text>
+  <!-- Associations are deliberately simple, as in the supplied template. -->
+  <path d="M112 465 L180 465 L260 185 M180 465 L260 405 M180 465 L260 625 M180 465 L260 815" class="association"/>
+  <path d="M1488 465 L1420 465 L1300 465" class="association"/>
 
-  <!-- Guest and member use cases -->
-  <ellipse cx="500" cy="190" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="185" class="usecase-text"><tspan x="500">Explore Destinations</tspan><tspan x="500" dy="21">&amp; Advisories</tspan></text>
-  <ellipse cx="500" cy="315" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="310" class="usecase-text"><tspan x="500">Read Reviews</tspan><tspan x="500" dy="21">&amp; Ratings</tspan></text>
-  <ellipse cx="500" cy="440" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="446" class="usecase-text">Submit a Review</text>
-  <ellipse cx="500" cy="590" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="585" class="usecase-text"><tspan x="500">Manage Account</tspan><tspan x="500" dy="21">&amp; Profile</tspan></text>
-  <ellipse cx="500" cy="715" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="710" class="usecase-text"><tspan x="500">Manage Own Reviews</tspan><tspan x="500" dy="21">&amp; Media</tspan></text>
-  <ellipse cx="500" cy="840" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="835" class="usecase-text"><tspan x="500">Use Offline</tspan><tspan x="500" dy="21">Destination Packs</tspan></text>
-  <ellipse cx="500" cy="950" rx="190" ry="45" class="usecase"/>
-  <text x="500" y="945" class="usecase-text"><tspan x="500">Apply for Verified</tspan><tspan x="500" dy="21">Membership</tspan></text>
+  <!-- Layer 1: generic traveler goals. -->
+  <ellipse cx="390" cy="185" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="190" class="usecase-text parent-text">Explore Destinations</text>
 
-  <!-- Verified-member tour use cases -->
-  <ellipse cx="960" cy="210" rx="190" ry="45" class="usecase"/>
-  <text x="960" y="205" class="usecase-text"><tspan x="960">Discover &amp; Join</tspan><tspan x="960" dy="21">Tours</tspan></text>
-  <ellipse cx="960" cy="360" rx="190" ry="45" class="usecase"/>
-  <text x="960" y="355" class="usecase-text"><tspan x="960">Create &amp; Manage</tspan><tspan x="960" dy="21">Tours</tspan></text>
-  <ellipse cx="960" cy="510" rx="190" ry="45" class="usecase"/>
-  <text x="960" y="505" class="usecase-text"><tspan x="960">Coordinate Itinerary</tspan><tspan x="960" dy="21">&amp; Budget</tspan></text>
-  <ellipse cx="960" cy="660" rx="190" ry="45" class="usecase"/>
-  <text x="960" y="655" class="usecase-text"><tspan x="960">Use Tour Chat</tspan><tspan x="960" dy="21">&amp; Invitations</tspan></text>
-  <ellipse cx="960" cy="810" rx="190" ry="45" class="usecase"/>
-  <text x="960" y="805" class="usecase-text"><tspan x="960">Manage Tour Safety,</tspan><tspan x="960" dy="21">Check-ins &amp; SOS</tspan></text>
+  <ellipse cx="390" cy="405" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="410" class="usecase-text parent-text">Manage Account</text>
 
-  <!-- Staff use cases -->
-  <ellipse cx="1430" cy="210" rx="195" ry="45" class="usecase staff"/>
-  <text x="1430" y="205" class="usecase-text"><tspan x="1430">Moderate Reviews</tspan><tspan x="1430" dy="21">&amp; Reports</tspan></text>
-  <ellipse cx="1430" cy="380" rx="195" ry="45" class="usecase staff"/>
-  <text x="1430" y="375" class="usecase-text"><tspan x="1430">Review Verification</tspan><tspan x="1430" dy="21">Applications</tspan></text>
-  <ellipse cx="1430" cy="550" rx="195" ry="45" class="usecase staff"/>
-  <text x="1430" y="545" class="usecase-text"><tspan x="1430">Moderate Tours</tspan><tspan x="1430" dy="21">&amp; Safety Cases</tspan></text>
-  <ellipse cx="1430" cy="720" rx="195" ry="45" class="usecase staff"/>
-  <text x="1430" y="715" class="usecase-text"><tspan x="1430">Decide Appeals</tspan><tspan x="1430" dy="21">&amp; Enforcement</tspan></text>
-  <ellipse cx="1430" cy="890" rx="210" ry="50" class="usecase staff"/>
-  <text x="1430" y="884" class="usecase-text"><tspan x="1430">Manage Staff, Audit</tspan><tspan x="1430" dy="21">&amp; System Monitoring</tspan></text>
+  <ellipse cx="390" cy="625" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="630" class="usecase-text parent-text">Share Experience</text>
 
-  <!-- Associations: left actors -->
-  <path d="M 130 192 L 260 192 L 260 440 M 260 190 L 310 190 M 260 315 L 310 315 M 260 440 L 310 440" class="association"/>
-  <path d="M 130 505 L 260 505 L 260 950 M 260 590 L 310 590 M 260 715 L 310 715 M 260 840 L 310 840 M 260 950 L 310 950" class="association"/>
-  <path d="M 130 825 L 180 825 L 180 1005 L 730 1005 L 730 210 M 730 210 L 770 210 M 730 360 L 770 360 M 730 510 L 770 510 M 730 660 L 770 660 M 730 810 L 770 810" class="association"/>
+  <ellipse cx="390" cy="815" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="820" class="usecase-text parent-text">Participate in Tours</text>
 
-  <!-- Associations: right actors -->
-  <path d="M 1790 310 L 1665 310 L 1665 550 M 1665 210 L 1625 210 M 1665 380 L 1625 380 M 1665 550 L 1625 550" class="association"/>
-  <path d="M 1790 730 L 1670 730 L 1670 890 M 1670 720 L 1625 720 M 1670 890 L 1640 890" class="association"/>
+  <!-- Layer 2: traveler tasks. -->
+  <ellipse cx="690" cy="135" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="140" class="usecase-text">Search Destinations</text>
+  <ellipse cx="690" cy="215" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="210" class="usecase-text"><tspan x="690">View Guides</tspan><tspan x="690" dy="17">&amp; Advisories</tspan></text>
+  <ellipse cx="690" cy="295" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="290" class="usecase-text"><tspan x="690">Browse Reviews</tspan><tspan x="690" dy="17">&amp; Ratings</tspan></text>
 
-  <!-- Actor inheritance -->
-  <path d="M 100 770 L 100 560" class="generalization"/>
-  <path d="M 100 450 L 100 245" class="generalization"/>
-  <path d="M 1820 675 L 1820 370" class="generalization"/>
+  <ellipse cx="690" cy="365" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="370" class="usecase-text">Register</text>
+  <ellipse cx="690" cy="445" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="450" class="usecase-text">Sign In</text>
+  <ellipse cx="690" cy="525" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="530" class="usecase-text">Manage Profile</text>
 
-  <!-- Actors -->
-  <g transform="translate(100 150)"><circle cx="0" cy="0" r="18" class="actor"/><path d="M 0 18 L 0 76 M -34 40 L 34 40 M 0 76 L -30 120 M 0 76 L 30 120" class="actor"/><text x="0" y="150" class="actor-label">Guest</text></g>
-  <g transform="translate(100 465)"><circle cx="0" cy="0" r="18" class="actor"/><path d="M 0 18 L 0 76 M -34 40 L 34 40 M 0 76 L -30 120 M 0 76 L 30 120" class="actor"/><text x="0" y="150" class="actor-label">Member</text></g>
-  <g transform="translate(100 785)"><circle cx="0" cy="0" r="18" class="actor"/><path d="M 0 18 L 0 76 M -34 40 L 34 40 M 0 76 L -30 120 M 0 76 L 30 120" class="actor"/><text x="0" y="146" class="actor-label"><tspan x="0">Verified</tspan><tspan x="0" dy="21">Member</tspan></text></g>
-  <g transform="translate(1820 270)"><circle cx="0" cy="0" r="18" class="actor"/><path d="M 0 18 L 0 76 M -34 40 L 34 40 M 0 76 L -30 120 M 0 76 L 30 120" class="actor"/><text x="0" y="150" class="actor-label">Moderator</text></g>
-  <g transform="translate(1820 690)"><circle cx="0" cy="0" r="18" class="actor"/><path d="M 0 18 L 0 76 M -34 40 L 34 40 M 0 76 L -30 120 M 0 76 L 30 120" class="actor"/><text x="0" y="146" class="actor-label">Superadmin</text></g>
+  <ellipse cx="690" cy="605" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="610" class="usecase-text">Submit Review</text>
+  <ellipse cx="690" cy="685" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="690" class="usecase-text">Add Photos / Video</text>
 
-  <text x="960" y="1048" class="note">Generalization: Member inherits Guest capabilities; Verified Member inherits Member; Superadmin inherits Moderator.</text>
+  <ellipse cx="690" cy="765" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="770" class="usecase-text">Discover / Join Tour</text>
+  <ellipse cx="690" cy="845" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="850" class="usecase-text">Create / Manage Tour</text>
+  <ellipse cx="690" cy="925" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="920" class="usecase-text"><tspan x="690">Collaborate</tspan><tspan x="690" dy="17">&amp; Stay Safe</tspan></text>
+
+  <!-- Include and extend relationships for traveler goals. -->
+  <path d="M472 153 L579 137" class="relation"/><text x="525" y="134" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 185 L570 209" class="relation"/><text x="552" y="185" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M579 286 L500 211" class="relation"/><text x="552" y="255" class="relation-label">&lt;&lt;extend&gt;&gt;</text>
+
+  <path d="M500 388 L574 370" class="relation"/><text x="540" y="362" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 411 L570 435" class="relation"/><text x="552" y="411" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M493 431 L584 511" class="relation"/><text x="548" y="487" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <path d="M520 619 L570 610" class="relation"/><text x="548" y="599" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M584 665 L500 647" class="relation"/><text x="548" y="675" class="relation-label">&lt;&lt;extend&gt;&gt;</text>
+
+  <path d="M493 788 L584 776" class="relation"/><text x="543" y="771" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 821 L570 837" class="relation"/><text x="548" y="823" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M480 845 L596 909" class="relation"/><text x="550" y="889" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- Layer 1 and 2: generic administrator goal and included responsibilities. -->
+  <ellipse cx="1180" cy="465" rx="120" ry="42" class="usecase parent"/>
+  <text x="1180" y="470" class="usecase-text parent-text">Manage Platform</text>
+
+  <ellipse cx="930" cy="225" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="230" class="usecase-text">Moderate Content</text>
+  <ellipse cx="930" cy="365" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="370" class="usecase-text">Verify Members</text>
+  <ellipse cx="930" cy="505" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="500" class="usecase-text"><tspan x="930">Oversee Tours</tspan><tspan x="930" dy="17">&amp; Safety</tspan></text>
+  <ellipse cx="930" cy="645" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="650" class="usecase-text">Manage Users / Staff</text>
+  <ellipse cx="930" cy="785" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="790" class="usecase-text">Audit &amp; Monitor</text>
+
+  <path d="M1132 427 L1020 250" class="relation"/><text x="1084" y="332" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1073 444 L1034 385" class="relation"/><text x="1065" y="405" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1060 479 L1042 493" class="relation"/><text x="1082" y="503" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1085 492 L1020 623" class="relation"/><text x="1076" y="570" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1135 504 L1000 756" class="relation"/><text x="1082" y="683" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- Generic actors, matching the supplied template. -->
+  <g transform="translate(80 405)"><circle cx="0" cy="0" r="16" class="actor"/><path d="M0 16 L0 68 M-28 36 L28 36 M0 68 L-25 105 M0 68 L25 105" class="actor"/><text x="0" y="135" class="actor-label">Traveler</text></g>
+  <g transform="translate(1520 405)"><circle cx="0" cy="0" r="16" class="actor"/><path d="M0 16 L0 68 M-28 36 L28 36 M0 68 L-25 105 M0 68 L25 105" class="actor"/><text x="0" y="135" class="actor-label">Administrator</text></g>
 </svg>

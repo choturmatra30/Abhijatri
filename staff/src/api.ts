@@ -376,3 +376,7 @@ export const grantTourBreakglass = (publicId: string, reason: string, scope: str
   write<{ id: string; scope: string[]; expires_at: string }>(`/api/v1/admin/tours/${publicId}/breakglass`, { body: { reason, scope } });
 export const getTourPrivateView = (publicId: string, scope: 'chat' | 'safety' | 'expenses') =>
   send<{ scope: string; items: unknown }>(`/api/v1/admin/tours/${publicId}/private/${scope}`, {});
+
+export type TourReportAction = 'dismiss' | 'noted' | 'hide_message' | 'suspend_tour' | 'restrict_user';
+export const resolveTourReport = (reportId: string, body: { action: TourReportAction; reason_code: string; note: string; days: number; task_id: string; lease_token: string }) =>
+  write<{ report_id: string; state: string; action: string }>(`/api/v1/admin/tours/reports/${reportId}/resolve`, { body });

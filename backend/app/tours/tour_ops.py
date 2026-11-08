@@ -204,3 +204,95 @@ def notify_organisers_after_grants(session: Session, moment: Any) -> int:
             events.emit(session, "tour.staff_reviewed", tour.id, {"public_id": tour.public_id, "tour_title": tour.title, "member_ids": service.organiser_ids(session, tour.id)}, aggregate_type="tour", dedupe_key=f"breakglass-notice:{grant.id}")
         grant.organisers_told_at = moment
     return len(grants)
+
+
+# Report tasks in the shared staff queue (tour_report, chat_report, tour_safety)
+
+REPORT_TASKS = frozenset({"tour_report", "chat_report", "tour_safety"})
+REPORT_ACTIONS = frozenset({"dismiss", "hide_message", "suspend_tour", "restrict_user", "noted"})
+
+
+def _reported_user(session: Session, report: TourReport) -> uuid.UUID | None:
+    """Who the report is about: the sender of a reported message, or a reported member."""
+    if report.subject_kind == "MESSAGE" and report.subject_id:
+        return session.scalar(select(ChatMessage.sender_id).where(ChatMessage.id == report.subject_id))
+    if report.subject_kind == "MEMBER" and report.subject_id:
+        member = session.get(TourMember, report.subject_id)
+        return member.user_id if member else None
+    return None
+
+
+def report_summary(session: Session, task_type: str, report_id: uuid.UUID) -> dict[str, Any] | None:
+    """Queue card and review screen for a tour, chat or SOS report. Chat reports carry the snapshot taken
+    when the report was made (the message and the 20 around it), so evidence survives deletion."""
+    report = session.get(TourReport, report_id)
+    if report is None:
+        return None
+    tour = session.get(Tour, report.tour_id)
+    reporter = session.get(User, report.reporter_id) if report.reporter_id else None
+    target_id = _reported_user(session, report)
+    target = session.get(User, target_id) if target_id else None
+    message = session.scalar(select(ChatMessage).where(ChatMessage.id == report.subject_id)) if report.subject_kind == "MESSAGE" and report.subject_id else None
+    return {
+        "kind": "tour_report",
+        "task_type": task_type,
+        "report_id": str(report.id),
+        "state": report.state,
+        "version": report.version,
+        "subject_kind": report.subject_kind,
+        "reason_code": report.reason_code,
+        "details": report.details,
+        "reporter": reporter.display_name if reporter else None,
+        "reported_user": {"id": str(target.id), "display_name": target.display_name} if target else None,
+        "message": {"id": str(message.id), "seq": message.seq, "hidden": message.hidden_by_staff_at is not None} if message else None,
+        "context": (report.context or {}).get("messages", []),
+        "tour": {
+            "public_id": tour.public_id, "title": tour.title, "lifecycle": tour.lifecycle,
+            "suspended": tour.suspended_at is not None, "start_date": tour.start_date.isoformat(), "end_date": tour.end_date.isoformat(),
+        } if tour else None,
+        "created_at": report.created_at.isoformat(),
+    }
+
+
+def resolve_report(
+    session: Session, principal: Principal, report_id: uuid.UUID, *, task_id: uuid.UUID, lease_token: uuid.UUID,
+    action: str, reason_code: str, note: str | None, days: int = 7,
+) -> dict[str, Any]:
+    """Close a tour, chat or SOS report under the task lease, optionally acting on it in the same transaction."""
+    from app.admin import tasks
+
+    if action not in REPORT_ACTIONS:
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "action", "code": "INVALID_VALUE"}])
+    task = tasks.require_lease(session, principal, task_id, lease_token, subject_id=report_id)
+    if task.task_type not in REPORT_TASKS:
+        raise ApiError("NOT_FOUND")
+    report = session.scalar(select(TourReport).where(TourReport.id == report_id).with_for_update())
+    if report is None:
+        raise ApiError("NOT_FOUND")
+    if report.state in ("actioned", "dismissed"):
+        raise ApiError("TRANSITION_NOT_ALLOWED")
+    tour = session.get(Tour, report.tour_id)
+    if tour is None:
+        raise ApiError("NOT_FOUND")
+    result: dict[str, Any] = {}
+    if action == "hide_message":
+        if report.subject_kind != "MESSAGE" or report.subject_id is None:
+            raise ApiError("TRANSITION_NOT_ALLOWED")
+        result = hide_message(session, principal, tour.public_id, report.subject_id, report.id, reason_code)
+    elif action == "suspend_tour":
+        suspend(session, principal, tour.public_id, reason_code, note)
+    elif action == "restrict_user":
+        target = _reported_user(session, report)
+        if target is None:
+            raise ApiError("TRANSITION_NOT_ALLOWED")
+        result = restrict_user(session, principal, target, reason_code, days)
+    report.state = "dismissed" if action == "dismiss" else "actioned"
+    report.resolved_by, report.resolved_at = principal.user.id, now()
+    report.resolution_note = (note or "")[:500] or None
+    report.version += 1
+    tasks.complete(task)
+    audit.record(
+        session, actor=principal, action="tour.report_resolved", target_type="tour_report", target_id=report.id,
+        reason=reason_code, metadata={"action": action, "tour": tour.public_id, "task_type": task.task_type},
+    )
+    return {"report_id": str(report.id), "state": report.state, "action": action, **result}

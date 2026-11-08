@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { ApiError, NETWORK_ERROR } from '../../api/client';
+import { ApiError, NETWORK_ERROR, TIMEOUT_ERROR } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
 import { passwordStrength, type FieldProblem } from '../../utils/authValidation';
 import { buttonVariants } from '@/components/ui/button';
@@ -47,6 +47,8 @@ export function accountErrorMessage(error: unknown, t: Translate): string {
   switch (error.code) {
     case NETWORK_ERROR:
       return t('সার্ভারের সাথে সংযোগ করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।', 'Could not reach the server. Check your connection and try again.');
+    case TIMEOUT_ERROR:
+      return t('সার্ভার থেকে সময়মতো উত্তর আসেনি, সংযোগ খুব ধীর। আবার চেষ্টা করুন।', 'The server did not answer in time; the connection is too slow. Try again.');
     case 'INVALID_CREDENTIALS':
       return t('ইমেইল বা পাসওয়ার্ড সঠিক নয়।', 'The email or password is not correct.');
     case 'EMAIL_NOT_VERIFIED':

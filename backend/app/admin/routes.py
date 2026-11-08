@@ -322,6 +322,10 @@ def _case_summary(session: Session, task: ModerationTask) -> dict[str, Any] | No
             "deadline_at": appeal.deadline_at.isoformat(),
             "submitted_at": appeal.submitted_at.isoformat(),
         }
+    if task.task_type in ("tour_report", "chat_report", "tour_safety"):
+        from app.tours import tour_ops
+
+        return tour_ops.report_summary(session, task.task_type, task.subject_id)
     if task.task_type == "enforcement":
         ecase = session.get(EnforcementCase, task.subject_id)
         if ecase is None:

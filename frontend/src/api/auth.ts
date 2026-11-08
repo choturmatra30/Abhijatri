@@ -12,6 +12,14 @@ import { ApiError, apiRequest } from './client';
 
 const BASE = '/api/v1/auth';
 
+/**
+ * Deadline for the account forms submitted before a session exists (sign-in, sign-up, resend, reset
+ * request). Writes otherwise wait forever, so a stalled connection left "Please wait…" on screen with
+ * no way out. The API gives up after 15 s (REQUEST_TIMEOUT_SECONDS), so 30 s fires only when the
+ * network itself stalled. Each of these is safe to submit again: the answer is the same either way.
+ */
+export const ACCOUNT_FORM_TIMEOUT_MS = 30_000;
+
 let csrfToken: string | null = null;
 
 export function forgetCsrfToken(): void {
@@ -35,11 +43,13 @@ interface CallOptions {
   idempotencyKey?: string;
   /** Additional request headers such as optimistic-concurrency `If-Match`. */
   headers?: Record<string, string>;
+  /** Gives up with a `TIMEOUT` ApiError after this many ms (see `ACCOUNT_FORM_TIMEOUT_MS`). */
+  timeoutMs?: number;
 }
 
 export async function call<T>(
   path: string,
-  { method = 'POST', body, session = false, idempotencyKey, headers }: CallOptions = {},
+  { method = 'POST', body, session = false, idempotencyKey, headers, timeoutMs }: CallOptions = {},
 ): Promise<T> {
   const attempt = async (): Promise<T> =>
     apiRequest<T>(path.startsWith('/api/') ? path : `${BASE}${path}`, {
@@ -48,6 +58,7 @@ export async function call<T>(
       credentials: 'include',
       headers: { ...headers, ...(session ? { 'X-CSRF-Token': await csrf() } : {}) },
       idempotencyKey,
+      timeoutMs,
     });
   try {
     return await attempt();
@@ -64,14 +75,17 @@ export async function call<T>(
 export const getSession = (): Promise<AuthSession> => call<AuthSession>('/session', { method: 'GET' });
 
 export const register = (input: { email: string; password: string; display_name: string; turnstile_token?: string | null }) =>
-  call<{ status: string }>('/register', { body: { ...input, turnstile_token: input.turnstile_token ?? undefined } });
+  call<{ status: string }>('/register', {
+    body: { ...input, turnstile_token: input.turnstile_token ?? undefined },
+    timeoutMs: ACCOUNT_FORM_TIMEOUT_MS,
+  });
 
 export const verifyEmail = (tokenHash: string) => call<{ status: string }>('/verify-email', { body: { token_hash: tokenHash } });
 
-export const resendVerification = (email: string) => call<{ status: string }>('/resend-verification', { body: { email } });
+export const resendVerification = (email: string) => call<{ status: string }>('/resend-verification', { body: { email }, timeoutMs: ACCOUNT_FORM_TIMEOUT_MS });
 
 export async function login(email: string, password: string): Promise<AuthSession> {
-  const session = await call<AuthSession>('/login', { body: { email, password } });
+  const session = await call<AuthSession>('/login', { body: { email, password }, timeoutMs: ACCOUNT_FORM_TIMEOUT_MS });
   forgetCsrfToken(); // a new session has a new token
   return session;
 }
@@ -86,8 +100,11 @@ export async function logout(): Promise<void> {
 
 // Reporting a review (member, anonymous, removal request) lives in `./reports`.
 
-export const requestPasswordReset =(email: string, turnstileToken?: string | null) =>
-  call<{ status: string }>('/password-reset/request', { body: { email, turnstile_token: turnstileToken ?? undefined } });
+export const requestPasswordReset = (email: string, turnstileToken?: string | null) =>
+  call<{ status: string }>('/password-reset/request', {
+    body: { email, turnstile_token: turnstileToken ?? undefined },
+    timeoutMs: ACCOUNT_FORM_TIMEOUT_MS,
+  });
 
 export const confirmPasswordReset = (tokenHash: string, newPassword: string) =>
   call<{ status: string }>('/password-reset/confirm', { body: { token_hash: tokenHash, new_password: newPassword } });

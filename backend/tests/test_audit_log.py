@@ -326,6 +326,7 @@ AUDITED: dict[str, tuple[str, ...] | str] = {
     "POST /api/v1/admin/tours/{public_id}/messages/{message_id}/hide": ("tour.message_hidden",),
     "POST /api/v1/admin/tours/users/{user_id}/restrict": ("tour.user_restricted",),
     "POST /api/v1/admin/tours/{public_id}/breakglass": ("tour.breakglass_granted",),
+    "POST /api/v1/admin/tours/reports/{report_id}/resolve": ("tour.report_resolved",),
     "POST /api/v1/ops/jobs/rating-reconciliation": ("ratings.reconcile_run",),
     "POST /api/v1/ops/jobs/retention": ("review.purged", "retention.contact_erased", "retention.evidence_purged"),
     "POST /api/v1/ops/jobs/visit-rollup": "copies visitor counters; no person or content changes",

@@ -12,6 +12,7 @@ import {
   type BudgetView, type ChatView, type ItineraryView, type SafetyView, type TourAccess, type TourCard,
   type TourDashboard, type TourWorkspace,
 } from '../api/tours';
+import { ApiError } from '../api/client';
 import { Notice, accountErrorMessage, primaryButtonClass } from '../components/auth/AccountUi';
 import { LoadingState } from '../components/common/StatusViews';
 import { useLanguage } from '../context/LanguageContext';
@@ -102,11 +103,18 @@ export const TourDetailPage: React.FC = () => <AccessBoundary><TourDetail /></Ac
 function TourDetail() {
   const { publicId = '', tab: routeTab = 'overview' } = useParams(); const [params] = useSearchParams(); const [tour, setTour] = useState<TourWorkspace | null>(null); const [tab, setTab] = useState(routeTab); const [error, setError] = useState('');
   const load = useCallback(async () => { try { const summary = params.get('code') ? await getTourByCode(params.get('code')!) : await getTourSummary(publicId); setTour(summary.is_member ? await getTourWorkspace(publicId) : summary); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Tour could not be opened'); } }, [publicId, params]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    // Staff actions (suspend, restore, cancel) and members joining change the tour: refresh while it is open.
+    const timer = window.setInterval(() => void load(), 15_000);
+    const focus = () => void load();
+    window.addEventListener('focus', focus);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', focus); };
+  }, [load]);
   if (!tour && !error) return <LoadingState />;
   if (!tour) return <main className="max-w-xl mx-auto p-8"><Notice tone="error">{error}</Notice></main>;
   const tabs = ['overview', 'tourmates', ...(tour.modules?.itinerary ? ['itinerary'] : []), ...(tour.modules?.discussion ? ['discussion'] : []), ...(tour.modules?.budget ? ['budget'] : []), ...(tour.modules?.safety ? ['safety'] : [])];
-  return <main className="max-w-5xl mx-auto p-4 sm:p-6 py-8 flex flex-col gap-5"><div><p className="text-xs font-bold text-forest-primary">{tour.public_id} · {tour.lifecycle}</p><h1 className="text-3xl font-bold">{tour.title}</h1><p>{tour.start_date} → {tour.end_date} · {tour.policy} · {tour.members.approved}/{tour.members.maximum}</p></div>{error && <Notice tone="error">{error}</Notice>}<nav className="flex gap-2 overflow-x-auto">{tabs.map((name) => <button key={name} onClick={() => setTab(name)} className={`rounded-full px-4 py-2 text-sm font-bold ${tab === name ? 'bg-forest-primary text-white' : 'bg-surface-container'}`}>{name}</button>)}</nav>
+  return <main className="max-w-5xl mx-auto p-4 sm:p-6 py-8 flex flex-col gap-5"><div><p className="text-xs font-bold text-forest-primary">{tour.public_id} · {tour.lifecycle}</p><h1 className="text-3xl font-bold">{tour.title}</h1><p>{tour.start_date} → {tour.end_date} · {tour.policy} · {tour.members.approved}/{tour.members.maximum}</p></div>{tour.suspended && <Notice tone="error">This tour is suspended by Abhijatri safety staff while a report is reviewed. The discussion is read-only and new requests are paused. Members have been notified.</Notice>}{tour.is_at_risk && !tour.suspended && <Notice tone="info">This tour is below its minimum size. It may be cancelled if it does not fill up.</Notice>}{error && <Notice tone="error">{error}</Notice>}<nav className="flex gap-2 overflow-x-auto">{tabs.map((name) => <button key={name} onClick={() => setTab(name)} className={`rounded-full px-4 py-2 text-sm font-bold ${tab === name ? 'bg-forest-primary text-white' : 'bg-surface-container'}`}>{name}</button>)}</nav>
     {tab === 'overview' && <OverviewTab tour={tour} reload={load} setError={setError} />}{tab === 'tourmates' && <TourmatesTab tour={tour} reload={load} />}{tab === 'itinerary' && <ItineraryTab tour={tour} />}{tab === 'discussion' && <ChatTab tour={tour} />}{tab === 'budget' && <BudgetTab tour={tour} />}{tab === 'safety' && <SafetyTab tour={tour} />}
   </main>;
 }
@@ -135,12 +143,15 @@ function ItineraryTab({ tour }: { tour: TourWorkspace }) {
 function ChatTab({ tour }: { tour: TourWorkspace }) {
   const [data, setData] = useState<ChatView | null>(null); const [body, setBody] = useState(''); const [error, setError] = useState(''); const [queued, setQueued] = useState(0);
   const load = useCallback(async () => {
+    let refused = '';
+    if (navigator.onLine) {
+      try { await flushChatOutbox(tour.public_id); } catch (reason) { if (reason instanceof ApiError) refused = reason.message; }
+    }
     try {
-      if (navigator.onLine) await flushChatOutbox(tour.public_id);
       const result = await getMessages(tour.public_id);
       setData(result); await cacheChat(tour.public_id, result.items);
       if (result.last_seq) void markMessagesRead(tour.public_id, result.last_seq);
-      setError('');
+      setError(refused ? `Not sent: ${refused}` : '');
     } catch (reason) {
       const saved = await cachedChat(tour.public_id);
       setData((current) => ({ items: saved, last_seq: saved[saved.length - 1]?.seq || 0, writable: true, muted: current?.muted || false, last_read_seq: current?.last_read_seq || 0 }));
@@ -152,13 +163,13 @@ function ChatTab({ tour }: { tour: TourWorkspace }) {
   const send = async (text: string) => {
     const row = await queueChat(tour.public_id, text);
     if (navigator.onLine) {
-      try { await flushChatOutbox(tour.public_id); } catch { /* remains queued */ }
+      try { await flushChatOutbox(tour.public_id); } catch (reason) { if (reason instanceof ApiError) { setQueued((await pendingChat(tour.public_id)).length); setError(`Not sent: ${reason.message}`); return; } }
     }
     setQueued((await pendingChat(tour.public_id)).length);
     if (navigator.onLine) await load();
     else setError(`Offline: “${row.body.slice(0, 30)}” is queued.`);
   };
-  return <section className={panel}><h2 className="text-xl font-bold flex gap-2"><MessageCircle />Discussion</h2>{queued > 0 && <Notice tone="info">{queued} message(s) waiting to send.</Notice>}{error && <Notice tone="info">{error}</Notice>}<div className="max-h-96 overflow-y-auto flex flex-col gap-2">{data?.items.map((message) => <div key={message.seq} className={`rounded-xl p-3 ${message.is_you ? 'bg-forest-primary/10 ml-8' : 'bg-surface-container mr-8'}`}><strong>{message.sender || message.kind}</strong><p>{message.body || `[${message.status}]`}</p><small>{new Date(message.created_at).toLocaleString()} · seen by {message.seen_by}</small></div>)}</div><form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (!body.trim()) return; const text = body; setBody(''); void send(text); }}><input className={field} value={body} onChange={(e) => setBody(e.target.value)} placeholder={data?.writable ? 'Message the tour' : 'Discussion is read only'} disabled={!data?.writable} /><button className={`${primaryButtonClass} px-5`} disabled={!data?.writable}>Send</button></form></section>;
+  return <section className={panel}><h2 className="text-xl font-bold flex gap-2"><MessageCircle />Discussion</h2>{queued > 0 && <Notice tone="info">{queued} message(s) waiting to send.</Notice>}{error && <Notice tone={error.startsWith('Not sent') ? 'error' : 'info'}>{error}</Notice>}<div className="max-h-96 overflow-y-auto flex flex-col gap-2">{data?.items.map((message) => <div key={message.seq} className={`rounded-xl p-3 ${message.is_you ? 'bg-forest-primary/10 ml-8' : 'bg-surface-container mr-8'}`}><strong>{message.sender || message.kind}</strong><p>{message.body || `[${message.status}]`}</p><small>{new Date(message.created_at).toLocaleString()} · seen by {message.seen_by}</small></div>)}</div><form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (!body.trim()) return; const text = body; setBody(''); void send(text); }}><input className={field} value={body} onChange={(e) => setBody(e.target.value)} placeholder={data?.writable ? 'Message the tour' : 'Discussion is read only'} disabled={!data?.writable} /><button className={`${primaryButtonClass} px-5`} disabled={!data?.writable}>Send</button></form></section>;
 }
 
 function BudgetTab({ tour }: { tour: TourWorkspace }) {
@@ -168,9 +179,50 @@ function BudgetTab({ tour }: { tour: TourWorkspace }) {
 }
 
 function SafetyTab({ tour }: { tour: TourWorkspace }) {
-  const [data, setData] = useState<SafetyView | null>(null); const [contact, setContact] = useState({ name: '', relationship: '', phone: '' }); const [notes, setNotes] = useState('');
-  const load = useCallback(() => getSafety(tour.public_id).then(setData), [tour.public_id]); useEffect(() => { void load(); }, [load]);
-  return <section className={panel}><h2 className="text-xl font-bold">Safety</h2><Notice tone="info">Call Bangladesh emergency service at <a href="tel:999" className="font-bold">999</a>. Abhijatri is not an emergency service.</Notice><div className="grid sm:grid-cols-3 gap-2"><input className={field} placeholder="Emergency contact" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} /><input className={field} placeholder="Relationship" value={contact.relationship} onChange={(e) => setContact({ ...contact, relationship: e.target.value })} /><input className={field} placeholder="Phone" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} /></div><textarea className={field} placeholder="Medical notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} /><button className={`${primaryButtonClass} px-4 self-start`} onClick={() => void saveSafety(tour.public_id, { contact, medical_notes: notes }).then(setData)}>Save my private safety details</button>{data?.checkins.map((item) => <div key={item.id} className="rounded-xl bg-surface-container p-3"><strong>{item.message}</strong><p>{item.answered}/{item.total} checked in</p>{!item.you_answered && <button onClick={() => void answerCheckin(tour.public_id, item.id).then(setData)}>I am safe</button>}</div>)}{data?.can_manage && <button onClick={() => void requestCheckin(tour.public_id, 'Everyone OK?').then(setData)}>Request check-in</button>}<button className="rounded-xl bg-error-alert text-white p-4 text-lg font-bold" onClick={() => { if (confirm('Raise SOS for this tour? Also call 999 for immediate danger.')) void raiseSos(tour.public_id, 'Member raised SOS').then(setData); }}>SOS — alert tour and safety staff</button></section>;
+  const { t } = useLanguage();
+  const [data, setData] = useState<SafetyView | null>(null);
+  const [contact, setContact] = useState({ name: '', relationship: '', phone: '' });
+  const [notes, setNotes] = useState('');
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sosArmed, setSosArmed] = useState(false);
+  const show = useCallback((view: SafetyView) => {
+    setData(view);
+    setContact(view.mine.contact ?? { name: '', relationship: '', phone: '' });
+    setNotes(view.mine.medical_notes ?? '');
+  }, []);
+  const act = async (work: () => Promise<SafetyView>, success: string) => {
+    setBusy(true); setNotice(null);
+    try { show(await work()); setNotice({ tone: 'success', text: success }); }
+    catch (error) { setNotice({ tone: 'error', text: accountErrorMessage(error, t) }); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { void getSafety(tour.public_id).then(show).catch((error) => setNotice({ tone: 'error', text: accountErrorMessage(error, t) })); }, [tour.public_id, show, t]);
+  const filled = [contact.name, contact.relationship, contact.phone].filter((value) => value.trim()).length;
+  const save = () => {
+    if (filled > 0 && (contact.name.trim().length < 2 || contact.relationship.trim().length < 2 || !contact.phone.trim())) {
+      setNotice({ tone: 'error', text: t('জরুরি যোগাযোগের নাম, সম্পর্ক ও ফোন — তিনটিই দিন।', 'Give the emergency contact\'s name, relationship and phone, or leave all three empty.') }); return;
+    }
+    void act(() => saveSafety(tour.public_id, { contact: filled ? contact : null, medical_notes: notes }), t('নিরাপত্তা তথ্য সংরক্ষিত।', 'Safety details saved.'));
+  };
+  return <section className={panel}>
+    <h2 className="text-xl font-bold">Safety</h2>
+    <Notice tone="info">Call Bangladesh emergency service at <a href="tel:999" className="font-bold">999</a>. Abhijatri is not an emergency service.</Notice>
+    {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+    {data?.sos.active && <Notice tone="error">{t('এই ট্যুরে SOS চালু আছে।', 'An SOS is active on this tour.')}</Notice>}
+    <h3 className="font-bold">{t('আমার জরুরি তথ্য (শুধু আয়োজকেরা, ট্যুর চলাকালীন বা SOS-এ দেখবেন)', 'My emergency details (organisers see them only while the tour is ongoing or during an SOS)')}</h3>
+    <div className="grid sm:grid-cols-3 gap-2"><input className={field} placeholder="Emergency contact" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} /><input className={field} placeholder="Relationship" value={contact.relationship} onChange={(e) => setContact({ ...contact, relationship: e.target.value })} /><input className={field} inputMode="tel" placeholder="Phone" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} /></div>
+    <textarea className={field} placeholder="Medical notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+    <button disabled={busy} className={`${primaryButtonClass} px-4 self-start`} onClick={save}>Save my private safety details</button>
+    {data?.can_manage && data.members.length > 0 && <div className="text-sm"><strong>{t('সদস্যদের জরুরি তথ্য', 'Members\' emergency details')}</strong><ul className="list-disc pl-5">{data.members.map((member) => <li key={member.member_id}>{member.name}: {member.has_contact ? t('দেওয়া আছে', 'given') : t('দেওয়া হয়নি', 'missing')}</li>)}</ul></div>}
+    {(data?.meeting_points.length ?? 0) > 0 && <div className="text-sm"><strong>{t('মিলনস্থল', 'Meeting points')}</strong><ul className="list-disc pl-5">{data?.meeting_points.map((point) => <li key={point.id}>{point.title}{point.meet_at ? ` · ${new Date(point.meet_at).toLocaleString()}` : ''}</li>)}</ul></div>}
+    {data?.checkins.map((item) => <div key={item.id} className="rounded-xl bg-surface-container p-3"><strong>{item.message}</strong><p>{item.answered}/{item.total} checked in</p>{item.not_answered.length > 0 && <p className="text-sm text-error-alert">{t('উত্তর দেননি: ', 'Not answered: ')}{item.not_answered.join(', ')}</p>}{!item.you_answered && <button disabled={busy} className={`${primaryButtonClass} px-4 mt-2`} onClick={() => void act(() => answerCheckin(tour.public_id, item.id), t('আপনি নিরাপদ বলে জানানো হয়েছে।', 'Marked as safe.'))}>I am safe</button>}</div>)}
+    {data?.can_manage && <button disabled={busy} className="self-start underline" onClick={() => void act(() => requestCheckin(tour.public_id, 'Everyone OK?'), t('চেক-ইন অনুরোধ পাঠানো হয়েছে।', 'Check-in request sent.'))}>Request check-in</button>}
+    {!sosArmed
+      ? <button disabled={busy} className="rounded-xl bg-error-alert text-white p-4 text-lg font-bold" onClick={() => setSosArmed(true)}>SOS — alert tour and safety staff</button>
+      : <div className="rounded-xl border-2 border-error-alert p-3 flex flex-col gap-2"><strong>{t('SOS পাঠাবেন? তাৎক্ষণিক বিপদে ৯৯৯-এ কল করুন।', 'Send an SOS? For immediate danger, also call 999.')}</strong><div className="flex gap-3"><button disabled={busy} className="rounded-xl bg-error-alert text-white px-4 py-2 font-bold" onClick={() => { setSosArmed(false); void act(() => raiseSos(tour.public_id, 'Member raised SOS'), t('SOS পাঠানো হয়েছে। আয়োজক ও নিরাপত্তা কর্মীদের জানানো হয়েছে।', 'SOS sent. Organisers and safety staff have been alerted.')); }}>{t('হ্যাঁ, SOS পাঠান', 'Yes, send SOS')}</button><button className="underline" onClick={() => setSosArmed(false)}>{t('বাতিল', 'Cancel')}</button></div></div>}
+    {data && <ul className="text-sm">{data.sos.contacts.map((item) => <li key={`${item.kind}-${item.phone}-${item.name_en}`}>{t(item.name_bn, item.name_en)}: <a className="font-bold" href={`tel:${item.phone}`}>{item.phone}</a></li>)}</ul>}
+  </section>;
 }
 
 export const TourPreferencesPage: React.FC = () => <AccessBoundary><Preferences /></AccessBoundary>;

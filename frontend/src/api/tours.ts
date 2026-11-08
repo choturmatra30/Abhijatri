@@ -93,4 +93,4 @@ export const raiseSos = (id: string, message: string) => write<SafetyView>(`/api
 export const getMessages = (id: string, after = 0) => call<ChatView>(`/api/v1/tours/${id}/messages?after_seq=${after}`, { method: 'GET' });
 export const postMessage = (id: string, body: string, client_msg_id: string = crypto.randomUUID()) => write<{ seq: number; duplicate: boolean; message: ChatMessage }>(`/api/v1/tours/${id}/messages`, { body, client_msg_id });
 export const markMessagesRead = (id: string, seq: number) => write(`/api/v1/tours/${id}/messages/read`, { seq });
-export const reportTour = (id: string, details: string) => write(`/api/v1/tours/${id}/reports`, { subject_kind: 'TOUR', reason_code: 'OTHER', details });
+export const reportTour = (id: string, details: string) => write(`/api/v1/tours/${id}/reports`, { subject_kind: 'TOUR', reason_code: 'other', details });

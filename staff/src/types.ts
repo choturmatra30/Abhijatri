@@ -127,7 +127,7 @@ export interface QueueItem {
   created_at: string;
   claimable: boolean;
   lease_active: boolean;
-  subject: ReviewSubject | ReportSubject | VerificationSubject | AppealSubject | EnforcementSubject | null;
+  subject: ReviewSubject | ReportSubject | VerificationSubject | AppealSubject | EnforcementSubject | TourReportSubject | null;
 }
 
 export interface Task {
@@ -396,4 +396,22 @@ export interface TemplateVersion {
   body_template: string;
   created_at: string;
   activated_at: string | null;
+}
+
+/** Queue subject for tour_report, chat_report and tour_safety (SOS) tasks. */
+export interface TourReportSubject {
+  kind: 'tour_report';
+  task_type: 'tour_report' | 'chat_report' | 'tour_safety';
+  report_id: string;
+  state: 'open' | 'in_review' | 'actioned' | 'dismissed';
+  version: number;
+  subject_kind: string;
+  reason_code: string;
+  details: string | null;
+  reporter: string | null;
+  reported_user: { id: string; display_name: string } | null;
+  message: { id: string; seq: number; hidden: boolean } | null;
+  context: { seq: number; sender: string | null; body: string | null; kind: string; at: string; reported: boolean }[];
+  tour: { public_id: string; title: string; lifecycle: string; suspended: boolean; start_date: string; end_date: string } | null;
+  created_at: string;
 }
