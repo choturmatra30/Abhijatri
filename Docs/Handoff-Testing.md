@@ -101,7 +101,7 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 
 **Added 8 November 2026.** Run on `https://abhijatri.vercel.app` (DevTools → Network → *Offline*, or airplane mode on a phone) or locally with `npm run preview:offline`. The last column is the result of the Chrome run on 8 Nov 2026 against a local backend and database: **Pass**, **Fail** (see F1 to F3 in `Handoff-Backend.md`) or **Not run** (needs a real phone, a full disk or a staff screen).
 
-**Important on a computer:** use DevTools *Offline* or turn Wi-Fi off. Only stopping the server leaves `navigator.onLine` true, and then the app may show the older opened-page copy instead of the pack (F2).
+**On a computer:** DevTools *Offline*, Wi-Fi off, or stopping the server all work since the F2 fix. With the server stopped, wait 60 seconds after the last online visit, because the browser may still answer from its own short HTTP cache.
 
 ### H1. Download and storage
 
@@ -122,7 +122,7 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 |---|---|---|---|
 | H2.1 | Go offline. Open Destinations. | "You are offline. Showing the N destination(s) saved on this device"; the pack's Guest Feedback score and count show. | Pass |
 | H2.2 | Open Bandarban. | Yellow "You are offline" banner, a second banner "You are reading the offline copy made on … Advisories verified on …". Guide, advisories, restrictions, emergency numbers all show, with no 4-second wait. | Pass |
-| H2.3 | Scroll to Traveller reviews. | "Offline copy (date): the newest N published reviews." Reviews listed; no filters, no Load more; photos say they open when online. | Pass with real offline; **Fail with server down only (F2)** |
+| H2.3 | Scroll to Traveller reviews. | "Offline copy (date): the newest N published reviews." Reviews listed; no filters, no Load more; photos say they open when online. | Pass with real offline. Server down only: failed on first run (F2), **Pass after the fix** (allow 60 s after the last online visit: the browser's own `max-age=60` cache can still answer) |
 | H2.4 | Offline, open a destination that was never saved. | "This destination is not saved on this device…", never "Something went wrong". | Pass (R12, unchanged) |
 | H2.5 | Close the browser completely, reopen offline, open the pack. | Opens. | Not run |
 | H2.6 | Phone: save, airplane mode, restart the phone, open from the home-screen app. | Opens full screen with the guide. | Not run (real phone) |
@@ -132,7 +132,7 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 | # | Steps | Expected | 8 Nov |
 |---|---|---|---|
 | H3.1 | Set the device date 8 days ahead (or wait), open Offline packs offline. | Red "Out of date: update when online"; Valid until is in the past. | Pass (expiry edited in IndexedDB) |
-| H3.2 | Open that pack's guide. | Red "Out of date. This offline copy is from …" banner **and no advisory labelled Current**. | **Fail (F1):** banner shows, but the advisory badge still says "Current" |
+| H3.2 | Open that pack's guide. | Red "Out of date. This offline copy is from …" banner **and no advisory labelled Current**. | Fail on first run (F1); **Pass after the fix** ("Out of date offline copy: check when online"; Bangla "পুরনো অফলাইন কপি…") |
 | H3.3 | An advisory whose `valid_until` is today: open offline, then set the date to tomorrow. | It disappears on the next Dhaka day, with no network. | Not run (unit-tested in `advisoryState.test.ts`) |
 | H3.4 | Set the date back, go online. | State returns to Ready (or the pack updates). | Pass |
 

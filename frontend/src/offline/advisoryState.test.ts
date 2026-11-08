@@ -122,6 +122,15 @@ describe('packAdapter', () => {
     expect(profile.advisories[0].state).toBe('STALE');
   });
 
+  it('never presents an advisory of an expired pack as current (Handoff F1)', () => {
+    const s = stored([running]); // expires_at 2026-11-14T04:00:00Z
+    const before = packToProfile(s, '2026-11-13', new Date('2026-11-14T03:59:59Z'));
+    expect(before.advisories[0]).toMatchObject({ state: 'CURRENT' });
+    expect(before.advisories[0].from_expired_pack).toBeUndefined();
+    const after = packToProfile(s, '2026-11-14', new Date('2026-11-14T04:00:01Z'));
+    expect(after.advisories.map((a) => a.from_expired_pack)).toEqual([true]);
+  });
+
   it('builds a list summary with the recomputed advisory count', () => {
     expect(packToSummary(stored([running, upcoming]), '2026-11-08')).toMatchObject({ name_bn: 'বান্দরবান', active_advisory_count: 1 });
   });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CloudOff, ImageOff, Loader2, MessageSquarePlus, Star } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { ApiError, SAVED_COPY } from '../../api/client';
 import { detectReviewLanguage, getReviewFeed } from '../../api/reviews';
 import type { CategoryAverage, PackMedia, PublicReview } from '../../types';
 import { formatNumber, formatTimestamp } from '../../utils/format';
@@ -63,8 +64,11 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
       // Offline, the downloaded pack comes first, then the service worker's opened-page copy
       // (Offline-Frontend-Guideline 3, "Destination reviews").
       if (typeof navigator !== 'undefined' && navigator.onLine === false && (await showPack())) return;
+      // With a pack stored, the service worker's saved copy is refused: the pack wins (Handoff F2).
+      const stored = await readPack(destinationId);
+      const hasPack = stored.ok && Boolean(stored.value);
       try {
-        const feed = await getReviewFeed(destinationId, { limit: PAGE_SIZE, signal: controller.signal });
+        const feed = await getReviewFeed(destinationId, { limit: PAGE_SIZE, signal: controller.signal, refuseSavedCopy: hasPack });
         setItems(feed.items);
         setCursor(feed.next_cursor);
         setGuest({ average: feed.guest_rating_average, count: feed.guest_rating_count });
@@ -72,7 +76,8 @@ export const ReviewFeedSection: React.FC<{ destinationId: string }> = ({ destina
       } catch (err: unknown) {
         if (controller.signal.aborted) return;
         const kind = failureKind(err);
-        if ((kind === 'offline' || kind === 'timeout') && (await showPack())) return;
+        const savedCopy = err instanceof ApiError && err.code === SAVED_COPY;
+        if ((savedCopy || kind === 'offline' || kind === 'timeout') && (await showPack())) return;
         if (!controller.signal.aborted) setError(err);
       }
     };

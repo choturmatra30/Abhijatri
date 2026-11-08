@@ -16,7 +16,7 @@ import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategi
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import type { WorkboxPlugin } from 'workbox-core/types';
-import { CACHE_VERSION, PUBLIC_API_CACHE } from './offline/cacheNames';
+import { CACHE_VERSION, PUBLIC_API_CACHE, SAVED_COPY_HEADER } from './offline/cacheNames';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -54,6 +54,19 @@ const serverErrorIsFailure: WorkboxPlugin = {
     return response;
   },
 };
+/**
+ * NetworkFirst reads the cache only when the network failed or stalled, so every cached answer it
+ * returns is marked; the app then knows a downloaded pack may be newer (Handoff F2). The stored copy
+ * itself is unchanged.
+ */
+const markSavedCopy: WorkboxPlugin = {
+  cachedResponseWillBeUsed: async ({ cachedResponse }) => {
+    if (!cachedResponse) return null;
+    const headers = new Headers(cachedResponse.headers);
+    headers.set(SAVED_COPY_HEADER, '1');
+    return new Response(cachedResponse.body, { status: cachedResponse.status, statusText: cachedResponse.statusText, headers });
+  },
+};
 registerRoute(
   ({ url, request, sameOrigin }) =>
     sameOrigin && request.method === 'GET' && !request.headers.has('Authorization') && PUBLIC_API.test(url.pathname),
@@ -65,6 +78,7 @@ registerRoute(
       new CacheableResponsePlugin({ statuses: [200] }),
       honourCacheControl,
       new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: SEVEN_DAYS, purgeOnQuotaError: true }),
+      markSavedCopy,
     ],
   }),
 );

@@ -43,11 +43,17 @@ const STATE_LABEL: Record<AdvisoryState, [string, string]> = {
   NOT_YET_EFFECTIVE: ['এখনো কার্যকর নয়', 'Not yet in effect'],
 };
 
+/** Shown instead of the state when the offline pack is past `expires_at` (Handoff F1). */
+const OUT_OF_DATE_LABEL: [string, string] = ['পুরনো অফলাইন কপি: অনলাইনে যাচাই করুন', 'Out of date offline copy: check when online'];
+
 export const AdvisoryCard: React.FC<{ advisory: Advisory }> = ({ advisory }) => {
   const { language, t } = useLanguage();
   const style = SEVERITY_STYLE[advisory.severity];
   const Icon = style.icon;
-  const muted = advisory.state === 'EXPIRED' || advisory.state === 'STALE';
+  // An advisory from an expired offline pack is never labelled current (Security 7.4; Handoff F1).
+  const outOfDate = advisory.from_expired_pack === true;
+  const muted = outOfDate || advisory.state === 'EXPIRED' || advisory.state === 'STALE';
+  const flagged = outOfDate || advisory.state !== 'CURRENT';
 
   return (
     <article className={`p-4 rounded-xl border flex flex-col gap-2 ${style.box} ${muted ? 'opacity-80' : ''}`}>
@@ -55,9 +61,9 @@ export const AdvisoryCard: React.FC<{ advisory: Advisory }> = ({ advisory }) => 
         <Icon size={16} aria-hidden="true" />
         <span>{t(...SEVERITY_LABEL[advisory.severity])}</span>
         <span aria-hidden="true">•</span>
-        <span className={advisory.state === 'CURRENT' ? '' : 'inline-flex items-center gap-1 underline decoration-dotted'}>
-          {advisory.state !== 'CURRENT' && <Clock size={12} aria-hidden="true" />}
-          {t(...STATE_LABEL[advisory.state])}
+        <span className={flagged ? 'inline-flex items-center gap-1 underline decoration-dotted' : ''}>
+          {flagged && <Clock size={12} aria-hidden="true" />}
+          {outOfDate ? t(...OUT_OF_DATE_LABEL) : t(...STATE_LABEL[advisory.state])}
         </span>
         <span className="ml-auto font-normal">
           {t('মেয়াদ', 'Valid until')}: {formatCalendarDate(advisory.valid_until, language)}
