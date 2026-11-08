@@ -198,12 +198,27 @@ def register(
 
 
 @router.post("/verify-email")
-def verify_email(request: Request, payload: VerifyEmailRequest, sessions: abuse.CounterSessions, gotrue: GoTrue) -> dict[str, str]:
+def verify_email(
+    request: Request,
+    payload: VerifyEmailRequest,
+    sessions: abuse.CounterSessions,
+    session: DbSession,
+    gotrue: GoTrue,
+) -> dict[str, str]:
     abuse.enforce(sessions, abuse.token_confirm_checks(get_settings(), network_digest(request)))
     try:
         tokens: TokenPair = _provider(gotrue.verify_token_hash, payload.token_hash, "signup")
     except GoTrueError as error:
         raise ApiError("TOKEN_INVALID_OR_EXPIRED") from error
+    try:
+        claims = verify_access_token(tokens.access_token)
+    except InvalidToken as error:
+        raise ApiError("SERVICE_UNAVAILABLE", headers={"Retry-After": "5"}) from error
+    # Confirmation is the point at which an Auth identity becomes an application account. Keeping
+    # this in the same request avoids a gap where auth.users contains the person but public.users
+    # remains empty until their first login.
+    provision_user(session, claims)
+    session.commit()
     try:  # verification proves the address; signing in is a separate, deliberate step
         _provider(gotrue.sign_out, tokens.access_token)
     except (GoTrueError, ApiError):

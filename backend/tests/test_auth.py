@@ -324,7 +324,9 @@ def test_register_is_limited_per_network(client: TestClient) -> None:
 
 
 @pytest.mark.integration
-def test_verify_email_confirms_without_creating_a_session(client: TestClient, fake: FakeGoTrue) -> None:
+def test_verify_email_confirms_without_creating_a_session(
+    client: TestClient, fake: FakeGoTrue, postgres_session: Session
+) -> None:
     fake.add_user("v@example.com", confirmed=False)
     fake.verify_tokens["good-token-hash-1"] = ("v@example.com", "signup")
     response = client.post("/api/v1/auth/verify-email", json={"token_hash": "good-token-hash-1"})
@@ -332,6 +334,10 @@ def test_verify_email_confirms_without_creating_a_session(client: TestClient, fa
     assert _cookie_headers(response) == []
     assert fake.sign_outs, "the session created by the link is revoked"
     assert fake.users["v@example.com"]["confirmed"] is True
+    auth_user = fake.users["v@example.com"]
+    app_user = postgres_session.get(User, auth_user["id"])
+    assert app_user is not None and app_user.email == "v@example.com"
+    assert app_user.email_verified_at is not None, "confirmation immediately synchronizes public.users"
 
 
 @pytest.mark.integration
