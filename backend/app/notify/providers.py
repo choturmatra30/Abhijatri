@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from email.message import EmailMessage
-from email.utils import make_msgid
+from email.utils import formatdate, make_msgid
 from typing import Protocol
 
 import httpx
@@ -241,9 +241,12 @@ class GmailProvider:
         settings = get_settings()
         message = EmailMessage()
         message["From"] = settings.email_from
+        message["Reply-To"] = settings.email_from_address
         message["To"] = email.to
         message["Subject"] = email.subject
-        message["Message-ID"] = make_msgid(domain="abhijatri")
+        message["Date"] = formatdate(localtime=False, usegmt=True)
+        sender_domain = settings.email_from_address.rpartition("@")[2]
+        message["Message-ID"] = make_msgid(domain=sender_domain or "localhost")
         message["X-Abhijatri-Key"] = email.idempotency_key
         message.set_content(email.text)
         message.add_alternative(email.html, subtype="html")

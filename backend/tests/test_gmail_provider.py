@@ -55,6 +55,8 @@ def test_it_refreshes_the_token_once_and_sends_a_mime_message() -> None:
     raw = base64.urlsafe_b64decode(httpx.Response(200, content=send.content).json()["raw"])
     message = email.message_from_bytes(raw)
     assert message["To"] == "nila@example.com" and message["From"] == "Abhijatri <owner@gmail.com>"
+    assert message["Reply-To"] == "owner@gmail.com" and message["Date"]
+    assert message["Message-ID"].endswith("@gmail.com>")
     assert {part.get_content_type() for part in message.walk()} >= {"text/plain", "text/html"}
     assert b"refresh-token" not in send.content
 

@@ -38,7 +38,7 @@ def verification_email(to: str, token_hash: str, name: str | None) -> Email:
     greeting = f"Hello {name}," if name else "Hello,"
     return _email(
         to,
-        "Confirm your Abhijatri account / আপনার অভিযাত্রী অ্যাকাউন্ট নিশ্চিত করুন",
+        "Confirm your Abhijatri account",
         "Confirm your email", "ইমেইল নিশ্চিত করুন",
         f"{greeting} open this link to verify your email address. It works for 24 hours.",
         "আপনার ইমেইল যাচাই করতে লিংকটি খুলুন। এটি ২৪ ঘণ্টা কার্যকর।",
@@ -67,7 +67,7 @@ def existing_account_email(to: str) -> Email:
     base = get_settings().frontend_base_url.rstrip("/")
     return _email(
         to,
-        "You already have an Abhijatri account / আপনার ইতিমধ্যে একটি অভিযাত্রী অ্যাকাউন্ট আছে",
+        "You already have an Abhijatri account",
         "You already have an account", "আপনার ইতিমধ্যে অ্যাকাউন্ট আছে",
         "Someone, probably you, tried to sign up with this email address, which already has an account. Sign in instead. "
         f"If you forgot your password, reset it here: {base}/forgot-password",
