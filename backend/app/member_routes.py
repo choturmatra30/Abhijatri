@@ -35,8 +35,6 @@ from app.models import (
     Notification,
     NotificationPreference,
     UserRole,
-    VerificationCase,
-    VerificationEvidence,
 )
 from app.ops import events
 from app.schemas import (
@@ -67,19 +65,6 @@ class _Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class VerificationBody(_Body):
-    statement: str | None = Field(default=None, max_length=1000)
-
-
-class EvidenceBody(_Body):
-    content_type: str = Field(max_length=80)
-    size_bytes: int = Field(ge=1)
-
-
-class RespondBody(_Body):
-    statement: str = Field(min_length=3, max_length=1000)
-
-
 class AppealBody(_Body):
     target_type: str = Field(pattern="^(moderation_action|enforcement_case|verification_case)$")
     target_id: uuid.UUID
@@ -94,36 +79,6 @@ def _commit[T](session: Session, work: Callable[[], T]) -> T:
     except Exception:
         session.rollback()
         raise
-
-
-def _case_view(session: Session, case: VerificationCase) -> dict[str, Any]:
-    evidence = session.scalars(select(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status != "deleted").order_by(VerificationEvidence.created_at))
-    return {
-        "id": str(case.id),
-        "state": case.state,
-        "version": case.version,
-        "statement": case.statement,
-        "decision_reason": case.decision_reason,
-        "decision_note": case.decision_note if case.state in ("needs_clarification", "rejected", "approved") else None,
-        "created_at": case.created_at.isoformat(),
-        "decided_at": case.decided_at.isoformat() if case.decided_at else None,
-        "evidence": [{"id": str(e.id), "status": e.status, "content_type": e.content_type} for e in evidence],
-    }
-
-
-# ---- verification ----
-
-
-@router.get("/verifications/mine")
-def my_verification(principal: MemberPrincipal, session: DbSession) -> dict[str, Any]:
-    latest = session.scalars(select(VerificationCase).where(VerificationCase.applicant_user_id == principal.user.id).order_by(VerificationCase.created_at.desc()).limit(1)).first()
-    return {"verified_member": cases.is_verified_member(session, principal.user.id), "case": _case_view(session, latest) if latest else None}
-
-
-@router.post("/verifications", status_code=201)
-def request_verification(body: VerificationBody, principal: Writer, session: DbSession) -> dict[str, Any]:
-    case = _commit(session, lambda: cases.open_verification(session, principal, body.statement))
-    return _case_view(session, case)
 
 
 # ---- member reviews and their photos and videos ----
@@ -214,30 +169,6 @@ def media_complete(review_id: uuid.UUID, media_id: uuid.UUID, principal: Writer,
 def media_remove(review_id: uuid.UUID, media_id: uuid.UUID, principal: Writer, session: DbSession, storage: Storage) -> Response:
     _commit(session, lambda: media.remove(session, storage, principal, review_id, media_id))
     return Response(status_code=204)
-
-
-@router.post("/verifications/{case_id}/evidence")
-def evidence_upload(case_id: uuid.UUID, body: EvidenceBody, principal: Writer, session: DbSession, storage: Storage) -> dict[str, Any]:
-    """A one-time signed URL; the browser PUTs the file to it directly. The API never sees the bytes."""
-    return _commit(session, lambda: cases.request_evidence_upload(session, storage, principal, case_id, body.content_type, body.size_bytes))
-
-
-@router.post("/verifications/{case_id}/evidence/{evidence_id}/complete")
-def evidence_complete(case_id: uuid.UUID, evidence_id: uuid.UUID, principal: Writer, session: DbSession, storage: Storage) -> dict[str, Any]:
-    evidence = _commit(session, lambda: cases.complete_evidence_upload(session, storage, principal, case_id, evidence_id))
-    return {"id": str(evidence.id), "status": evidence.status}
-
-
-@router.post("/verifications/{case_id}/respond")
-def verification_respond(case_id: uuid.UUID, body: RespondBody, principal: Writer, session: DbSession) -> dict[str, Any]:
-    case = _commit(session, lambda: cases.applicant_transition(session, principal, case_id, "in_review", body.statement))
-    return _case_view(session, case)
-
-
-@router.post("/verifications/{case_id}/withdraw")
-def verification_withdraw(case_id: uuid.UUID, principal: Writer, session: DbSession) -> dict[str, Any]:
-    case = _commit(session, lambda: cases.applicant_transition(session, principal, case_id, "withdrawn", None))
-    return _case_view(session, case)
 
 
 # ---- appeals ----

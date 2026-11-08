@@ -10,10 +10,11 @@ import { Monitor } from './screens/Monitor';
 import { Queue } from './screens/Queue';
 import { SignIn } from './screens/SignIn';
 import { StaffRoles } from './screens/Staff';
+import { Tours } from './screens/Tours';
 import type { Lang, Session } from './types';
 import { Notice, makeT } from './ui';
 
-type View = 'queue' | 'inbox' | 'media' | 'decided' | 'enforcement' | 'audit' | 'staff' | 'monitor' | 'notifications';
+type View = 'queue' | 'inbox' | 'media' | 'decided' | 'enforcement' | 'tours' | 'audit' | 'staff' | 'monitor' | 'notifications';
 
 /**
  * The staff shell. It shows only what the signed-in role may use, but that is a convenience: every
@@ -69,6 +70,7 @@ export function App() {
     { id: 'media', label: t('ছবি ও ভিডিও', 'Media'), show: true },
     { id: 'decided', label: t('বাতিল ও লুকানো', 'Rejected & hidden'), show: true },
     { id: 'enforcement', label: t('এনফোর্সমেন্ট', 'Enforcement'), show: true },
+    { id: 'tours', label: t('ট্যুর অপারেশনস', 'Tour Operations'), show: true },
     { id: 'audit', label: t('অডিট', 'Audit'), show: true },
     { id: 'monitor', label: t('পর্যবেক্ষণ', 'Monitoring'), show: true },
     { id: 'staff', label: t('স্টাফ', 'Staff'), show: role === 'superadmin' },
@@ -107,6 +109,7 @@ export function App() {
       {view === 'media' && <Media lang={lang} />}
       {view === 'notifications' && role === 'superadmin' && <Notifications lang={lang} />}
       {view === 'enforcement' && <Enforcement lang={lang} role={role} />}
+      {view === 'tours' && <Tours lang={lang} role={role} />}
       {view === 'decided' && <Decided lang={lang} role={role} />}
       {view === 'audit' && <Audit lang={lang} role={role} />}
       {view === 'monitor' && <Monitor lang={lang} />}

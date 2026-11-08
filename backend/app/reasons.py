@@ -66,6 +66,31 @@ GROUPS: dict[str, tuple[bool, tuple[Reason, ...]]] = {
             Reason("ownership-not-verified", "মালিকানা যাচাই হয়নি", "Ownership could not be verified"),
         ),
     ),
+    # Verification application (sign-up form 6.2). The applicant sees the label, never the internal note.
+    "verification_reject": (
+        True,
+        (
+            Reason("document-not-genuine", "নথি আসল মনে হয়নি", "Document does not look genuine"),
+            Reason("details-mismatch", "তথ্য নথির সাথে মেলেনি", "Details do not match the document"),
+            Reason("face-mismatch", "সেলফি নথির ছবির সাথে মেলেনি", "Face does not match the document"),
+            Reason("under-18", "বয়স ১৮-এর কম", "Under 18"),
+            Reason("duplicate-account", "আরেকটি অ্যাকাউন্ট আছে", "Duplicate account"),
+            Reason("fake-document", "জাল নথি", "Fake document"),
+            Reason("use-new-form", "নতুন আবেদন ফর্মে আবার আবেদন করুন", "Apply again with the new form"),
+            Reason("other", "অন্য কারণ", "Other"),
+        ),
+    ),
+    "verification_clarify": (
+        True,
+        (
+            Reason("blurry-photo", "ছবি ঝাপসা", "Blurry photo"),
+            Reason("glare", "ছবিতে আলোর ঝলক", "Glare on the photo"),
+            Reason("missing-back", "নথির পেছনের ছবি নেই", "Back side missing"),
+            Reason("selfie-code-not-visible", "সেলফিতে কোড বা ইঙ্গিত দেখা যাচ্ছে না", "Selfie code or gesture not visible"),
+            Reason("details-check", "তথ্যগুলো আবার মিলিয়ে দেখুন", "Check your details against the document"),
+            Reason("other", "অন্য কারণ", "Other"),
+        ),
+    ),
     # Guidance only: the forms for these take the moderator's own words.
     "enforcement": (False, (Reason("policy-violation", "নীতিমালা লঙ্ঘন", "Policy violation"), Reason("legal-request", "আইনি অনুরোধ", "Legal request"))),
 }

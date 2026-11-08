@@ -1595,3 +1595,35 @@ The manual test cases, with these results in a column, are in `Handoff-Testing.m
 - **F3:** freshness when the server returns while the device stayed online.
 - **Real-phone runs:** `Handoff-Testing.md` H2.6, H1.6, H1.7, H5.4 and R6 were not run.
 - The live site gets F1 and F2 only after these frontend changes are merged to `main` and deployed by Vercel.
+
+## 8. Verified Members and Tours P0/P1 (8 November 2026)
+
+Implemented: the seven-step verification application, OTP and liveness,
+sealed/re-encoded evidence, duplicate checks, moderator checklist attributes,
+cooldowns/bans, renewal/lapse jobs, and migrations `0023` and `0024`. Tours now
+has verified/adult gates, drafts and publishing, policies, discovery and score,
+locked approvals with automatic confirmation, membership/roles/codes,
+invitations, chat and realtime fan-out, itinerary, integer-paisa budget,
+encrypted safety/check-ins/SOS, reports, scheduling, and audited Tour
+Operations with break-glass and two-person cancellation.
+
+Loopholes L1–L11 from the final-touch plan are closed in the backend. The real
+PostgreSQL focused suites pass (59 verification/moderation tests and 5 Tours
+acceptance tests); the full run reached 883 passing tests before documentation
+guards identified the contract updates recorded here.
+
+Not built: P2/P3 chat media, polls, post-tour feedback, learned matching, a
+real SMS provider, KMS/Vault integration, ClamAV/libvips/OCR/NID partner checks,
+Playwright and k6 release suites. Production flags remain off until the UI and
+manual Chrome handover are accepted.
+
+## 9. Three-role Chrome run and report handling (8 November 2026)
+
+Full record, test cases and defect list: [Testing-and-Implementation-Irfan.md](Testing-and-Implementation-Irfan.md).
+
+- Queue summaries for `tour_report`, `chat_report` and `tour_safety` tasks (`tour_ops.report_summary`, wired in `admin/routes._case_summary`).
+- `POST /api/v1/admin/tours/reports/{report_id}/resolve`: actions `dismiss`, `noted`, `hide_message`, `restrict_user`, `suspend_tour`; requires the task lease; audited as `tour.report_resolved` (registered in `audit_actions.py` and `tests/test_audit_log.py`).
+- Tour and chat report reason codes are normalised to lower case (`other` default).
+- Staff verification details read the liveness gesture from the challenge table.
+- Test `test_chat_and_tour_reports_reach_the_staff_queue_and_resolve_under_lease`; 22 tours and verification tests pass, `ruff` and `mypy` clean.
+- Full backend suite after the fixes: 890 tests, 888 passed on the first run; the 2 failures were the OpenAPI snapshot and the `API.md` route list, both updated for the new resolve route and re-run green.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { forgetCsrfToken, getSession, login, logout, register, requestPasswordReset, verifyEmail } from './auth';
+import { ACCOUNT_FORM_TIMEOUT_MS, forgetCsrfToken, getSession, login, logout, register, requestPasswordReset, verifyEmail } from './auth';
 import { reportReview } from './reports';
 
 type Call = [string, RequestInit];
@@ -88,6 +88,26 @@ describe('account calls', () => {
     fetchMock = vi.fn(async () => error('INVALID_CREDENTIALS', 401));
     vi.stubGlobal('fetch', fetchMock);
     await expect(login('a@b.co', 'wrongpass1234')).rejects.toMatchObject({ status: 401, code: 'INVALID_CREDENTIALS' });
+  });
+
+  it('sign-in gives up with TIMEOUT when the connection stalls, instead of waiting forever', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock = vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+          }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const pending = expect(login('a@b.co', 'Passw0rdTest99')).rejects.toMatchObject({ status: 0, code: 'TIMEOUT' });
+      await vi.advanceTimersByTimeAsync(ACCOUNT_FORM_TIMEOUT_MS - 1);
+      expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reports a review with the CSRF token, to the reviews route', async () => {

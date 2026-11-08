@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     receipt_keys: str | None = Field(default=None, repr=False)  # JSON {"v1": "<secret>", ...}
     receipt_key_current: str = "v1"
     cors_allowed_origins: str = "http://localhost:5173"
+    # Absolute API origin for short-lived evidence URLs. Empty keeps URLs
+    # relative in same-origin deployments and tests.
+    backend_public_url: str = ""
     log_level: str = "INFO"
     app_timezone: str = "UTC"
     default_display_timezone: str = "Asia/Dhaka"
@@ -176,6 +179,51 @@ class Settings(BaseSettings):
     notify_backlog_alert_minutes: int = Field(default=10, ge=1)
     notify_webhook_anomaly_per_hour: int = Field(default=5, ge=1)
     notify_queue_overdue_hours: int = Field(default=24, ge=1)
+
+    # Field encryption (sign-up form 9, architecture 10.4): JSON {"k1": "<base64 32-byte key>", ...}.
+    # Unset in development/test: a key is derived from RECEIPT_PEPPER. Unset in production: every
+    # route that stores sensitive fields answers 503 until it is configured (fails closed).
+    field_encryption_keys: str | None = Field(default=None, repr=False)
+    field_encryption_key_current: str = "k1"
+    # SMS one-time codes (sign-up form 3, 12). "mailpit" delivers to the local inbox (development only);
+    # "none" refuses phone verification with 503 until a real gateway is configured.
+    sms_provider: str = Field(default="none", pattern="^(none|mailpit)$")
+    # Verification application limits (sign-up form 3, 10.3, 10.4).
+    verification_drafts_per_day: int = Field(default=3, ge=1)
+    verification_submissions_per_day: int = Field(default=1, ge=1)
+    verification_uploads_per_case: int = Field(default=20, ge=1)
+    verification_draft_days: int = Field(default=14, ge=1)
+    verification_clarification_days: int = Field(default=7, ge=1)
+    verification_renewal_years: int = Field(default=2, ge=1, le=10)
+    otp_ttl_seconds: int = Field(default=300, ge=60)
+    otp_attempts_per_code: int = Field(default=3, ge=1)
+    otp_codes_per_target_per_hour: int = Field(default=3, ge=1)
+    otp_codes_per_account_per_day: int = Field(default=5, ge=1)
+    otp_resend_seconds: int = Field(default=60, ge=0)
+    # Tours (Verified Users Interface 5.2, 8.2, 10.2, 11, 12; architecture 10.3). Configuration values.
+    tours_active_per_user: int = Field(default=3, ge=1)
+    tours_drafts_per_user: int = Field(default=5, ge=1)
+    tours_publish_per_day: int = Field(default=3, ge=1)
+    tour_requests_pending_total: int = Field(default=10, ge=1)
+    tour_requests_per_day: int = Field(default=20, ge=1)
+    tour_code_failures_per_hour: int = Field(default=10, ge=1)
+    tour_people_cards_per_day: int = Field(default=100, ge=1)
+    tour_invitations_per_day: int = Field(default=10, ge=1)
+    tour_chat_messages_per_minute: int = Field(default=30, ge=1)
+    # In-process scheduler for time-based transitions (architecture 7). Off in tests; a test calls run_once.
+    scheduler_enabled: bool = True
+    scheduler_interval_seconds: int = Field(default=60, ge=5, le=3600)
+    # Feature flags (architecture 16): comma list of enabled flags. Default: every module on outside
+    # production; in production nothing until listed.
+    feature_flags: str | None = None
+
+    @property
+    def enabled_features(self) -> frozenset[str]:
+        if self.feature_flags is not None:
+            return frozenset(f.strip() for f in self.feature_flags.split(",") if f.strip())
+        if self.is_production:
+            return frozenset()
+        return frozenset({"tours_core", "tours_chat", "tours_people", "tours_safety", "tours_budget"})
 
     @property
     def email_from_address(self) -> str:
@@ -322,6 +370,8 @@ class Settings(BaseSettings):
             raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER=resend")
         if self.supabase_url and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must stay true in production")
+        if self.sms_provider == "mailpit":
+            raise ValueError("SMS_PROVIDER=mailpit is a development inbox; configure a real SMS gateway")
         return self
 
 

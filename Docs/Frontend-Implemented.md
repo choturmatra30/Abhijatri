@@ -208,7 +208,7 @@ Every public-app screen was checked for ten states: empty, loading, error, no in
 | State | Before | Now | Where |
 |---|---|---|---|
 | No internet | Only My reviews noticed it | App-wide banner while offline ("pages already open may still show, nothing new can load or be sent") and a short "back online" notice | `components/common/StatusBanners.tsx` (`NetworkBanner`), `hooks/useNetworkState.ts`; mounted in `AppLayout` and `PublicLayout` |
-| Slow network | A stalled request spun forever; the navbar could say "Checking" forever | GET requests stop after 20 s with a `TIMEOUT` error ("the connection is too slow", Try again); every spinner and busy submit button adds "taking longer than usual" after 8 s; the health check stops after 10 s. Writes get no default deadline, because the server may still complete them. | `api/client.ts` (`READ_TIMEOUT_MS`, `TIMEOUT_ERROR`), `SlowNetworkHint` in `StatusViews.tsx`, `api/health.ts` |
+| Slow network | A stalled request spun forever; the navbar could say "Checking" forever | GET requests stop after 20 s with a `TIMEOUT` error ("the connection is too slow", Try again); every spinner and busy submit button adds "taking longer than usual" after 8 s; the health check stops after 10 s. Writes get no default deadline, because the server may still complete them; the account forms submitted before sign-in (sign-in, sign-up, resend, reset request) are the exception: they are safe to repeat, so they stop after 30 s with the same `TIMEOUT` message and the button comes back. | `api/client.ts` (`READ_TIMEOUT_MS`, `TIMEOUT_ERROR`), `api/auth.ts` (`ACCOUNT_FORM_TIMEOUT_MS`), `SlowNetworkHint` in `StatusViews.tsx`, `api/health.ts` |
 | Session expired | None: after the server ended a session the app still showed the member as signed in and every request failed | A 401 `AUTH_REQUIRED` fires `AUTH_REQUIRED_EVENT`; `SessionContext` drops to the guest view and shows "Your session has expired" with "Sign in again", which returns to the same page | `api/client.ts`, `context/SessionContext.tsx`, `SessionExpiredBanner` |
 | Permission denied | Same look as any error, with a pointless Try again | Its own state ("No permission", shield icon, no retry). `AUTH_REQUIRED` shows "Sign in required" with a sign-in link instead of a retry | `failureKind()` and `ErrorState` in `StatusViews.tsx` |
 | Sign-in links | Account pages linked to `/login` and sign-in always went to `/overview` | `SignInLink` passes the current page, so sign-in returns there | `components/common/SignInLink.tsx`; My reviews, Review detail, Edit, Appeals, Reports, Notifications, Verification |
@@ -459,3 +459,12 @@ Guide: `Docs/Review-Edit-Appeal-UIUX.md`. Test cases: `Docs/Review-Frontend-Manu
 - Photo and video upload from the edit screen is not built (upload remains on the create form).
 - Public list filters are client-side; a server-side filter needs an API change.
 - In development over HTTP/1.1, six open tabs can stall requests because each holds a notification stream (not an issue behind the HTTP/2 production proxy).
+
+## Three-role Chrome run: fixes (8 November 2026)
+
+Full record: [Testing-and-Implementation-Irfan.md](Testing-and-Implementation-Irfan.md).
+
+- Verification page: review-status screen while a case is pending (auto-refresh), data summary with Edit links on the review step.
+- Tours: Safety tab rewritten (errors shown, saved details prefilled, inline SOS confirmation); suspended banner; workspace refresh every 15 s; chat refusals shown as "Not sent".
+- Staff app: inline evidence viewer; report panel for tour, chat and SOS tasks (`TourReportForms.tsx`); Tour Operations uses an inline reason panel instead of `prompt()`.
+- Staff 46 tests and member 192 tests pass; both builds clean.

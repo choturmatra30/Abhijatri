@@ -7,10 +7,10 @@ event, and is committed once by the route. Times are server UTC; appeal deadline
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -20,21 +20,25 @@ from app.errors import ApiError
 from app.models import (
     Appeal,
     EnforcementCase,
+    Institution,
     ModerationActionRecord,
     ModerationDecision,
     ModerationTask,
+    PhoneNumber,
     Review,
     ReviewStatus,
     Sanction,
     User,
     UserRole,
     Verification,
+    VerificationAttributes,
+    VerificationBan,
     VerificationCase,
     VerificationEvidence,
 )
 from app.notify import events
 from app.services import ReviewError, appeal_deadline, moderate_review, set_hidden_rating_kept
-from app.storage import ALLOWED_TYPES, MAX_BYTES, StorageClient
+from app.storage import StorageClient
 
 APPROVED_EVIDENCE_HOURS = 24  # Security 3.7: evidence is erased within 24 hours of a decision
 REJECTED_CASE_DAYS = 30  # spec 10: rejected verification cases are kept 30 days
@@ -45,18 +49,16 @@ MAX_EVIDENCE = 3
 
 # (from, to) -> who may request it
 VERIFICATION_TRANSITIONS: dict[tuple[str, str], frozenset[str]] = {
+    # staff (the applicant's own moves live in app.verification.service: submit, respond, withdraw)
     ("submitted", "in_review"): frozenset({"moderator", "superadmin"}),
     ("in_review", "needs_clarification"): frozenset({"moderator", "superadmin"}),
-    ("needs_clarification", "in_review"): frozenset({"applicant"}),
     ("in_review", "approved"): frozenset({"moderator", "superadmin"}),
     ("in_review", "rejected"): frozenset({"moderator", "superadmin"}),
     ("submitted", "escalated"): frozenset({"moderator", "superadmin"}),
     ("in_review", "escalated"): frozenset({"moderator", "superadmin"}),
     ("escalated", "approved"): frozenset({"superadmin"}),
     ("escalated", "rejected"): frozenset({"superadmin"}),
-    ("submitted", "withdrawn"): frozenset({"applicant"}),
-    ("in_review", "withdrawn"): frozenset({"applicant"}),
-    ("needs_clarification", "withdrawn"): frozenset({"applicant"}),
+    ("escalated", "needs_clarification"): frozenset({"superadmin"}),
 }
 ENFORCEMENT_ACTIONS: dict[str, frozenset[str]] = {  # action -> states it may start from
     "remove": frozenset({"taken_down"}),
@@ -141,85 +143,141 @@ def ensure_not_restricted(session: Session, user_id: uuid.UUID) -> None:
 # =========================================================================================
 
 
-def open_verification(session: Session, applicant: Principal, statement: str | None) -> VerificationCase:
-    ensure_not_restricted(session, applicant.user.id)
-    if is_verified_member(session, applicant.user.id):
-        raise ApiError("ALREADY_VERIFIED")
-    case = VerificationCase(applicant_user_id=applicant.user.id, statement=statement)
-    try:
-        with session.begin_nested():
-            session.add(case)
-            session.flush()
-    except IntegrityError as error:
-        raise ApiError("VERIFICATION_ALREADY_OPEN") from error
-    tasks.ensure_task(session, "verification", case.id)
-    audit.record(session, actor=applicant, action="verification.submitted", target_type="verification_case", target_id=case.id)
-    emit(session, "verification.submitted", case.id, {"case_id": str(case.id), "applicant_id": str(applicant.user.id), "staff_recipients": active_staff_ids(session, exclude=applicant.user.id)})
-    return case
+def open_verification(session: Session, applicant: Principal, statement: str | None = None, *, purpose: str = "initial") -> VerificationCase:
+    """Start an application as a draft (sign-up form 4). Kept as the entry point other modules call."""
+    from app.verification import service
 
-
-def _own_case(session: Session, applicant: Principal, case_id: uuid.UUID) -> VerificationCase:
-    case = session.scalar(select(VerificationCase).where(VerificationCase.id == case_id).with_for_update())
-    if case is None or case.applicant_user_id != applicant.user.id:
-        raise ApiError("NOT_FOUND")
-    return case
-
-
-def request_evidence_upload(
-    session: Session, storage: StorageClient, applicant: Principal, case_id: uuid.UUID, content_type: str, size_bytes: int
-) -> dict[str, Any]:
-    case = _own_case(session, applicant, case_id)
-    if case.state not in ("submitted", "in_review", "needs_clarification"):
-        raise ApiError("TRANSITION_NOT_ALLOWED")
-    if content_type not in ALLOWED_TYPES or not 0 < size_bytes <= MAX_BYTES:
-        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "content_type" if content_type not in ALLOWED_TYPES else "size_bytes", "code": "INVALID_VALUE"}])
-    count = session.scalar(
-        select(func.count()).select_from(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status != "deleted")
-    )
-    if (count or 0) >= MAX_EVIDENCE:
-        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "evidence", "code": "TOO_MANY"}])
-    extension = {"image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf"}[content_type]
-    evidence = VerificationEvidence(
-        case_id=case.id, object_key=f"{case.id}/{uuid.uuid4()}.{extension}", content_type=content_type, uploaded_by=applicant.user.id
-    )
-    session.add(evidence)
-    session.flush()
-    upload_url = storage.signed_upload_url(evidence.object_key)
-    audit.record(session, actor=applicant, action="evidence.upload_requested", target_type="verification_case", target_id=case.id, metadata={"evidence_id": str(evidence.id), "content_type": content_type})
-    return {"evidence_id": str(evidence.id), "upload_url": upload_url, "content_type": content_type, "max_bytes": MAX_BYTES}
-
-
-def complete_evidence_upload(session: Session, storage: StorageClient, applicant: Principal, case_id: uuid.UUID, evidence_id: uuid.UUID) -> VerificationEvidence:
-    _own_case(session, applicant, case_id)
-    evidence = session.get(VerificationEvidence, evidence_id)
-    if evidence is None or evidence.case_id != case_id or evidence.status == "deleted":
-        raise ApiError("NOT_FOUND")
-    if evidence.status == "uploaded":
-        return evidence
-    if not storage.exists(evidence.object_key):
-        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "evidence", "code": "NOT_UPLOADED"}])
-    evidence.status = "uploaded"
-    audit.record(session, actor=applicant, action="evidence.uploaded", target_type="verification_case", target_id=case_id, metadata={"evidence_id": str(evidence.id)})
-    return evidence
-
-
-def applicant_transition(session: Session, applicant: Principal, case_id: uuid.UUID, to: str, statement: str | None) -> VerificationCase:
-    case = _own_case(session, applicant, case_id)
-    if "applicant" not in VERIFICATION_TRANSITIONS.get((case.state, to), frozenset()):
-        raise ApiError("TRANSITION_NOT_ALLOWED")
-    previous = case.state
-    case.state, case.version, case.updated_at = to, case.version + 1, _now()
+    case = service.open_case(session, applicant, purpose=purpose)
     if statement:
         case.statement = statement
-    if to == "withdrawn":
-        case.purge_after = _now() + timedelta(days=REJECTED_CASE_DAYS)
-    if to == "in_review":  # the applicant answered: back into the queue
-        tasks.ensure_task(session, "verification", case.id)
-    else:
-        tasks.cancel_open_tasks(session, case.id)
-    audit.record(session, actor=applicant, action=f"verification.{to}", target_type="verification_case", target_id=case.id, metadata={"from": previous, "to": to})
-    emit(session, "verification.state_changed", case.id, {"case_id": str(case.id), "state": to, "applicant_id": str(case.applicant_user_id)})
     return case
+
+
+# Checklist a moderator ticks before approving (sign-up form 6.1). "not_expired" applies to passports and
+# licences; "student" only when student status is claimed.
+CHECKLIST = ("genuine", "name", "dob", "gender", "number", "not_expired", "face", "liveness", "student", "signals")
+
+
+def required_checks(case: VerificationCase) -> set[str]:
+    required = {"genuine", "name", "dob", "gender", "number", "face", "liveness", "signals"}
+    if case.doc_type in ("PASSPORT", "DRIVING_LICENCE"):
+        required.add("not_expired")
+    if case.is_student_claim:
+        required.add("student")
+    return required
+
+
+def renewal_due(decided: datetime, doc_expiry: date | None) -> datetime:
+    """Renewal is due 2 years after approval or 30 days before the document expires, whichever is first (5)."""
+    from app.config import get_settings
+
+    due = decided + timedelta(days=365 * get_settings().verification_renewal_years)
+    if doc_expiry is not None:
+        before_expiry = datetime.combine(doc_expiry, datetime.min.time(), tzinfo=UTC) - timedelta(days=30)
+        due = min(due, before_expiry)
+    return max(due, decided + timedelta(days=1))
+
+
+def _student_limit(case: VerificationCase, now: datetime) -> date:
+    limit = (now + timedelta(days=365)).date()
+    if case.study_end_month is not None:
+        limit = min(limit, case.study_end_month)
+    return limit
+
+
+def _validated_attributes(case: VerificationCase, attributes: dict[str, Any] | None, now: datetime) -> dict[str, Any]:
+    """VF-05: an approval names gender and birth year (and student status with its end date)."""
+    if not attributes:
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "attributes", "code": "REQUIRED"}])
+    errors: list[dict[str, str]] = []
+    gender = attributes.get("gender")
+    if gender not in ("FEMALE", "MALE", "THIRD"):
+        errors.append({"field": "attributes.gender", "code": "REQUIRED"})
+    birth_year = attributes.get("birth_year")
+    if not isinstance(birth_year, int) or not 1900 <= birth_year <= now.year - 18:
+        errors.append({"field": "attributes.birth_year", "code": "INVALID_VALUE"})
+    is_student = bool(attributes.get("is_student"))
+    student_until: date | None = None
+    if is_student:
+        try:
+            student_until = date.fromisoformat(str(attributes.get("student_until") or ""))
+        except ValueError:
+            errors.append({"field": "attributes.student_until", "code": "REQUIRED"})
+        else:
+            if student_until <= now.date() or student_until > (now + timedelta(days=366)).date():
+                errors.append({"field": "attributes.student_until", "code": "OUT_OF_RANGE"})
+    if errors:
+        raise ApiError("VALIDATION_FAILED", field_errors=errors)
+    return {"gender": gender, "birth_year": birth_year, "is_student": is_student, "student_until": student_until}
+
+
+def _write_attributes(session: Session, user_id: uuid.UUID, values: dict[str, Any], *, district: str | None, actor_id: uuid.UUID | None, now: datetime) -> None:
+    row = session.get(VerificationAttributes, user_id)
+    if row is None:
+        row = VerificationAttributes(user_id=user_id, gender=values["gender"], birth_year=values["birth_year"])
+        session.add(row)
+    row.gender, row.birth_year = values["gender"], values["birth_year"]
+    row.is_student, row.student_until = values["is_student"], values["student_until"]
+    if district:
+        row.home_district = district
+    row.set_by, row.set_at = actor_id, now
+
+
+def _approve(session: Session, principal: Principal, case: VerificationCase, attributes: dict[str, Any] | None, checklist: list[str] | None, now: datetime) -> None:
+    from app.verification import service
+
+    if case.doc_type is None and case.purpose == "initial":
+        raise ApiError("EVIDENCE_REQUIRED")  # a legacy statement-only case: reject with "use-new-form"
+    status = service.step_status(session, case)
+    missing = [step for step in service.required_steps(case) if not status[step]]
+    if missing:
+        raise ApiError("EVIDENCE_REQUIRED")
+    unticked = sorted(required_checks(case) - set(checklist or []))
+    if unticked:
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": f"checklist.{name}", "code": "REQUIRED"} for name in unticked])
+    if case.purpose == "student_update":
+        current = session.get(VerificationAttributes, case.applicant_user_id)
+        base = {"gender": current.gender, "birth_year": current.birth_year} if current else {}
+        values = _validated_attributes(case, {**base, **(attributes or {}), "is_student": True}, now)
+    else:
+        values = _validated_attributes(case, attributes, now)
+    if values["is_student"] and values["student_until"] > _student_limit(case, now):
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "attributes.student_until", "code": "OUT_OF_RANGE"}])
+    previous = service.active_verification(session, case.applicant_user_id)
+    if case.purpose == "student_update" and previous is not None:
+        expires = previous.expires_at
+    else:
+        expires = renewal_due(now, case.doc_expiry)
+    if previous is not None and case.purpose == "renewal":
+        previous.status, previous.revoked_at, previous.revocation_reason = "RENEWED", now, "renewed"
+    if case.purpose != "student_update" or previous is None:
+        session.add(
+            Verification(
+                user_id=case.applicant_user_id, verification_type="VERIFIED_MEMBER", status="APPROVED", method="DOCUMENT_SELFIE_REVIEW",
+                approved_by=principal.user.id, decided_at=now, expires_at=expires,
+            )
+        )
+    _write_attributes(session, case.applicant_user_id, values, district=case.home_district, actor_id=principal.user.id, now=now)
+    case.doc_number_enc = None  # the full number is destroyed at approval (8, 9.5); last 4 and the hash stay
+
+
+def _reject_strikes(session: Session, principal: Principal, case: VerificationCase, reason_code: str, now: datetime) -> None:
+    """Third counted rejection, or a fake document: 90-day ban, with the document and phone hashes (10.3)."""
+    from app.verification import service
+
+    if reason_code in service.NOT_COUNTED_REJECTIONS:
+        return
+    count = len(service.counted_rejections(session, case.applicant_user_id))  # includes this case (already rejected)
+    if reason_code != "fake-document" and count < 3:
+        return
+    phone = session.get(PhoneNumber, case.phone_id) if case.phone_id else None
+    session.add(
+        VerificationBan(
+            user_id=case.applicant_user_id, doc_hash=case.doc_hash, phone_hash=phone.phone_hash if phone else None,
+            reason=reason_code if reason_code == "fake-document" else "third-rejection", until=now + timedelta(days=service.BAN_DAYS), created_by=principal.user.id,
+        )
+    )
+    audit.record(session, actor=principal, action="verification.banned", target_type="user", target_id=case.applicant_user_id, reason=reason_code, metadata={"days": service.BAN_DAYS})
 
 
 def staff_verification_transition(
@@ -234,13 +292,19 @@ def staff_verification_transition(
     reason_code: str,
     note: str | None,
     request_id: str | None,
+    steps: list[str] | None = None,
+    attributes: dict[str, Any] | None = None,
+    checklist: list[str] | None = None,
 ) -> dict[str, Any]:
+    from app import reasons
+    from app.verification import service
+
     case = session.scalar(select(VerificationCase).where(VerificationCase.id == case_id).with_for_update())
     if case is None:
         raise ApiError("NOT_FOUND")
     task = tasks.require_lease(session, principal, task_id, lease_token, case_id)
     if case.applicant_user_id == principal.user.id:
-        raise ApiError("FORBIDDEN")  # nobody decides their own case
+        raise ApiError("SELF_MODERATION_FORBIDDEN")  # nobody decides their own case (6)
     if case.version != expected_version:
         raise ApiError("REVIEW_VERSION_CONFLICT")
     allowed = VERIFICATION_TRANSITIONS.get((case.state, to))
@@ -248,29 +312,40 @@ def staff_verification_transition(
         raise ApiError("TRANSITION_NOT_ALLOWED")
     if principal.role not in allowed:
         raise ApiError("FORBIDDEN")
-    if to == "needs_clarification" and not note:
-        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "note", "code": "REQUIRED"}])
+    if case.risk_flags and to in ("approved", "rejected") and principal.role != "superadmin":
+        raise ApiError("FORBIDDEN")  # a flagged application needs a superadmin (6.2, 10.2)
+    if to == "rejected" and not reasons.is_valid("verification_reject", reason_code):
+        raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "reason_code", "code": "INVALID_VALUE"}])
+    if to == "needs_clarification":
+        if not reasons.is_valid("verification_clarify", reason_code):
+            raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "reason_code", "code": "INVALID_VALUE"}])
+        if not note:
+            raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "note", "code": "REQUIRED"}])
+        chosen = [s for s in (steps or []) if s in service.STEPS and s != "emergency"]
+        if not chosen:
+            raise ApiError("VALIDATION_FAILED", field_errors=[{"field": "steps", "code": "REQUIRED"}])
     now = _now()
     if to == "approved":
-        uploaded = session.scalar(
-            select(func.count()).select_from(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status == "uploaded")
-        )
-        if not uploaded:
-            raise ApiError("EVIDENCE_REQUIRED")
-        session.add(
-            Verification(
-                user_id=case.applicant_user_id, verification_type="VERIFIED_MEMBER", status="APPROVED",
-                method="MANUAL_REVIEW", approved_by=principal.user.id, decided_at=now,
-            )
-        )
+        _approve(session, principal, case, attributes, checklist, now)
     previous = case.state
     case.state, case.version, case.updated_at = to, case.version + 1, now
     if to in ("approved", "rejected"):
         case.decided_by, case.decided_at, case.decision_reason, case.decision_note = principal.user.id, now, reason_code, note
         case.purge_after = now + (timedelta(hours=APPROVED_EVIDENCE_HOURS) if to == "approved" else timedelta(days=REJECTED_CASE_DAYS))
+        case.clarification_steps = None
         tasks.complete(task)
+        if to == "rejected":
+            session.flush()
+            _reject_strikes(session, principal, case, reason_code, now)
     elif to == "needs_clarification":
-        case.decision_note = note  # the question the applicant sees
+        from app.config import get_settings
+
+        case.decision_reason, case.decision_note = reason_code, note  # the note is the question the applicant sees
+        case.clarification_steps = [s for s in (steps or []) if s in service.STEPS and s != "emergency"]
+        case.clarification_due_at = now + timedelta(days=get_settings().verification_clarification_days)
+        if "selfie" in case.clarification_steps:
+            case.liveness_code = case.liveness_gesture = None
+            case.liveness_issued_at = None
         tasks.complete(task)  # waits for the applicant; their answer queues it again
     elif to == "escalated":
         task.escalated, task.required_role = True, "superadmin"
@@ -278,7 +353,8 @@ def staff_verification_transition(
         task.version += 1
     audit.record(
         session, actor=principal, action=f"verification.{to}", target_type="verification_case", target_id=case.id,
-        reason=reason_code, metadata={"from": previous, "to": to, "version": case.version}, request_id=request_id,
+        reason=reason_code, metadata={"from": previous, "to": to, "version": case.version, "steps": case.clarification_steps or [], "checklist": sorted(checklist or [])},
+        request_id=request_id,
     )
     facts = {"case_id": str(case.id), "state": to, "applicant_id": str(case.applicant_user_id)}
     if to == "needs_clarification":
@@ -287,30 +363,195 @@ def staff_verification_transition(
     return {"case_id": str(case.id), "state": case.state, "version": case.version}
 
 
+def reopen_verification(session: Session, principal: Principal, case_id: uuid.UUID, reason_code: str, note: str | None, request_id: str | None) -> dict[str, Any]:
+    """A superadmin sends a rejection back to the queue within 30 days (P-05)."""
+    if principal.role != "superadmin":
+        raise ApiError("FORBIDDEN")
+    case = session.scalar(select(VerificationCase).where(VerificationCase.id == case_id).with_for_update())
+    if case is None:
+        raise ApiError("NOT_FOUND")
+    if case.state != "rejected" or case.decided_at is None:
+        raise ApiError("TRANSITION_NOT_ALLOWED")
+    if _now() - case.decided_at > timedelta(days=REJECTED_CASE_DAYS):
+        raise ApiError("REOPEN_WINDOW_CLOSED")
+    if case.legal_name_enc is None and case.doc_type is not None:
+        raise ApiError("REOPEN_WINDOW_CLOSED")  # its evidence is already gone
+    case.state, case.version, case.updated_at, case.purge_after = "submitted", case.version + 1, _now(), None
+    case.decided_by = case.decided_at = None
+    tasks.ensure_task(session, "verification", case.id, required_role="superadmin" if case.risk_flags else "moderator")
+    audit.record(session, actor=principal, action="verification.reopened", target_type="verification_case", target_id=case.id, reason=reason_code, metadata={"note": note or ""}, request_id=request_id)
+    emit(session, "verification.state_changed", case.id, {"case_id": str(case.id), "state": "submitted", "applicant_id": str(case.applicant_user_id)})
+    return {"case_id": str(case.id), "state": case.state, "version": case.version}
+
+
+def _may_view_case(session: Session, principal: Principal, case: VerificationCase) -> None:
+    """The lease holder, or a superadmin; never the applicant. Evidence only while the case is being decided."""
+    if case.applicant_user_id == principal.user.id:
+        raise ApiError("FORBIDDEN")
+    if principal.role == "superadmin":
+        return
+    holder = session.scalar(
+        select(ModerationTask.id).where(
+            ModerationTask.subject_id == case.id,
+            ModerationTask.status == "open",
+            ModerationTask.claimed_by == principal.user.id,
+            ModerationTask.lease_expires_at > _now(),
+        )
+    )
+    if holder is None:
+        raise ApiError("FORBIDDEN")
+
+
+def verification_details(session: Session, principal: Principal, case_id: uuid.UUID, *, request_id: str | None) -> dict[str, Any]:
+    """The review screen's right side (6.1). The full document number only while the case is being decided."""
+    from app import fieldcrypt
+    from app.verification import geo, service
+
+    case = session.get(VerificationCase, case_id)
+    if case is None:
+        raise ApiError("NOT_FOUND")
+    _may_view_case(session, principal, case)
+    applicant = session.get(User, case.applicant_user_id)
+    phone = session.get(PhoneNumber, case.phone_id) if case.phone_id else None
+    institution = session.get(Institution, case.institution_id) if case.institution_id else None
+    deciding = case.state in ("submitted", "in_review", "escalated")
+    doc_number = None
+    if deciding and case.doc_number_enc is not None:
+        try:
+            doc_number = fieldcrypt.open_text(case.doc_number_enc, aad=f"verification_case:{case.id}:doc_number_enc")
+        except fieldcrypt.SealError:
+            doc_number = None
+    evidence = session.scalars(
+        select(VerificationEvidence).where(VerificationEvidence.case_id == case.id, VerificationEvidence.status == "uploaded").order_by(VerificationEvidence.created_at)
+    )
+    other_rejections = len(service.counted_rejections(session, case.applicant_user_id))
+    audit.record(session, actor=principal, action="verification.details_viewed", target_type="verification_case", target_id=case.id, request_id=request_id)
+    view = service.own_view(session, case)
+    return {
+        "case_id": str(case.id),
+        "state": case.state,
+        "purpose": case.purpose,
+        "version": case.version,
+        "applicant": {"user_id": str(applicant.id), "display_name": applicant.display_name, "email": applicant.email, "joined_at": applicant.created_at.isoformat()} if applicant else None,
+        "personal": view["personal"] | {"home_division": geo.division_of(case.home_district)},
+        "phone": {"last4": phone.last4, "verified": phone.verified_at is not None} if phone else None,
+        "document": {
+            "doc_type": case.doc_type,
+            "number": doc_number,  # full number only while the case is being decided (7)
+            "last4": case.doc_last4,
+            "expiry": case.doc_expiry.isoformat() if case.doc_expiry else None,
+        } if case.doc_type else None,
+        "student": {
+            "institution": institution.name_en if institution else case.institution_other,
+            "study_end": case.study_end_month.strftime("%Y-%m") if case.study_end_month else None,
+            "email_verified": case.institution_email_verified,
+            "max_student_until": _student_limit(case, _now()).isoformat(),
+        } if case.is_student_claim else None,
+        "liveness": {"code": case.liveness_code, "gesture": case.liveness_gesture, "gesture_en": next((g[2] for g in service.GESTURES if g[0] == case.liveness_gesture), None)} if case.liveness_code else None,
+        "evidence": [
+            {"id": str(e.id), "kind": e.kind, "flags": e.flags or [], "challenge": e.challenge, "created_at": e.created_at.isoformat(), "sealed": e.sealed_key is not None}
+            for e in evidence
+        ],
+        "risk_flags": case.risk_flags or [],
+        "required_checks": sorted(required_checks(case)),
+        "previous_rejections": other_rejections,
+        "statement": case.statement,
+        "submitted_at": case.submitted_at.isoformat() if case.submitted_at else None,
+        "clarification_steps": case.clarification_steps or [],
+    }
+
+
+EVIDENCE_TOKEN_LABEL = "abhijatri:evidence-view:v1"  # noqa: S105 - an HMAC context label, not a secret
+
+
+def _evidence_token(staff_id: uuid.UUID, evidence_id: uuid.UUID, expires: int) -> str:
+    from app import crypto
+
+    return crypto.digest(EVIDENCE_TOKEN_LABEL, crypto.current_key_id(), f"{staff_id}:{evidence_id}:{expires}").hex()
+
+
 def evidence_download(
     session: Session, storage: StorageClient, principal: Principal, case_id: uuid.UUID, evidence_id: uuid.UUID, *, request_id: str | None
 ) -> dict[str, Any]:
-    """A 60-second link, only for the staff member holding this case (or a superadmin). Every view is audited."""
+    """A 60-second link, only for the staff member holding this case (or a superadmin). Every view is audited.
+
+    A sealed image is served by this API (decrypted and watermarked on the fly, never cached); an old
+    unsealed file keeps the Storage signed link.
+    """
+    from app.config import get_settings
+
     evidence = session.get(VerificationEvidence, evidence_id)
     if evidence is None or evidence.case_id != case_id or evidence.status != "uploaded":
         raise ApiError("NOT_FOUND")
     case = session.get(VerificationCase, case_id)
-    if case is None or case.applicant_user_id == principal.user.id:
-        raise ApiError("FORBIDDEN")
+    if case is None:
+        raise ApiError("NOT_FOUND")
+    _may_view_case(session, principal, case)
+    if evidence.sealed_key:
+        expires = int(_now().timestamp()) + 60
+        token = _evidence_token(principal.user.id, evidence.id, expires)
+        base = get_settings().backend_public_url.rstrip("/")
+        url = f"{base}/api/v1/admin/verification-cases/{case_id}/evidence/{evidence_id}/content?expires={expires}&token={token}"
+    else:
+        url = storage.signed_download_url(evidence.object_key)
+    audit.record(session, actor=principal, action="evidence.viewed", target_type="verification_case", target_id=case_id, metadata={"evidence_id": str(evidence.id), "kind": evidence.kind}, request_id=request_id)
+    return {"url": url, "expires_in": 60, "content_type": "image/jpeg" if evidence.sealed_key else evidence.content_type}
+
+
+def evidence_content(
+    session: Session, storage: StorageClient, principal: Principal, case_id: uuid.UUID, evidence_id: uuid.UUID, *, expires: int, token: str
+) -> bytes:
+    """The decrypted, watermarked image behind a link from ``evidence_download`` (same staff member, 60 s)."""
+    import hmac as _hmac
+    import io
+
+    from app import fieldcrypt
+    from app.storage import SEALED_BUCKET, SEALED_MAX_BYTES
+    from app.verification import images
+
+    if expires < int(_now().timestamp()) or not _hmac.compare_digest(_evidence_token(principal.user.id, evidence_id, expires), token or ""):
+        raise ApiError("NOT_FOUND")
+    evidence = session.get(VerificationEvidence, evidence_id)
+    if evidence is None or evidence.case_id != case_id or evidence.status != "uploaded" or not evidence.sealed_key:
+        raise ApiError("NOT_FOUND")
+    case = session.get(VerificationCase, case_id)
+    if case is None:
+        raise ApiError("NOT_FOUND")
+    _may_view_case(session, principal, case)
+    buffer = io.BytesIO()
+    storage.download(evidence.sealed_key, buffer, SEALED_BUCKET, SEALED_MAX_BYTES)
+    try:
+        jpeg = fieldcrypt.open_bytes(buffer.getvalue(), aad=f"evidence:{evidence.id}")
+    except fieldcrypt.SealError as error:
+        raise ApiError("NOT_FOUND") from error
+    stamp = f"{principal.user.id.hex[:8]} {_now():%Y-%m-%d %H:%M}"
+    return images.watermark(jpeg, stamp)
+
+
+def list_bans(session: Session) -> list[dict[str, Any]]:
+    now = _now()
+    rows = session.scalars(
+        select(VerificationBan).where(VerificationBan.lifted_at.is_(None), or_(VerificationBan.until.is_(None), VerificationBan.until > now)).order_by(VerificationBan.created_at.desc()).limit(200)
+    )
+    out = []
+    for ban in rows:
+        user = session.get(User, ban.user_id) if ban.user_id else None
+        out.append({
+            "id": str(ban.id), "user_id": str(ban.user_id) if ban.user_id else None, "display_name": user.display_name if user else None,
+            "email": user.email if user else None, "reason": ban.reason, "until": ban.until.isoformat() if ban.until else None, "created_at": ban.created_at.isoformat(),
+        })
+    return out
+
+
+def lift_ban(session: Session, principal: Principal, ban_id: uuid.UUID, reason: str, request_id: str | None) -> dict[str, Any]:
     if principal.role != "superadmin":
-        holder = session.scalar(
-            select(ModerationTask.id).where(
-                ModerationTask.subject_id == case_id,
-                ModerationTask.status == "open",
-                ModerationTask.claimed_by == principal.user.id,
-                ModerationTask.lease_expires_at > _now(),
-            )
-        )
-        if holder is None:
-            raise ApiError("FORBIDDEN")
-    url = storage.signed_download_url(evidence.object_key)
-    audit.record(session, actor=principal, action="evidence.viewed", target_type="verification_case", target_id=case_id, metadata={"evidence_id": str(evidence.id)}, request_id=request_id)
-    return {"url": url, "expires_in": 60, "content_type": evidence.content_type}
+        raise ApiError("FORBIDDEN")
+    ban = session.scalar(select(VerificationBan).where(VerificationBan.id == ban_id).with_for_update())
+    if ban is None or ban.lifted_at is not None:
+        raise ApiError("NOT_FOUND")
+    ban.lifted_at, ban.lifted_by = _now(), principal.user.id
+    audit.record(session, actor=principal, action="verification.ban_lifted", target_type="user", target_id=ban.user_id or ban.id, reason=reason, request_id=request_id)
+    return {"id": str(ban.id), "lifted_at": ban.lifted_at.isoformat()}
 
 
 # =========================================================================================
@@ -692,7 +933,25 @@ def _overturn(session: Session, principal: Principal, appeal: Appeal, request_id
     elif appeal.verification_case_id:
         vcase = session.get(VerificationCase, appeal.verification_case_id)
         if vcase is not None and not is_verified_member(session, vcase.applicant_user_id):
-            session.add(Verification(user_id=vcase.applicant_user_id, verification_type="VERIFIED_MEMBER", status="APPROVED", method="APPEAL", approved_by=principal.user.id, decided_at=_now()))
+            now = _now()
+            session.add(
+                Verification(
+                    user_id=vcase.applicant_user_id, verification_type="VERIFIED_MEMBER", status="APPROVED", method="APPEAL",
+                    approved_by=principal.user.id, decided_at=now, expires_at=renewal_due(now, vcase.doc_expiry),
+                )
+            )
+            # The independent reviewer upheld the applicant: the claims checked in review become the verified
+            # attributes, so tours eligibility works after an appeal too (loophole L11).
+            if vcase.gender_claimed and vcase.birth_year:
+                student = vcase.is_student_claim and vcase.study_end_month is not None
+                _write_attributes(
+                    session, vcase.applicant_user_id,
+                    {"gender": vcase.gender_claimed, "birth_year": vcase.birth_year, "is_student": student,
+                     "student_until": _student_limit(vcase, now) if student else None},
+                    district=vcase.home_district, actor_id=principal.user.id, now=now,
+                )
+            vcase.state, vcase.version, vcase.doc_number_enc = "approved", vcase.version + 1, None
+            vcase.purge_after = now + timedelta(hours=APPROVED_EVIDENCE_HOURS)
     elif appeal.enforcement_case_id:
         ecase = session.scalar(select(EnforcementCase).where(EnforcementCase.id == appeal.enforcement_case_id).with_for_update())
         if ecase is None:

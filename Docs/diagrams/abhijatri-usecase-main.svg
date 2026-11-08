@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Abhijatri generic use-case diagram</title>
+  <desc id="desc">Layered UML use-case diagram following the supplied template, with Traveler and Administrator actors and include and extend relationships.</desc>
+  <defs>
+    <style>
+      .boundary { fill:#79c9eb; stroke:#111; stroke-width:2; }
+      .actor { fill:none; stroke:#111; stroke-width:2; stroke-linecap:round; }
+      .actor-label { fill:#111; font:15px Arial,sans-serif; text-anchor:middle; }
+      .system-title { fill:#111; font:16px Arial,sans-serif; text-anchor:middle; }
+      .usecase { fill:#79c9eb; stroke:#111; stroke-width:1.5; }
+      .parent { stroke-width:2.2; }
+      .usecase-text { fill:#111; font:14px Arial,sans-serif; text-anchor:middle; }
+      .parent-text { font-weight:700; }
+      .association { fill:none; stroke:#111; stroke-width:1.8; }
+      .relation { fill:none; stroke:#111; stroke-width:1.3; stroke-dasharray:7 5; marker-end:url(#openArrow); }
+      .relation-label { fill:#111; font:12px Arial,sans-serif; text-anchor:middle; }
+      .layer-label { fill:#17465e; font:700 12px Arial,sans-serif; letter-spacing:.7px; text-anchor:middle; }
+    </style>
+    <marker id="openArrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M1,1 L11,6 L1,11" fill="none" stroke="#111" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#fff"/>
+  <rect x="180" y="45" width="1240" height="925" class="boundary"/>
+  <text x="800" y="69" class="system-title">Abhijatri Travel Platform</text>
+  <text x="390" y="91" class="layer-label">TRAVELER GOALS</text>
+  <text x="650" y="91" class="layer-label">INCLUDED / OPTIONAL TASKS</text>
+  <text x="1120" y="91" class="layer-label">PLATFORM ADMINISTRATION</text>
+
+  <!-- Associations are deliberately simple, as in the supplied template. -->
+  <path d="M112 465 L180 465 L260 185 M180 465 L260 405 M180 465 L260 625 M180 465 L260 815" class="association"/>
+  <path d="M1488 465 L1420 465 L1300 465" class="association"/>
+
+  <!-- Layer 1: generic traveler goals. -->
+  <ellipse cx="390" cy="185" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="190" class="usecase-text parent-text">Explore Destinations</text>
+
+  <ellipse cx="390" cy="405" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="410" class="usecase-text parent-text">Manage Account</text>
+
+  <ellipse cx="390" cy="625" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="630" class="usecase-text parent-text">Share Experience</text>
+
+  <ellipse cx="390" cy="815" rx="130" ry="42" class="usecase parent"/>
+  <text x="390" y="820" class="usecase-text parent-text">Participate in Tours</text>
+
+  <!-- Layer 2: traveler tasks. -->
+  <ellipse cx="690" cy="135" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="140" class="usecase-text">Search Destinations</text>
+  <ellipse cx="690" cy="215" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="210" class="usecase-text"><tspan x="690">View Guides</tspan><tspan x="690" dy="17">&amp; Advisories</tspan></text>
+  <ellipse cx="690" cy="295" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="290" class="usecase-text"><tspan x="690">Browse Reviews</tspan><tspan x="690" dy="17">&amp; Ratings</tspan></text>
+
+  <ellipse cx="690" cy="365" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="370" class="usecase-text">Register</text>
+  <ellipse cx="690" cy="445" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="450" class="usecase-text">Sign In</text>
+  <ellipse cx="690" cy="525" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="530" class="usecase-text">Manage Profile</text>
+
+  <ellipse cx="690" cy="605" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="610" class="usecase-text">Submit Review</text>
+  <ellipse cx="690" cy="685" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="690" class="usecase-text">Add Photos / Video</text>
+
+  <ellipse cx="690" cy="765" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="770" class="usecase-text">Discover / Join Tour</text>
+  <ellipse cx="690" cy="845" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="850" class="usecase-text">Create / Manage Tour</text>
+  <ellipse cx="690" cy="925" rx="120" ry="36" class="usecase"/>
+  <text x="690" y="920" class="usecase-text"><tspan x="690">Collaborate</tspan><tspan x="690" dy="17">&amp; Stay Safe</tspan></text>
+
+  <!-- Include and extend relationships for traveler goals. -->
+  <path d="M472 153 L579 137" class="relation"/><text x="525" y="134" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 185 L570 209" class="relation"/><text x="552" y="185" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M579 286 L500 211" class="relation"/><text x="552" y="255" class="relation-label">&lt;&lt;extend&gt;&gt;</text>
+
+  <path d="M500 388 L574 370" class="relation"/><text x="540" y="362" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 411 L570 435" class="relation"/><text x="552" y="411" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M493 431 L584 511" class="relation"/><text x="548" y="487" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <path d="M520 619 L570 610" class="relation"/><text x="548" y="599" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M584 665 L500 647" class="relation"/><text x="548" y="675" class="relation-label">&lt;&lt;extend&gt;&gt;</text>
+
+  <path d="M493 788 L584 776" class="relation"/><text x="543" y="771" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M520 821 L570 837" class="relation"/><text x="548" y="823" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M480 845 L596 909" class="relation"/><text x="550" y="889" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- Layer 1 and 2: generic administrator goal and included responsibilities. -->
+  <ellipse cx="1180" cy="465" rx="120" ry="42" class="usecase parent"/>
+  <text x="1180" y="470" class="usecase-text parent-text">Manage Platform</text>
+
+  <ellipse cx="930" cy="225" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="230" class="usecase-text">Moderate Content</text>
+  <ellipse cx="930" cy="365" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="370" class="usecase-text">Verify Members</text>
+  <ellipse cx="930" cy="505" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="500" class="usecase-text"><tspan x="930">Oversee Tours</tspan><tspan x="930" dy="17">&amp; Safety</tspan></text>
+  <ellipse cx="930" cy="645" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="650" class="usecase-text">Manage Users / Staff</text>
+  <ellipse cx="930" cy="785" rx="120" ry="36" class="usecase"/>
+  <text x="930" y="790" class="usecase-text">Audit &amp; Monitor</text>
+
+  <path d="M1132 427 L1020 250" class="relation"/><text x="1084" y="332" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1073 444 L1034 385" class="relation"/><text x="1065" y="405" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1060 479 L1042 493" class="relation"/><text x="1082" y="503" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1085 492 L1020 623" class="relation"/><text x="1076" y="570" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+  <path d="M1135 504 L1000 756" class="relation"/><text x="1082" y="683" class="relation-label">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- Generic actors, matching the supplied template. -->
+  <g transform="translate(80 405)"><circle cx="0" cy="0" r="16" class="actor"/><path d="M0 16 L0 68 M-28 36 L28 36 M0 68 L-25 105 M0 68 L25 105" class="actor"/><text x="0" y="135" class="actor-label">Traveler</text></g>
+  <g transform="translate(1520 405)"><circle cx="0" cy="0" r="16" class="actor"/><path d="M0 16 L0 68 M-28 36 L28 36 M0 68 L-25 105 M0 68 L25 105" class="actor"/><text x="0" y="135" class="actor-label">Administrator</text></g>
+</svg>

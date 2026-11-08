@@ -7,6 +7,7 @@ who lost the role is not told restricted case details. Texts come from the activ
 taken from the event's own facts, never from the current state of the case.
 """
 
+import re
 import string
 import uuid
 from dataclasses import dataclass
@@ -59,6 +60,9 @@ def _fact(value: Any) -> str:
     return "" if value is None else str(value)
 
 
+PUBLIC_ID = re.compile(r"T-\d{4}-[A-Z0-9]{5}")
+
+
 def _applies(rule: Rule, payload: dict[str, Any]) -> bool:
     return all(_fact(payload.get(key)) in allowed for key, allowed in rule.when)
 
@@ -81,6 +85,12 @@ def recipients(session: Session, rule: Rule, payload: dict[str, Any]) -> list[uu
         if rule.audience == "staff" and not _active_staff(session, [user_id], rule.role):
             return []
         return [user_id]
+    if rule.resolver == "payload_users":  # tour members named in the event (Verified Users Interface 15)
+        named = [i for i in (_uuid(v) for v in payload.get(rule.source) or []) if i]
+        if not named:
+            return []
+        existing = set(session.scalars(select(User.id).where(User.id.in_(named))))
+        return [i for i in dict.fromkeys(named) if i in existing]
     if rule.resolver == "captured_staff":
         captured = [i for i in (_uuid(v) for v in payload.get(rule.source) or []) if i]
         current = _active_staff(session, captured, rule.role)
@@ -99,6 +109,7 @@ def _variables(payload: dict[str, Any], locale: int) -> dict[str, str]:
         "count": str(payload.get("count") or ""),
         "outcome": outcome,
         "role": role,
+        "tour": str(payload.get("tour_title") or "")[:80],
     }
 
 
@@ -129,6 +140,9 @@ def template_variables(text: str) -> set[str]:
 def _link(rule: Rule, payload: dict[str, Any]) -> str | None:
     if rule.route is None:
         return None
+    if "{public_id}" in rule.route:
+        public_id = str(payload.get("public_id") or "")
+        return rule.route.format(public_id=public_id) if PUBLIC_ID.fullmatch(public_id) else "/tours"
     if "{destination_id}" in rule.route:
         destination = _uuid(payload.get("destination_id"))
         return rule.route.format(destination_id=destination) if destination else "/account/notifications"

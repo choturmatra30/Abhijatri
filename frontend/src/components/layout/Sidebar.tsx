@@ -14,6 +14,7 @@ import {
   LogIn,
   LogOut,
   UserRound
+  ,Users
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
@@ -76,6 +77,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelEn: 'Saved trips',
       icon: Bookmark,
       soon: true,
+    },
+    {
+      to: '/tours',
+      labelBn: 'ট্যুর ও ট্যুরমেটস',
+      labelEn: 'Tours & TourMates',
+      icon: Users,
     },
     {
       to: '/reviews',
@@ -237,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
           {session.kind === 'member' && (
             <div className="flex flex-col gap-1 text-xs">
-              <Link to="/account/verification" onClick={onClose} className="font-bold text-forest-primary dark:text-neon-lime hover:underline">
+              <Link to="/verify" onClick={onClose} className="font-bold text-forest-primary dark:text-neon-lime hover:underline">
                 {isVerifiedMember ? t('যাচাইকৃত সদস্য ✓', 'Verified Member ✓') : t('যাচাইকৃত সদস্য হোন', 'Become a Verified Member')}
               </Link>
               <Link to="/account/reviews" onClick={onClose} className="font-bold text-forest-primary dark:text-neon-lime hover:underline">

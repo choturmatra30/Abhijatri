@@ -22,14 +22,40 @@ def _link(path: str, token_hash: str, kind: str) -> str:
     return f"{get_settings().frontend_base_url.rstrip('/')}/{path}?token_hash={quote(token_hash)}&type={kind}"
 
 
+WHY_EN = "You received this email because this address was entered on Abhijatri (abhijatri.vercel.app), a travel guide for Bangladesh."
+WHY_BN = "এই ঠিকানাটি অভিযাত্রী (বাংলাদেশ ভ্রমণ গাইড) সাইটে দেওয়া হয়েছিল বলে আপনি এই ইমেইল পেয়েছেন।"
+
+
 def _email(to: str, subject: str, heading_en: str, heading_bn: str, line_en: str, line_bn: str, link: str, footer_en: str, footer_bn: str, key: str) -> Email:
-    text = f"{heading_en}\n{line_en}\n{link}\n{footer_en}\n\n{heading_bn}\n{line_bn}\n{footer_bn}"
+    """A small, well-formed bilingual message: plain-text and HTML parts with the same content, one button,
+    the link written out once as a fallback, and a footer saying who sent it and why. Spam filters score
+    malformed HTML, mismatched text and HTML parts, and unexplained senders; this avoids all three."""
+    text = (
+        f"{heading_en}\n\n{line_en}\n\n{link}\n\n{footer_en}\n\n"
+        f"{heading_bn}\n\n{line_bn}\n\n{footer_bn}\n\n"
+        f"--\nAbhijatri / অভিযাত্রী\n{WHY_EN}\n{WHY_BN}\n"
+    )
+    button = (
+        f'<a href="{escape(link)}" style="display:inline-block;padding:12px 22px;background:#1b4d2b;color:#ffffff;'
+        f'border-radius:8px;text-decoration:none;font-weight:bold">{escape(heading_en)} / {escape(heading_bn)}</a>'
+    )
     html = (
-        f'<div style="font-family:Arial,sans-serif;max-width:520px">'
-        f"<h2>{escape(heading_en)}</h2><p>{escape(line_en)}</p>"
-        f'<p><a href="{escape(link)}" style="display:inline-block;padding:12px 20px;background:#1b4d2b;color:#fff;border-radius:999px;text-decoration:none">{escape(heading_en)}</a></p>'
-        f'<p style="font-size:12px;color:#666">{escape(link)}</p><p style="font-size:12px;color:#666">{escape(footer_en)}</p>'
-        f"<hr><h2>{escape(heading_bn)}</h2><p>{escape(line_bn)}</p><p style=\"font-size:12px;color:#666\">{escape(footer_bn)}</p></div>"
+        '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{escape(subject)}</title></head>"
+        '<body style="margin:0;padding:24px;background:#f6f7f5;font-family:Arial,Helvetica,sans-serif;color:#1d1d1d">'
+        '<div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px">'
+        '<p style="margin:0 0 16px;font-weight:bold;color:#1b4d2b">Abhijatri / অভিযাত্রী</p>'
+        f'<h1 style="font-size:20px;margin:0 0 12px">{escape(heading_en)}</h1>'
+        f'<p style="line-height:1.5">{escape(line_en)}</p>'
+        f'<p lang="bn" style="line-height:1.6">{escape(line_bn)}</p>'
+        f'<p style="margin:24px 0">{button}</p>'
+        '<p style="font-size:12px;color:#555">If the button does not work, copy this address into your browser / বাটন কাজ না করলে এই ঠিকানাটি ব্রাউজারে খুলুন:<br>'
+        f'<span style="word-break:break-all">{escape(link)}</span></p>'
+        f'<p style="font-size:12px;color:#555">{escape(footer_en)}<br><span lang="bn">{escape(footer_bn)}</span></p>'
+        '<hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0">'
+        f'<p style="font-size:11px;color:#777">{escape(WHY_EN)}<br><span lang="bn">{escape(WHY_BN)}</span></p>'
+        "</div></body></html>"
     )
     return Email(to=to, subject=subject, text=text, html=html, idempotency_key=key)
 

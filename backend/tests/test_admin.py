@@ -59,6 +59,16 @@ def _make_user(session: Session, fake: support.FakeGoTrue, email: str, name: str
     return user_id
 
 
+def make_verified(session: Session, user_id: uuid.UUID, *, gender: str = "FEMALE", birth_year: int = 1995, student_until: date | None = None) -> None:
+    """A Verified Member with attributes, as the approval transaction would leave them (sign-up form 8)."""
+    from app.models import Verification, VerificationAttributes
+
+    now = datetime.now(UTC)
+    session.add(Verification(user_id=user_id, verification_type="VERIFIED_MEMBER", status="APPROVED", method="DOCUMENT_SELFIE_REVIEW", decided_at=now, expires_at=now + timedelta(days=700)))
+    session.merge(VerificationAttributes(user_id=user_id, gender=gender, birth_year=birth_year, is_student=student_until is not None, student_until=student_until))
+    session.commit()
+
+
 def staff_client(
     template: TestClient, session: Session, fake: support.FakeGoTrue, email: str, role: str | None, ip: str, *, aal: str = "aal2", auth_age: int = 0
 ) -> TestClient:
@@ -177,6 +187,9 @@ def test_the_database_allows_one_active_role_per_user(postgres_session: Session)
 def test_changing_a_role_replaces_it_and_is_audited(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue) -> None:
     boss = staff_client(client, postgres_session, fake, "boss@example.com", "superadmin", "203.0.113.30")
     target = _make_user(postgres_session, fake, "target@example.com")
+    unverified = boss.post(f"{BASE}/staff/{target}/role", json={"role": "moderator", "reason": "joins the team"})
+    assert unverified.status_code == 403 and unverified.json()["error"]["code"] == "VERIFICATION_REQUIRED", "P-02: moderators are Verified Members"
+    make_verified(postgres_session, target)
     granted = boss.post(f"{BASE}/staff/{target}/role", json={"role": "moderator", "reason": "joins the team"})
     assert granted.status_code == 200, granted.text
     promoted = boss.post(f"{BASE}/staff/{target}/role", json={"role": "superadmin", "reason": "second owner"})

@@ -24,6 +24,7 @@ import type { Lang, QueueItem, ReportSubject, ReviewMedia, ReviewSubject, Role }
 import { useReasonCatalogue } from '../reasons';
 import { Notice, makeT } from '../ui';
 import { AppealBody, AppealForm, EnforcementBody, EnforcementFollowUp, VerificationBody, VerificationForm } from './CaseForms';
+import { TourReportBody, TourReportForm, tourReportTitle } from './TourReportForms';
 
 interface Props {
   lang: Lang;
@@ -238,6 +239,8 @@ function itemTitle(item: QueueItem, t: (bn: string, en: string) => string): stri
       return `${t('রিপোর্ট', 'Report')}: ${subject.review_title ?? subject.review_id.slice(0, 8)}`;
     case 'verification':
       return `${t('যাচাই', 'Verification')}: ${subject.applicant?.display_name ?? subject.case_id.slice(0, 8)}`;
+    case 'tour_report':
+      return tourReportTitle(subject, t);
     case 'appeal':
       return `${t('আপিল', 'Appeal')} #${subject.reference}`;
     case 'enforcement':
@@ -251,6 +254,9 @@ const TYPE_LABEL: Record<QueueItem['task_type'], [string, string]> = {
   verification: ['যাচাই', 'Verification'],
   appeal: ['আপিল', 'Appeal'],
   enforcement: ['এনফোর্সমেন্ট', 'Enforcement'],
+  tour_report: ['ট্যুর রিপোর্ট', 'Tour report'],
+  chat_report: ['চ্যাট রিপোর্ট', 'Chat report'],
+  tour_safety: ['ট্যুর নিরাপত্তা', 'Tour safety'],
 };
 
 interface DetailProps {
@@ -288,6 +294,7 @@ function Detail({ lang, role, item, lease, now, busy, onClaim, onRelease, onEsca
       {subject?.kind === 'verification' && <VerificationBody subject={subject} lang={lang} canView={Boolean(lease) || role === 'superadmin'} run={run} />}
       {subject?.kind === 'appeal' && <AppealBody subject={subject} lang={lang} />}
       {subject?.kind === 'enforcement' && <EnforcementBody subject={subject} lang={lang} />}
+      {subject?.kind === 'tour_report' && <TourReportBody subject={subject} lang={lang} />}
       {!subject && <Notice tone="info">{t('এই কাজের বিষয়বস্তু আর নেই।', 'The content of this task is gone.')}</Notice>}
 
       {role === 'superadmin' && !lease && <AssignControl lang={lang} item={item} busy={busy} run={run} />}
@@ -320,6 +327,7 @@ function Detail({ lang, role, item, lease, now, busy, onClaim, onRelease, onEsca
           {subject.kind === 'verification' && <VerificationForm lang={lang} role={role} item={item} subject={subject} lease={lease} busy={busy} run={run} />}
           {subject.kind === 'appeal' && <AppealForm lang={lang} item={item} subject={subject} lease={lease} busy={busy} run={run} />}
           {subject.kind === 'enforcement' && <EnforcementFollowUp lang={lang} subject={subject} busy={busy} run={run} />}
+          {subject.kind === 'tour_report' && <TourReportForm lang={lang} item={item} subject={subject} lease={lease} busy={busy} run={run} />}
         </>
       )}
     </div>

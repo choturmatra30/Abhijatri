@@ -1,162 +1,364 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, FileUp, ShieldQuestion } from 'lucide-react';
-import { EVIDENCE_MAX_BYTES, EVIDENCE_TYPES, getMyVerification, requestVerification, respondToVerification, uploadEvidence, withdrawVerification } from '../api/account';
+import { BadgeCheck, Camera, Check, FileUp, ShieldCheck } from 'lucide-react';
+import {
+  EVIDENCE_MAX_BYTES,
+  EVIDENCE_TYPES,
+  getMyVerification,
+  getVerificationDistricts,
+  getVerificationInstitutions,
+  issueLivenessChallenge,
+  requestVerification,
+  respondToVerification,
+  saveVerificationStep,
+  sendStudentEmailCode,
+  sendVerificationPhoneCode,
+  submitVerification,
+  uploadEvidence,
+  verifyStudentEmailCode,
+  verifyVerificationPhoneCode,
+  withdrawVerification,
+} from '../api/account';
+import { ApiError, NETWORK_ERROR } from '../api/client';
 import { Notice, accountErrorMessage, linkClass, primaryButtonClass } from '../components/auth/AccountUi';
-import { LoadingState, AccountNeedsConnection } from '../components/common/StatusViews';
+import { AccountNeedsConnection, LoadingState } from '../components/common/StatusViews';
+import { SignInLink } from '../components/common/SignInLink';
 import { useLanguage } from '../context/LanguageContext';
 import { useSession } from '../context/SessionContext';
-import type { VerificationCaseView } from '../types';
-import { SignInLink } from '../components/common/SignInLink';
+import type { VerificationEvidenceKind, VerificationMine, VerificationStep } from '../types';
 
-const STATE_TEXT: Record<VerificationCaseView['state'], [string, string]> = {
-  submitted: ['জমা হয়েছে, পর্যালোচনার অপেক্ষায়', 'Submitted, waiting for review'],
-  in_review: ['পর্যালোচনা চলছে', 'Under review'],
-  needs_clarification: ['মডারেটর আরও তথ্য চান', 'A moderator needs more information'],
-  escalated: ['ঊর্ধ্বতন পর্যালোচনায়', 'With a senior reviewer'],
+const STEPS: { key: VerificationStep | 'review'; bn: string; en: string }[] = [
+  { key: 'eligibility', bn: 'যোগ্যতা ও সম্মতি', en: 'Eligibility & consent' },
+  { key: 'personal', bn: 'ব্যক্তিগত তথ্য', en: 'Personal details' },
+  { key: 'phone', bn: 'ফোন যাচাই', en: 'Verify phone' },
+  { key: 'document', bn: 'পরিচয়পত্র', en: 'Identity document' },
+  { key: 'student', bn: 'শিক্ষার্থী পরিচয়', en: 'Student status' },
+  { key: 'selfie', bn: 'লাইভ সেলফি', en: 'Live selfie' },
+  { key: 'emergency', bn: 'জরুরি যোগাযোগ', en: 'Emergency contact' },
+  { key: 'review', bn: 'পর্যালোচনা ও জমা', en: 'Review & submit' },
+];
+const OPEN = new Set(['draft', 'needs_clarification']);
+const PENDING = new Set(['submitted', 'in_review', 'escalated']);
+const STATE_LABEL: Record<string, [string, string]> = {
+  submitted: ['জমা হয়েছে, পর্যালোচনার অপেক্ষায়', 'Submitted, waiting for a reviewer'],
+  in_review: ['একজন মডারেটর পর্যালোচনা করছেন', 'A moderator is reviewing it'],
+  escalated: ['অতিরিক্ত যাচাইয়ের জন্য সিনিয়র পর্যালোচকের কাছে', 'With a senior reviewer for an extra check'],
   approved: ['অনুমোদিত', 'Approved'],
-  rejected: ['অনুমোদিত হয়নি', 'Not approved'],
+  rejected: ['প্রত্যাখ্যাত', 'Not approved'],
   withdrawn: ['প্রত্যাহার করা হয়েছে', 'Withdrawn'],
+  expired: ['মেয়াদ শেষ', 'Expired'],
+  needs_clarification: ['আপনার উত্তর প্রয়োজন', 'Your answer is needed'],
+  draft: ['খসড়া', 'Draft'],
+};
+const DOC_LABEL: Record<string, string> = { NID: 'National ID', BIRTH_CERTIFICATE: 'Birth certificate', PASSPORT: 'Passport', DRIVING_LICENCE: 'Driving licence' };
+const field = 'w-full rounded-xl border border-surface-muted/40 bg-white/70 dark:bg-dark-surface-2 px-3 py-2.5 text-sm';
+
+function CameraCapture({ disabled, onCapture, label }: { disabled: boolean; onCapture: (blob: Blob) => void; label: string }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const [active, setActive] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => () => stream.current?.getTracks().forEach((track) => track.stop()), []);
+  // The <video> element only exists once `active` is true, so the stream is attached after it mounts.
+  useEffect(() => {
+    if (active && video.current && stream.current && video.current.srcObject !== stream.current) {
+      video.current.srcObject = stream.current;
+      void video.current.play().catch(() => undefined);
+    }
+  }, [active]);
+  const start = async () => {
+    try {
+      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      setActive(true);
+    } catch {
+      setError('Camera permission is required. Open the site permissions in Chrome and allow Camera.');
+    }
+  };
+  const snap = () => {
+    const source = video.current;
+    if (!source?.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = source.videoWidth;
+    canvas.height = source.videoHeight;
+    canvas.getContext('2d')?.drawImage(source, 0, 0);
+    canvas.toBlob((blob) => { if (blob) onCapture(blob); }, 'image/jpeg', 0.9);
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {active ? <video ref={video} autoPlay playsInline muted className="w-full max-h-80 rounded-2xl bg-black object-contain" /> : null}
+      {!active ? (
+        <button type="button" disabled={disabled} onClick={() => void start()} className={`${primaryButtonClass} px-5 self-start`}><Camera size={16} />{label}</button>
+      ) : (
+        <button type="button" disabled={disabled} onClick={snap} className={`${primaryButtonClass} px-5 self-start`}><Camera size={16} />Capture now</button>
+      )}
+      {error && <p className="text-sm text-error-alert">{error}</p>}
+    </div>
+  );
+}
+
+/** Field problems the server reports, in plain words (sign-up form 13.2: errors under each field). */
+const FIELD_PROBLEMS: Record<string, [string, string]> = {
+  UNDER_18: ['আবেদনের জন্য বয়স কমপক্ষে ১৮ বছর হতে হবে।', 'You must be 18 or over to apply.'],
+  TOO_OLD: ['জন্মতারিখটি আবার দেখুন।', 'Check the date of birth.'],
+  INVALID_FORMAT: ['ফরম্যাটটি সঠিক নয়।', 'This is not in the right format.'],
+  INVALID_VALUE: ['একটি সঠিক মান বেছে নিন।', 'Choose a valid value.'],
+  REQUIRED: ['এই তথ্যটি দরকার।', 'This is required.'],
+  EXPIRED: ['নথির মেয়াদ শেষ।', 'The document has expired.'],
+  SAME_AS_OWN: ['জরুরি যোগাযোগের নম্বর আপনার নিজের নম্বর হতে পারবে না।', 'The emergency number cannot be your own number.'],
+  NOT_ACADEMIC: ['শিক্ষাপ্রতিষ্ঠানের ইমেইল দিন (.ac.bd বা .edu.bd)।', 'Use an academic email (.ac.bd or .edu.bd).'],
+  OUT_OF_RANGE: ['মানটি অনুমোদিত সীমার বাইরে।', 'The value is outside the allowed range.'],
+};
+const FIELD_NAMES: Record<string, [string, string]> = {
+  legal_name_en: ['ইংরেজিতে নাম', 'Legal name'], legal_name_bn: ['বাংলায় নাম', 'Bangla name'], date_of_birth: ['জন্মতারিখ', 'Date of birth'],
+  home_district: ['জেলা', 'Home district'], phone: ['ফোন নম্বর', 'Phone number'], doc_number: ['নথির নম্বর', 'Document number'],
+  doc_expiry: ['মেয়াদ', 'Expiry date'], emergency_phone: ['জরুরি নম্বর', 'Emergency phone'], study_end: ['পড়াশোনা শেষের মাস', 'End of study'],
 };
 
-/** Request the Verified Member badge (Moderation spec 6.2): a statement, a private evidence file, staff review. */
+/** The server already explains verification errors in the reader's language; show that, plus field problems. */
+function verificationErrorMessage(error: unknown, t: (bn: string, en: string) => string): string {
+  if (!(error instanceof ApiError) || [NETWORK_ERROR, 'RATE_LIMITED', 'SERVICE_UNAVAILABLE'].includes(error.code)) return accountErrorMessage(error, t);
+  const fields = error.fieldErrors
+    .map((item) => {
+      const problem = FIELD_PROBLEMS[item.code];
+      const name = FIELD_NAMES[item.field];
+      return problem ? `${name ? `${t(...name)}: ` : ''}${t(...problem)}` : null;
+    })
+    .filter(Boolean);
+  return fields.length ? fields.join(' ') : error.message || accountErrorMessage(error, t);
+}
+
+function FilePicker({ kind, busy, done, onFile }: { kind: VerificationEvidenceKind; busy: boolean; done: boolean; onFile: (kind: VerificationEvidenceKind, file: File) => void }) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-dashed border-forest-primary/50 px-4 py-3 cursor-pointer">
+      {done ? <Check size={18} className="text-forest-primary" /> : <FileUp size={18} />}
+      <span className="text-sm font-bold">{kind.replace('_', ' ')} {done ? '✓' : ''}</span>
+      <input className="sr-only" type="file" accept={EVIDENCE_TYPES.join(',')} disabled={busy} onChange={(event) => {
+        const file = event.target.files?.[0]; event.target.value = ''; if (file) onFile(kind, file);
+      }} />
+    </label>
+  );
+}
+
 export const VerificationPage: React.FC = () => {
   const { t } = useLanguage();
-  const { session, refresh, status } = useSession();
-  const [data, setData] = useState<{ verified_member: boolean; case: VerificationCaseView | null } | null>(null);
-  const [statement, setStatement] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+  const { session, status, refresh } = useSession();
+  const [data, setData] = useState<VerificationMine | null>(null);
+  const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [institutions, setInstitutions] = useState<{ id: string; name_en: string; name_bn: string | null }[]>([]);
+  const [personal, setPersonal] = useState({ legal_name_en: '', legal_name_bn: '', date_of_birth: '', gender: 'FEMALE', home_district: '', current_area: '', occupation: 'EMPLOYED' });
+  const [phone, setPhone] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [doc, setDoc] = useState({ doc_type: 'NID', doc_number: '', doc_expiry: '' });
+  const [student, setStudent] = useState({ institution_id: '', institution_other: '', study_end: '', email: '', code: '' });
+  const [emergency, setEmergency] = useState({ name: '', relationship: '', phone: '', skip: false });
+  const [declaration, setDeclaration] = useState(false);
+  const [ages, setAges] = useState(false);
+  const [consents, setConsents] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setData(await getMyVerification());
-    } catch (error) {
-      setMessage({ tone: 'error', text: accountErrorMessage(error, t) });
+  // `jump`: move to the first unfinished step (on opening the page and after a step is completed).
+  // A save that does not finish its step (a code sent, document details before the photos) stays put.
+  const load = useCallback(async (jump = true) => {
+    const mine = await getMyVerification();
+    setData(mine);
+    if (jump && mine.case && OPEN.has(mine.case.state)) {
+      const incomplete = STEPS.findIndex((item) => item.key !== 'review' && mine.case?.required_steps.includes(item.key) && !mine.case.steps[item.key]);
+      setStep(incomplete < 0 ? 7 : incomplete);
     }
-  }, [t]);
-
+  }, []);
   useEffect(() => {
-    if (session.kind === 'member') void load();
-  }, [session.kind, load]);
+    if (session.kind !== 'member') return;
+    void Promise.all([load(), getVerificationDistricts(), getVerificationInstitutions()])
+      .then(([, districtData, institutionData]) => {
+        setDistricts(districtData.divisions.flatMap((item) => item.districts));
+        setInstitutions(institutionData.items);
+      })
+      .catch((error) => setNotice({ tone: 'error', text: accountErrorMessage(error, t) }));
+  }, [session.kind, load, t]);
 
-  const run = async (work: () => Promise<unknown>, done: string) => {
-    setBusy(true);
-    setMessage(null);
+  const pending = Boolean(data?.case && PENDING.has(data.case.state));
+  useEffect(() => {
+    if (!pending) return undefined;
+    const again = () => { void load(false).catch(() => undefined); };
+    const timer = window.setInterval(again, 30_000);
+    window.addEventListener('focus', again);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', again); };
+  }, [pending, load]);
+
+  const run = async (work: () => Promise<unknown>, success: string, advance = false) => {
+    setBusy(true); setNotice(null);
     try {
-      await work();
-      setMessage({ tone: 'success', text: done });
-      await load();
-      await refresh();
+      await work(); await load(advance); // load() itself moves to the next unfinished step
+      setNotice({ tone: 'success', text: success });
     } catch (error) {
-      setMessage({ tone: 'error', text: error instanceof Error && !('code' in error) ? error.message : accountErrorMessage(error, t) });
-    } finally {
-      setBusy(false);
-    }
+      setNotice({ tone: 'error', text: verificationErrorMessage(error, t) });
+    } finally { setBusy(false); }
   };
-
-  if (status === 'loading') return <LoadingState />; // still reading the session
-
-  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
-  if (session.kind !== 'member') {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">
-          {t('যাচাইয়ের জন্য আগে সাইন ইন করুন।', 'Sign in first to request verification.')}{' '}
-          <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
-        </Notice>
-      </div>
-    );
-  }
-
   const current = data?.case;
-  const open = current && ['submitted', 'in_review', 'needs_clarification', 'escalated'].includes(current.state);
-  const canUpload = current && ['submitted', 'in_review', 'needs_clarification'].includes(current.state) && current.evidence.length < 3;
-
-  const onFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !current) return;
-    if (!EVIDENCE_TYPES.includes(file.type)) return setMessage({ tone: 'error', text: t('শুধু JPG, PNG বা PDF।', 'Only JPG, PNG or PDF.') });
-    if (file.size > EVIDENCE_MAX_BYTES) return setMessage({ tone: 'error', text: t('ফাইল ৫ MB-এর বেশি।', 'The file is larger than 5 MB.') });
-    void run(() => uploadEvidence(current.id, file), t('ফাইল আপলোড হয়েছে।', 'File uploaded.'));
+  const upload = (kind: VerificationEvidenceKind, file: File | Blob, advance = false) => {
+    if (!current) return;
+    if (file.size > EVIDENCE_MAX_BYTES || !EVIDENCE_TYPES.includes(file.type || 'image/jpeg')) {
+      setNotice({ tone: 'error', text: t('শুধু JPG/PNG, সর্বোচ্চ ৮ MB।', 'Use a JPG/PNG image up to 8 MB.') }); return;
+    }
+    void run(() => uploadEvidence(current.id, kind, file), t('ছবি নিরাপদে গ্রহণ করা হয়েছে।', 'Image securely received.'), advance);
   };
 
+  if (status === 'loading') return <LoadingState />;
+  if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
+  if (session.kind !== 'member') return <div className="max-w-xl mx-auto p-8"><Notice tone="info">{t('আবেদনের জন্য আগে সাইন ইন করুন।', 'Sign in before applying.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink></Notice></div>;
+
+  if (data?.verified_member && (!current || !OPEN.has(current.state))) return (
+    <main className="max-w-2xl mx-auto p-6 py-10 flex flex-col gap-5">
+      <div className="tonal-card p-6 flex gap-3"><BadgeCheck size={30} className="text-forest-primary" /><div><h1 className="text-2xl font-bold">{t('আপনি যাচাইকৃত সদস্য', 'You are a Verified Member')}</h1><p>{t('Tours ও TourMates এখন আপনার জন্য খোলা।', 'Tours and TourMates are now available to you.')}</p></div></div>
+      <Link to="/tours" className={`${primaryButtonClass} px-6 self-start`}>{t('আমার ট্যুর খুলুন', 'Open my tours')}</Link>
+    </main>
+  );
+
+  if (current && PENDING.has(current.state)) return (
+    <main className="max-w-2xl mx-auto p-6 py-10 flex flex-col gap-5">
+      <ShieldCheck size={36} className="text-forest-primary" />
+      <h1 className="text-3xl font-bold">{t('আবেদন পর্যালোচনায় আছে', 'Your application is being reviewed')}</h1>
+      <Notice tone="info">{t(...(STATE_LABEL[current.state] ?? [current.state, current.state]))}{current.submitted_at ? ` · ${t('জমা', 'submitted')} ${new Date(current.submitted_at).toLocaleString()}` : ''}</Notice>
+      <p>{t('সাধারণত ৪৮ ঘণ্টার মধ্যে সিদ্ধান্ত হয়। সিদ্ধান্ত হলে আপনি নোটিফিকেশন ও ইমেইল পাবেন; এই পাতাও নিজে থেকে হালনাগাদ হয়।', 'A decision usually comes within 48 hours. You will get a notification and an email, and this page updates by itself.')}</p>
+      {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+      <div className="flex gap-4 items-center">
+        <button type="button" disabled={busy} className={`${primaryButtonClass} px-5`} onClick={() => void run(() => Promise.resolve(), t('হালনাগাদ হয়েছে।', 'Status refreshed.'))}>{t('অবস্থা দেখুন', 'Check status')}</button>
+        <button type="button" disabled={busy} className="text-sm text-error-alert" onClick={() => void run(() => withdrawVerification(current.id), t('আবেদন প্রত্যাহার করা হয়েছে।', 'Application withdrawn.'))}>{t('আবেদন প্রত্যাহার', 'Withdraw application')}</button>
+      </div>
+    </main>
+  );
+
+  if (!current || !OPEN.has(current.state)) return (
+    <main className="max-w-2xl mx-auto p-6 py-10 flex flex-col gap-5">
+      <ShieldCheck size={36} className="text-forest-primary" />
+      <h1 className="text-3xl font-bold">{t('যাচাইকৃত সদস্য হোন', 'Become a Verified Member')}</h1>
+      <p>{t('যাচাইকৃত সদস্যরা ট্যুর তৈরি ও যোগ দিতে পারেন, আর তাদের রিভিউ কমিউনিটি রেটিংয়ে গণনা হয়। একজন মডারেটর সাধারণত ৪৮ ঘণ্টার মধ্যে আবেদন দেখেন।', 'Verified Members can create and join tours, and their reviews count towards the Community Rating. A moderator usually reviews applications within 48 hours.')}</p>
+      <div className="tonal-card p-4 text-sm">
+        <p className="font-bold mb-1">{t('যা লাগবে', 'You will need')}</p>
+        <ul className="list-disc pl-5">
+          <li>{t('জাতীয় পরিচয়পত্র, পাসপোর্ট বা ড্রাইভিং লাইসেন্স', 'Your national ID card, passport or driving licence')}</li>
+          <li>{t('আপনার মোবাইল ফোন (এসএমএস কোডের জন্য)', 'Your mobile phone (for a text-message code)')}</li>
+          <li>{t('প্রায় ৫ মিনিট, আর সেলফির জন্য ভালো আলো', 'About 5 minutes, and good light for a selfie')}</li>
+        </ul>
+      </div>
+      {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+      {!data?.email_verified && <Notice tone="error">{t('প্রথমে আপনার ইমেইল যাচাই করুন।', 'Verify your email first.')}</Notice>}
+      {data?.cooldown_until && <Notice tone="info">{t('পুনরায় আবেদনের সময়: ', 'You can apply again after: ')}{new Date(data.cooldown_until).toLocaleString()}</Notice>}
+      {data?.banned_until && <Notice tone="error">{t('আপনার যাচাইকরণ আবেদন সীমাবদ্ধ।', 'Your verification applications are restricted.')}</Notice>}
+      {current && <Notice tone="info">{t('সর্বশেষ অবস্থা: ', 'Latest status: ')}{t(...(STATE_LABEL[current.state] ?? [current.state, current.state]))}{current.decision_reason ? ` — ${t(current.decision_reason.bn, current.decision_reason.en)}` : ''}</Notice>}
+      {current?.state === 'rejected' && <Link to="/account/appeals" className={linkClass}>{t('সিদ্ধান্তের বিরুদ্ধে আপিল করুন', 'Appeal this decision')}</Link>}
+      <button type="button" disabled={busy || !data?.email_verified || Boolean(data?.cooldown_until || data?.banned_until)} onClick={() => void run(() => requestVerification(data?.verification?.state === 'renewal_due' ? 'renewal' : 'initial'), t('খসড়া শুরু হয়েছে।', 'Application started.'))} className={`${primaryButtonClass} px-6 self-start`}>{t('আবেদন শুরু করুন', 'Start application')}</button>
+    </main>
+  );
+
+  const visibleSteps = STEPS.filter((item) => item.key !== 'student' || current.required_steps.includes('student'));
+  const active = STEPS[step]?.key;
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
-      <h1 className="text-2xl font-bold font-title text-on-surface dark:text-on-dark">{t('যাচাইকৃত সদস্য', 'Verified Member')}</h1>
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+    <main className="max-w-3xl mx-auto p-4 sm:p-6 py-8 flex flex-col gap-5">
+      <div><h1 className="text-2xl font-bold">{t('যাচাইকৃত সদস্য আবেদন', 'Verified Member application')}</h1><p className="text-sm text-on-surface-variant">{t('খসড়া স্বয়ংক্রিয়ভাবে সংরক্ষিত হয়। পরিচয়পত্র শুধু অনুমোদিত পর্যালোচক দেখবেন।', 'Your draft is saved after every step. Identity images are visible only to authorised reviewers.')}</p></div>
+      <ol className="flex gap-2 overflow-x-auto pb-2" aria-label="Application progress">
+        {visibleSteps.map((item) => { const index = STEPS.findIndex((candidate) => candidate.key === item.key); const done = item.key !== 'review' && current.steps[item.key]; return <li key={item.key}><button type="button" onClick={() => setStep(index)} className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold ${index === step ? 'bg-forest-primary text-white' : 'bg-surface-container'}`}>{done ? '✓ ' : ''}{t(item.bn, item.en)}</button></li>; })}
+      </ol>
+      {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
 
-      {data?.verified_member && (
-        <div className="tonal-card p-5 flex items-center gap-3">
-          <BadgeCheck size={28} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
-          <div>
-            <p className="font-bold text-on-surface dark:text-on-dark">{t('আপনি যাচাইকৃত সদস্য', 'You are a Verified Member')}</p>
-            <p className="text-sm text-on-surface-variant dark:text-on-dark-muted">{t('আপনার রিভিউ কমিউনিটি রেটিংয়ে গণনা হয়।', 'Your reviews count towards the Community Rating.')}</p>
-          </div>
-        </div>
-      )}
+      <section className="tonal-card p-5 sm:p-6 flex flex-col gap-4">
+        {active === 'eligibility' && <>
+          <h2 className="text-xl font-bold">{t('যোগ্যতা ও সম্মতি', 'Eligibility & consent')}</h2>
+          <ul className="text-sm list-disc pl-5 flex flex-col gap-1">
+            <li>{t('আমরা নেব: আইনি নাম, জন্মতারিখ, লিঙ্গ, জেলা, পেশা, যাচাই করা ফোন নম্বর, পরিচয়পত্রের ছবি ও একটি লাইভ সেলফি।', 'We collect: your legal name, date of birth, gender, district, occupation, a verified phone number, photos of your identity document and a live selfie.')}</li>
+            <li>{t('শুধু অনুমোদিত মডারেটররা পর্যালোচনার সময় এগুলো দেখবেন; অন্য ব্যবহারকারীরা কখনো দেখবেন না।', 'Only authorised moderators see them, during the review. Other users never do.')}</li>
+            <li>{t('পরিচয়পত্র ও সেলফির ছবি অনুমোদনের ২৪ ঘণ্টা পরে, বা প্রত্যাখ্যানের ৩০ দিন পরে (যাতে আপিল যাচাই করা যায়) মুছে ফেলা হয়।', 'Document and selfie images are deleted 24 hours after approval, or 30 days after a rejection (so an appeal can still be checked).')}</li>
+            <li>{t('নথির নম্বরের শুধু শেষ ৪টি অঙ্ক রাখা হয়।', 'Only the last 4 digits of the document number are kept.')}</li>
+          </ul>
+          <label className="flex gap-3 items-start"><input type="checkbox" checked={ages} onChange={(e) => setAges(e.target.checked)} /><span>{t('আমার বয়স ১৮ বা তার বেশি।', 'I am 18 or older.')}</span></label>
+          <label className="flex gap-3 items-start"><input type="checkbox" checked={consents} onChange={(e) => setConsents(e.target.checked)} /><span>{t('উপরের তথ্য দিয়ে পরিচয় যাচাইয়ে আমি সম্মতি দিচ্ছি।', 'I consent to the identity check described above.')}</span></label>
+          <button disabled={busy || !ages || !consents} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => saveVerificationStep(current.id, 'eligibility', { age_confirmed: ages, consent: consents }), t('সম্মতি সংরক্ষিত।', 'Consent saved.'), true)}>{t('সংরক্ষণ ও পরবর্তী', 'Save and continue')}</button>
+        </>}
 
-      {current && (
-        <section className="tonal-card p-5 flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <ShieldQuestion size={18} aria-hidden="true" />
-            <span className="font-bold text-on-surface dark:text-on-dark">{t(...STATE_TEXT[current.state])}</span>
-          </div>
-          {current.statement && <p className="text-sm text-on-surface-variant dark:text-on-dark-muted whitespace-pre-line">{current.statement}</p>}
-          {current.state === 'needs_clarification' && current.decision_note && (
-            <Notice tone="info">
-              <strong>{t('মডারেটরের প্রশ্ন:', 'Question from the moderator:')}</strong> {current.decision_note}
-            </Notice>
-          )}
-          {current.state === 'rejected' && (
-            <p className="text-sm">
-              {t('৩০ দিনের মধ্যে আপিল করতে পারবেন।', 'You can appeal within 30 days.')}{' '}
-              <Link to="/account/appeals" className={linkClass}>{t('আপিল', 'Appeal')}</Link>
-            </p>
-          )}
-          <p className="text-xs text-on-surface-variant dark:text-on-dark-muted">
-            {t('প্রমাণ ফাইল', 'Evidence files')}: {current.evidence.filter((e) => e.status === 'uploaded').length}
-            {' · '}
-            {t('ফাইলগুলো গোপন থাকে এবং সিদ্ধান্তের পর মুছে ফেলা হয়।', 'Files are private and are deleted after the decision.')}
-          </p>
-          {canUpload && (
-            <label className={`${primaryButtonClass} px-5 self-start cursor-pointer`}>
-              <FileUp size={16} aria-hidden="true" />
-              {t('ফাইল যোগ করুন (JPG, PNG, PDF, ৫ MB)', 'Add a file (JPG, PNG, PDF, 5 MB)')}
-              <input type="file" accept={EVIDENCE_TYPES.join(',')} className="sr-only" onChange={onFile} disabled={busy} />
-            </label>
-          )}
-          {current.state === 'needs_clarification' && (
-            <div className="flex flex-col gap-2">
-              <label htmlFor="verify-answer" className="text-xs font-bold">{t('আপনার উত্তর', 'Your answer')}</label>
-              <textarea id="verify-answer" rows={3} maxLength={1000} value={answer} onChange={(e) => setAnswer(e.target.value)} className="rounded-xl p-3 bg-surface-sage/40 dark:bg-dark-surface-2" />
-              <button type="button" disabled={busy || answer.trim().length < 3} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => respondToVerification(current.id, answer.trim()), t('উত্তর পাঠানো হয়েছে।', 'Answer sent.'))}>
-                {t('উত্তর পাঠান', 'Send answer')}
-              </button>
-            </div>
-          )}
-          {open && (
-            <button type="button" disabled={busy} className={`${linkClass} text-xs self-start`} onClick={() => void run(() => withdrawVerification(current.id), t('প্রত্যাহার করা হয়েছে।', 'Withdrawn.'))}>
-              {t('আবেদন প্রত্যাহার করুন', 'Withdraw the request')}
-            </button>
-          )}
-        </section>
-      )}
+        {active === 'personal' && <>
+          <h2 className="text-xl font-bold">{t('ব্যক্তিগত তথ্য', 'Personal details')}</h2>
+          <input className={field} placeholder="Legal name in English" value={personal.legal_name_en} onChange={(e) => setPersonal({ ...personal, legal_name_en: e.target.value })} />
+          <input className={field} placeholder="বাংলায় নাম (ঐচ্ছিক)" value={personal.legal_name_bn} onChange={(e) => setPersonal({ ...personal, legal_name_bn: e.target.value })} />
+          <label className="text-sm font-bold">{t('জন্মতারিখ', 'Date of birth')}<input className={`${field} mt-1`} type="date" value={personal.date_of_birth} onChange={(e) => setPersonal({ ...personal, date_of_birth: e.target.value })} /></label>
+          <select className={field} value={personal.gender} onChange={(e) => setPersonal({ ...personal, gender: e.target.value })}><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="THIRD">Third gender</option></select>
+          <select className={field} value={personal.home_district} onChange={(e) => setPersonal({ ...personal, home_district: e.target.value })}><option value="">Home district</option>{districts.map((name) => <option key={name}>{name}</option>)}</select>
+          <input className={field} placeholder="Current area (optional)" value={personal.current_area} onChange={(e) => setPersonal({ ...personal, current_area: e.target.value })} />
+          <select className={field} value={personal.occupation} onChange={(e) => setPersonal({ ...personal, occupation: e.target.value })}><option value="STUDENT">Student</option><option value="EMPLOYED">Employed</option><option value="SELF_EMPLOYED">Self-employed</option><option value="NOT_WORKING">Not working</option><option value="OTHER">Other</option></select>
+          <button disabled={busy} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => saveVerificationStep(current.id, 'personal', personal), t('ব্যক্তিগত তথ্য সংরক্ষিত।', 'Personal details saved.'), true)}>{t('সংরক্ষণ ও পরবর্তী', 'Save and continue')}</button>
+        </>}
 
-      {data && !data.verified_member && !open && (
-        <section className="tonal-card p-5 flex flex-col gap-3">
-          <p className="text-sm text-on-surface-variant dark:text-on-dark-muted">
-            {t('একজন মডারেটর আপনার তথ্য দেখে অনুমোদন দেবেন। জাতীয় পরিচয়পত্র নম্বর দেবেন না।', 'A moderator reviews your request by hand. Do not send a national ID number.')}
-          </p>
-          <label htmlFor="verify-statement" className="text-xs font-bold">{t('নিজের সম্পর্কে লিখুন', 'Tell us about yourself')}</label>
-          <textarea id="verify-statement" rows={3} maxLength={1000} value={statement} onChange={(e) => setStatement(e.target.value)} className="rounded-xl p-3 bg-surface-sage/40 dark:bg-dark-surface-2" />
-          <button type="button" disabled={busy} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => requestVerification(statement.trim()), t('আবেদন জমা হয়েছে। এখন একটি প্রমাণ ফাইল যোগ করুন।', 'Request submitted. Now add an evidence file.'))}>
-            {t('যাচাইয়ের আবেদন করুন', 'Request verification')}
-          </button>
-        </section>
-      )}
-    </div>
+        {active === 'phone' && <>
+          <h2 className="text-xl font-bold">{t('ফোন যাচাই', 'Verify phone')}</h2>
+          {current.phone?.verified ? <Notice tone="success">•••• {current.phone.last4} verified</Notice> : <><input className={field} inputMode="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} /><button disabled={busy || !phone} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => sendVerificationPhoneCode(current.id, phone), t('কোড পাঠানো হয়েছে।', 'Code sent.'))}>{t('কোড পাঠান', 'Send code')}</button><input className={field} inputMode="numeric" maxLength={6} placeholder="6-digit code" value={phoneCode} onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))} /><button disabled={busy || phoneCode.length !== 6} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => verifyVerificationPhoneCode(current.id, phoneCode), t('ফোন যাচাই হয়েছে।', 'Phone verified.'), true)}>{t('যাচাই করুন', 'Verify')}</button></>}
+        </>}
+
+        {active === 'document' && <>
+          <h2 className="text-xl font-bold">{t('পরিচয়পত্র', 'Identity document')}</h2>
+          <select className={field} value={doc.doc_type} onChange={(e) => setDoc({ ...doc, doc_type: e.target.value })}><option value="NID">National ID</option><option value="PASSPORT">Passport</option><option value="DRIVING_LICENCE">Driving licence</option></select>
+          <input className={field} placeholder="Document number" value={doc.doc_number} onChange={(e) => setDoc({ ...doc, doc_number: e.target.value })} />
+          {(doc.doc_type === 'PASSPORT' || doc.doc_type === 'DRIVING_LICENCE') && <label className="text-sm font-bold">Expiry date<input className={`${field} mt-1`} type="date" value={doc.doc_expiry} onChange={(e) => setDoc({ ...doc, doc_expiry: e.target.value })} /></label>}
+          <button disabled={busy || !doc.doc_number} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => saveVerificationStep(current.id, 'document', { ...doc, doc_expiry: doc.doc_expiry || null }), t('পরিচয়পত্রের তথ্য সংরক্ষিত।', 'Document details saved.'))}>{t('তথ্য সংরক্ষণ', 'Save details')}</button>
+          <FilePicker kind="DOC_FRONT" busy={busy} done={Boolean(current.evidence.DOC_FRONT)} onFile={upload} />
+          {(doc.doc_type === 'NID' || doc.doc_type === 'DRIVING_LICENCE') && <FilePicker kind="DOC_BACK" busy={busy} done={Boolean(current.evidence.DOC_BACK)} onFile={(kind, file) => upload(kind, file, true)} />}
+          {doc.doc_type === 'PASSPORT' && current.evidence.DOC_FRONT && <button type="button" className={`${primaryButtonClass} px-5 self-start`} onClick={() => setStep(step + 1)}>{t('পরবর্তী', 'Continue')}</button>}
+        </>}
+
+        {active === 'student' && <>
+          <h2 className="text-xl font-bold">{t('শিক্ষার্থী পরিচয়', 'Student status')}</h2>
+          <select className={field} value={student.institution_id} onChange={(e) => setStudent({ ...student, institution_id: e.target.value })}><option value="">Choose institution</option>{institutions.map((item) => <option key={item.id} value={item.id}>{item.name_en}</option>)}</select>
+          {!student.institution_id && <input className={field} placeholder="Other institution" value={student.institution_other} onChange={(e) => setStudent({ ...student, institution_other: e.target.value })} />}
+          <label className="text-sm font-bold">Study ends<input className={`${field} mt-1`} type="month" value={student.study_end} onChange={(e) => setStudent({ ...student, study_end: e.target.value })} /></label>
+          <button disabled={busy} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => saveVerificationStep(current.id, 'student', student), t('শিক্ষার্থী তথ্য সংরক্ষিত।', 'Student details saved.'))}>Save details</button>
+          <FilePicker kind="STUDENT_CARD" busy={busy} done={Boolean(current.evidence.STUDENT_CARD)} onFile={upload} />
+          <input className={field} type="email" placeholder="Academic email (optional)" value={student.email} onChange={(e) => setStudent({ ...student, email: e.target.value })} /><button disabled={busy || !student.email} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => sendStudentEmailCode(current.id, student.email), 'Academic email code sent.')}>Send email code</button>
+          <input className={field} inputMode="numeric" maxLength={6} placeholder="Email code (optional)" value={student.code} onChange={(e) => setStudent({ ...student, code: e.target.value.replace(/\D/g, '') })} /><button disabled={busy || student.code.length !== 6} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => verifyStudentEmailCode(current.id, student.code), 'Academic email verified.', true)}>Verify and continue</button>
+          {current.evidence.STUDENT_CARD && <button type="button" className={linkClass} onClick={() => setStep(step + 1)}>Continue without academic email</button>}
+        </>}
+
+        {active === 'selfie' && <>
+          <h2 className="text-xl font-bold">{t('লাইভ সেলফি', 'Live selfie')}</h2>
+          {!current.liveness && <button disabled={busy} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => issueLivenessChallenge(current.id), t('লাইভ নির্দেশনা তৈরি হয়েছে।', 'Live challenge ready.'))}>{t('ক্যামেরা ধাপ শুরু করুন', 'Start camera step')}</button>}
+          {current.liveness && <Notice tone="info"><strong>{current.liveness.code}</strong> — {t(current.liveness.gesture_bn, current.liveness.gesture_en)}. {t('কোডটি কাগজে লিখে নির্দেশিত ভঙ্গিসহ ছবি তুলুন।', 'Write the code on paper and take the photo while making the requested gesture.')}</Notice>}
+          {current.liveness && <CameraCapture disabled={busy} label={t('ক্যামেরা চালু করুন', 'Open camera')} onCapture={(blob) => upload('SELFIE', blob, true)} />}
+        </>}
+
+        {active === 'emergency' && <>
+          <h2 className="text-xl font-bold">{t('জরুরি যোগাযোগ (ঐচ্ছিক)', 'Emergency contact (optional)')}</h2>
+          <p className="text-sm">{t('ট্যুর নিশ্চিত হলে এই যোগাযোগটি Safety মডিউলে কপি করা যাবে।', 'This contact can be copied to the Safety module when a tour is confirmed.')}</p>
+          <input className={field} placeholder="Contact name" value={emergency.name} onChange={(e) => setEmergency({ ...emergency, name: e.target.value, skip: false })} /><input className={field} placeholder="Relationship" value={emergency.relationship} onChange={(e) => setEmergency({ ...emergency, relationship: e.target.value, skip: false })} /><input className={field} placeholder="Phone" value={emergency.phone} onChange={(e) => setEmergency({ ...emergency, phone: e.target.value, skip: false })} />
+          <button disabled={busy} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => saveVerificationStep(current.id, 'emergency', emergency.name ? emergency : { skip: true }), t('জরুরি যোগাযোগ ধাপ সম্পন্ন।', 'Emergency contact step complete.'), true)}>{emergency.name ? t('সংরক্ষণ ও পরবর্তী', 'Save and continue') : t('এখন বাদ দিন', 'Skip for now')}</button>
+        </>}
+
+        {active === 'review' && <>
+          <h2 className="text-xl font-bold">{t('পর্যালোচনা ও জমা', 'Review & submit')}</h2>
+          <dl className="text-sm grid sm:grid-cols-2 gap-3">
+            {current.required_steps.map((name) => {
+              const meta = STEPS.find((item) => item.key === name);
+              const index = STEPS.findIndex((item) => item.key === name);
+              const p = current.personal;
+              const detail = name === 'personal' ? [p.legal_name_en, p.date_of_birth, p.gender, p.home_district, p.occupation].filter(Boolean).join(' · ')
+                : name === 'phone' ? (current.phone ? `•••• ${current.phone.last4}${current.phone.verified ? ' ✓' : ''}` : '')
+                : name === 'document' ? (current.document ? `${DOC_LABEL[current.document.doc_type] ?? current.document.doc_type} •••• ${current.document.last4}${current.evidence.DOC_FRONT ? ` · ${t('ছবি', 'photos')} ✓` : ''}` : '')
+                : name === 'student' ? (current.student?.institution_name ?? '')
+                : name === 'selfie' ? (current.evidence.SELFIE ? t('সেলফি জমা হয়েছে ✓', 'Selfie received ✓') : '')
+                : name === 'emergency' ? (data?.emergency_contact ? `${data.emergency_contact.name} (${data.emergency_contact.relationship})` : t('বাদ দেওয়া', 'Skipped'))
+                : '';
+              return <div key={name} className="tonal-card p-3 flex flex-col gap-1">
+                <dt className="font-bold flex gap-2"><span>{current.steps[name] ? '✓' : '○'}</span>{meta ? t(meta.bn, meta.en) : name}</dt>
+                {detail && <dd className="text-on-surface-variant break-words">{detail}</dd>}
+                <dd><button type="button" className={linkClass} onClick={() => setStep(index)}>{t('সম্পাদনা', 'Edit')}</button></dd>
+              </div>;
+            })}
+          </dl>
+          {current.decision_note && <Notice tone="info">{current.decision_note}</Notice>}
+          <label className="flex gap-3 items-start"><input type="checkbox" checked={declaration} onChange={(e) => setDeclaration(e.target.checked)} /><span>{t('আমি ঘোষণা করছি যে তথ্য ও ছবি আমার নিজের এবং সত্য।', 'I declare that the information and images are mine and accurate.')}</span></label>
+          <button disabled={busy || !declaration || current.required_steps.some((name) => !current.steps[name])} className={`${primaryButtonClass} px-6 self-start`} onClick={() => void run(() => current.state === 'needs_clarification' ? respondToVerification(current.id) : submitVerification(current.id, declaration), t('আবেদন জমা হয়েছে।', 'Application submitted.'))}>{current.state === 'needs_clarification' ? t('উত্তর জমা দিন', 'Submit clarification') : t('আবেদন জমা দিন', 'Submit application')}</button>
+        </>}
+      </section>
+      <button type="button" disabled={busy} className="text-sm text-error-alert self-start" onClick={() => void run(() => withdrawVerification(current.id), t('আবেদন প্রত্যাহার করা হয়েছে।', 'Application withdrawn.'))}>{t('খসড়া/আবেদন প্রত্যাহার', 'Withdraw application')}</button>
+    </main>
   );
 };

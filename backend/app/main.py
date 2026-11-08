@@ -26,6 +26,11 @@ from app.offline.routes import router as offline_router
 from app.ops import events
 from app.ops.routes import router as ops_router
 from app.public_reports import router as public_reports_router
+from app.scheduler import Scheduler
+from app.tours.admin_routes import router as tour_admin_router
+from app.tours.realtime import router as realtime_router
+from app.tours.routes import router as tours_router
+from app.verification.routes import router as verification_router
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +82,12 @@ async def lifespan(_application: FastAPI) -> AsyncIterator[None]:
     flusher.start()
     worker = NotificationWorker(SessionLocal)  # outbox relay and email sender (Moderation spec 6.7)
     worker.start()
+    scheduler = Scheduler(SessionLocal)  # time-based transitions: drafts, renewals, tours (architecture 7)
+    scheduler.start()
     try:
         yield
     finally:
+        scheduler.stop()
         worker.stop()
         flusher.stop()
 
@@ -174,11 +182,15 @@ def create_app() -> FastAPI:
     application.include_router(ops_router)
     application.include_router(auth_router)
     application.include_router(admin_router)
+    application.include_router(tour_admin_router)
     application.include_router(reports_router)
     application.include_router(public_reports_router)
     application.include_router(notification_admin_router)
     application.include_router(webhook_router)
     application.include_router(member_router)
+    application.include_router(verification_router)
+    application.include_router(tours_router)
+    application.include_router(realtime_router)
     return application
 
 

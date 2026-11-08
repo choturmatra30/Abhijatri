@@ -911,6 +911,83 @@ The client address is the provider-appended entry only (PF 14.2). IPv6 is trunca
 
 ## 9. Change process
 
+## 10. Verified Member application and Tours (0023–0024)
+
+All member writes below require the session CSRF token. Retryable state changes
+also accept `Idempotency-Key`; tour edits accept `If-Match`. Tour resources are
+private: callers who fail the verified/adult/membership visibility gate receive
+`404`, not a disclosure-producing `403`.
+
+Verification application paths:
+
+`/verifications/districts`, `/verifications/institutions`,
+`/verifications/{case_id}/steps/{step}`,
+`/verifications/{case_id}/phone/send-code`,
+`/verifications/{case_id}/phone/verify`,
+`/verifications/{case_id}/student-email/send-code`,
+`/verifications/{case_id}/student-email/verify`,
+`/verifications/{case_id}/liveness-challenge`, and
+`/verifications/{case_id}/submit`.
+
+The staff review additions are
+`/admin/verification-cases/{case_id}/evidence/{evidence_id}/content`,
+`/admin/verification-cases/{case_id}/reopen`, `/admin/verification-bans`, and
+`/admin/verification-bans/{ban_id}/lift`.
+
+Tours discovery and account paths:
+
+`/tours/access`, `/me/tours`, `/me/travel-preferences`, `/me/discovery`,
+`/me/blocks`, `/me/blocks/{user_id}`, `/tours/search`, `/people/search`,
+`/tours/by-code/{code}`, and `/tours`.
+
+Tour lifecycle and membership paths:
+
+`/tours/{public_id}/summary`, `/tours/{public_id}`,
+`/tours/{public_id}/publish`, `/tours/{public_id}/copy`,
+`/tours/{public_id}/requests`, `/me/requests/{request_id}`,
+`/tours/{public_id}/requests/{request_id}/approve`,
+`/tours/{public_id}/requests/{request_id}/decline`,
+`/tours/{public_id}/leave`, `/tours/{public_id}/members/{member_id}/remove`,
+`/tours/{public_id}/members/{member_id}/role`,
+`/tours/{public_id}/ownership`, `/tours/{public_id}/recruitment`,
+`/tours/{public_id}/code/regenerate`, `/tours/{public_id}/minimum`, and
+`/tours/{public_id}/cancel`.
+
+Invitation and workspace paths:
+
+`/me/invitations`, `/tours/{public_id}/invitations`,
+`/me/invitations/{invitation_id}/accept`,
+`/me/invitations/{invitation_id}/decline`, `/tours/{public_id}/itinerary`,
+`/tours/{public_id}/itinerary/suggestions`,
+`/tours/{public_id}/itinerary/suggestions/{suggestion_id}`,
+`/tours/{public_id}/budget`, `/tours/{public_id}/expenses`,
+`/tours/{public_id}/expenses/{expense_id}`, and
+`/tours/{public_id}/settlements`.
+
+Safety and chat paths:
+
+`/tours/{public_id}/safety`, `/tours/{public_id}/safety/me`,
+`/tours/{public_id}/safety/meeting-points`,
+`/tours/{public_id}/safety/meeting-points/{point_id}`,
+`/tours/{public_id}/checkins`,
+`/tours/{public_id}/checkins/{checkin_id}/answer`, `/tours/{public_id}/sos`,
+`/tours/{public_id}/messages`, `/tours/{public_id}/messages/{seq}`,
+`/tours/{public_id}/messages/{seq}/pin`, `/tours/{public_id}/messages/read`,
+`/tours/{public_id}/mute`, `/tours/{public_id}/reports`, and
+`/tours/{public_id}/messages/{seq}/report`. WebSocket chat uses
+`/api/v1/realtime` with the same session cookie plus an allowed `Origin`.
+
+Tour Operations paths:
+
+`/admin/tours`, `/admin/tours/reports/{report_id}/resolve`, `/admin/tours/{public_id}`,
+`/admin/tours/{public_id}/suspend`, `/admin/tours/{public_id}/restore`,
+`/admin/tours/{public_id}/cancel`,
+`/admin/tours/{public_id}/members/{member_id}/remove`,
+`/admin/tours/{public_id}/messages/{message_id}/hide`,
+`/admin/tours/users/{user_id}/restrict`,
+`/admin/tours/{public_id}/breakglass`, and
+`/admin/tours/{public_id}/private/{scope}`.
+
 1. Change the code, run the export script and commit the new `Docs/api/openapi-v1.json`.
 2. Update this document in the same pull request. CI fails if an implemented path is missing here.
 3. Record breaking or rule-changing changes in `Docs/Decisions.md`.

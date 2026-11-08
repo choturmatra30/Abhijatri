@@ -442,14 +442,48 @@ export interface NotificationPreferences {
 
 export interface VerificationCaseView {
   id: string;
-  state: 'submitted' | 'in_review' | 'needs_clarification' | 'approved' | 'rejected' | 'escalated' | 'withdrawn';
+  state: 'draft' | 'submitted' | 'in_review' | 'needs_clarification' | 'approved' | 'rejected' | 'escalated' | 'withdrawn' | 'expired';
+  purpose: 'initial' | 'renewal' | 'student_update';
   version: number;
-  statement: string | null;
+  required_steps: VerificationStep[];
+  steps: Record<VerificationStep, boolean>;
+  personal: {
+    legal_name_en: string | null;
+    legal_name_bn: string | null;
+    date_of_birth: string | null;
+    gender: 'FEMALE' | 'MALE' | 'THIRD' | null;
+    home_district: string | null;
+    home_division: string | null;
+    current_area: string | null;
+    occupation: 'STUDENT' | 'EMPLOYED' | 'SELF_EMPLOYED' | 'NOT_WORKING' | 'OTHER' | null;
+  };
+  phone: { last4: string; verified: boolean } | null;
+  document: { doc_type: 'NID' | 'BIRTH_CERTIFICATE' | 'PASSPORT' | 'DRIVING_LICENCE'; last4: string; expiry: string | null } | null;
+  student: { institution_id: string | null; institution_name: string | null; study_end: string | null; email_verified: boolean } | null;
+  liveness: { code: string; gesture: string; gesture_bn: string; gesture_en: string; issued_at: string; valid_until: string } | null;
+  evidence: Partial<Record<VerificationEvidenceKind, { id: string; created_at: string }>>;
+  clarification_steps: VerificationStep[];
   decision_note: string | null;
-  decision_reason: string | null;
+  decision_reason: { code: string; bn: string; en: string } | null;
+  clarification_due_at: string | null;
+  draft_expires_at: string | null;
+  submitted_at: string | null;
   created_at: string;
   decided_at: string | null;
-  evidence: { id: string; status: string; content_type: string }[];
+}
+
+export type VerificationStep = 'eligibility' | 'personal' | 'phone' | 'document' | 'student' | 'selfie' | 'emergency';
+export type VerificationEvidenceKind = 'DOC_FRONT' | 'DOC_BACK' | 'SELFIE' | 'STUDENT_CARD';
+
+export interface VerificationMine {
+  verified_member: boolean;
+  verification: { state: 'active' | 'renewal_due' | 'lapsed' | 'revoked'; decided_at: string | null; renewal_due_at: string | null } | null;
+  attributes: { gender: string; birth_year: number; is_student: boolean; student_until: string | null; home_district: string } | null;
+  emergency_contact: { name: string; relationship: string; phone: string } | null;
+  email_verified: boolean;
+  cooldown_until: string | null;
+  banned_until: string | null;
+  case: VerificationCaseView | null;
 }
 
 export interface AppealView {

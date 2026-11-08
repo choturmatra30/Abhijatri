@@ -1,17 +1,20 @@
 """Verification, enforcement, appeals, notifications and retention (Moderation spec 6.2 to 6.7, 10, 11, 14)."""
 
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 import test_admin as admin
 import test_auth as support
+import verification_support as vs
 from conftest import backdate_decisions
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from app import sms
 from app.admin import cases
 from app.jobs import retention
 from app.models import (
@@ -43,23 +46,7 @@ pytestmark = pytest.mark.integration
 BASE = "/api/v1/admin"
 
 
-class FakeStorage:
-    def __init__(self) -> None:
-        self.objects: set[str] = set()
-        self.deleted: list[str] = []
-
-    def signed_upload_url(self, key: str) -> str:
-        return f"http://storage.test/upload/{key}?token=t"
-
-    def exists(self, key: str) -> bool:
-        return key in self.objects
-
-    def signed_download_url(self, key: str) -> str:
-        return f"http://storage.test/download/{key}?token=t"
-
-    def delete(self, keys: list[str]) -> None:
-        self.deleted += keys
-        self.objects -= set(keys)
+FakeStorage = vs.FakeStorage
 
 
 @pytest.fixture()
@@ -68,7 +55,15 @@ def storage() -> FakeStorage:
 
 
 @pytest.fixture()
-def client(auth_env: None, postgres_session: Session, fake: support.FakeGoTrue, redis_fake: Any, storage: FakeStorage) -> TestClient:
+def sms_box() -> Iterator[vs.RecordingSms]:
+    recorder = vs.RecordingSms()
+    sms.use_for_tests(recorder)
+    yield recorder
+    sms.use_for_tests(None)
+
+
+@pytest.fixture()
+def client(auth_env: None, postgres_session: Session, fake: support.FakeGoTrue, redis_fake: Any, storage: FakeStorage, sms_box: vs.RecordingSms) -> TestClient:
     base = support.make_client(postgres_session, fake, redis_fake)
     base.app.dependency_overrides[get_storage] = lambda: storage  # type: ignore[attr-defined]
     return base
@@ -92,104 +87,120 @@ def claim(browser: TestClient, session: Session, subject_id: uuid.UUID) -> tuple
 # ============================ verification ============================
 
 
-def _submit_case(browser: TestClient, storage: FakeStorage, *, with_evidence: bool = True) -> dict[str, Any]:
-    created = browser.post("/api/v1/verifications", json={"statement": "I am a student at BUET."})
-    assert created.status_code == 201, created.text
-    case = created.json()
-    if with_evidence:
-        intent = browser.post(f"/api/v1/verifications/{case['id']}/evidence", json={"content_type": "image/png", "size_bytes": 1000})
-        assert intent.status_code == 200, intent.text
-        assert intent.json()["upload_url"].startswith("http://storage.test/upload/")
-        early = browser.post(f"/api/v1/verifications/{case['id']}/evidence/{intent.json()['evidence_id']}/complete")
-        assert early.status_code == 422, "not uploaded yet"
-        storage.objects.add(intent.json()["upload_url"].split("/upload/")[1].split("?")[0])
-        done = browser.post(f"/api/v1/verifications/{case['id']}/evidence/{intent.json()['evidence_id']}/complete")
-        assert done.status_code == 200 and done.json()["status"] == "uploaded"
-    return case
+def _submit_case(browser: TestClient, storage: FakeStorage, session: Session, sms_box: vs.RecordingSms, email: str = "nila@example.com", **kwargs: Any) -> dict[str, Any]:
+    """The full application (sign-up form 4), submitted."""
+    return vs.apply(browser, session, storage, sms_box, email, **kwargs)
 
 
-def test_a_member_becomes_verified_through_the_queue(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage) -> None:
+def test_a_member_becomes_verified_through_the_queue(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage, sms_box: vs.RecordingSms) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.80")
     mod = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.81")
-    case = _submit_case(applicant, storage)
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
+    assert case["state"] == "submitted", case
     assert applicant.post("/api/v1/verifications", json={}).status_code == 409, "one open case per member"
     assert applicant.get("/api/v1/auth/session").json()["verified_member"] is False
 
     item = next(i for i in mod.get(f"{BASE}/queue", params={"task_type": "verification"}).json()["items"])
-    assert item["subject"]["applicant"]["email"] == "nila@example.com" and len(item["subject"]["evidence"]) == 1
+    assert item["subject"]["applicant"]["email"] == "nila@example.com"
+    assert {e["kind"] for e in item["subject"]["evidence"]} == {"DOC_FRONT", "DOC_BACK", "SELFIE"}
+    assert "legal_name" not in str(item["subject"]), "no personal details in the shared queue"
     task, lease = claim(mod, postgres_session, uuid.UUID(case["id"]))
+    details = mod.get(f"{BASE}/verification-cases/{case['id']}")
+    assert details.status_code == 200 and details.json()["personal"]["legal_name_en"] == "Nila Rahman"
+    assert details.json()["document"]["number"] == "1234567890", "the full number while the case is decided"
     evidence_id = item["subject"]["evidence"][0]["id"]
     link = mod.post(f"{BASE}/verification-cases/{case['id']}/evidence/{evidence_id}/url")
     assert link.status_code == 200 and link.json()["expires_in"] == 60
+    image = mod.get(link.json()["url"].replace("http://testserver", "").replace("https://localhost", ""))
+    assert image.status_code == 200 and image.headers["content-type"] == "image/jpeg" and image.headers["cache-control"] == "no-store"
+    tampered = mod.get(link.json()["url"].replace("token=", "token=00"))
+    assert tampered.status_code == 404
 
-    body = {"expected_version": 1, "reason_code": "start", "task_id": str(task.id), "lease_token": lease}
+    body = {"expected_version": 2, "reason_code": "start", "task_id": str(task.id), "lease_token": lease}
     assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "to": "approved"}).status_code == 422, "approve only from in_review"
     assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "to": "in_review"}).status_code == 200
-    stale = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "to": "approved", "reason_code": "documents-ok"})
+    stale = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "to": "approved", "reason_code": "documents-ok", "checklist": vs.CHECKLIST, "attributes": {"gender": "FEMALE", "birth_year": 1998}})
     assert stale.status_code == 409, "stale version"
-    ok = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "expected_version": 2, "to": "approved", "reason_code": "documents-ok"})
-    assert ok.status_code == 200 and ok.json()["state"] == "approved"
+    ok = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**body, "expected_version": 3, "to": "approved", "reason_code": "documents-ok", "checklist": vs.CHECKLIST, "attributes": {"gender": "FEMALE", "birth_year": 1998}})
+    assert ok.status_code == 200 and ok.json()["state"] == "approved", ok.text
 
     assert applicant.get("/api/v1/auth/session").json()["verified_member"] is True
     verification = postgres_session.scalar(select(Verification).where(Verification.user_id == fake.users["nila@example.com"]["id"]))
     assert verification is not None and verification.status == "APPROVED" and verification.verification_type == "VERIFIED_MEMBER"
+    assert verification.expires_at is not None, "renewal due date set (L7)"
     assert applicant.post("/api/v1/verifications", json={}).status_code == 409, "already verified"
-    assert {e.action for e in postgres_session.scalars(select(AuditEvent))} >= {"verification.submitted", "evidence.uploaded", "evidence.viewed", "verification.approved"}
+    assert {e.action for e in postgres_session.scalars(select(AuditEvent))} >= {"verification.submitted", "evidence.uploaded", "evidence.viewed", "verification.approved", "verification.details_viewed"}
 
 
-def test_evidence_access_is_limited_to_the_holder(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage) -> None:
+def test_evidence_access_is_limited_to_the_holder(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage, sms_box: vs.RecordingSms) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.82")
     one = admin.staff_client(client, postgres_session, fake, "one@example.com", "moderator", "203.0.113.83")
     two = admin.staff_client(client, postgres_session, fake, "two@example.com", "moderator", "203.0.113.84")
-    case = _submit_case(applicant, storage)
-    evidence = postgres_session.scalar(select(VerificationEvidence).where(VerificationEvidence.case_id == uuid.UUID(case["id"])))
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
+    evidence = postgres_session.scalar(select(VerificationEvidence).where(VerificationEvidence.case_id == uuid.UUID(case["id"]), VerificationEvidence.status == "uploaded"))
     assert evidence is not None
     url = f"{BASE}/verification-cases/{case['id']}/evidence/{evidence.id}/url"
     assert one.post(url).status_code == 403, "nobody holds it yet"
+    assert one.get(f"{BASE}/verification-cases/{case['id']}").status_code == 403
     claim(one, postgres_session, uuid.UUID(case["id"]))
     assert two.post(url).status_code == 403, "another moderator does not hold it"
     assert one.post(url).status_code == 200
     assert applicant.post(url).status_code == 404, "members never see staff routes"
     other = member(client, postgres_session, fake, "other@example.com", "203.0.113.85")
-    assert other.post(f"/api/v1/verifications/{case['id']}/evidence", json={"content_type": "image/png", "size_bytes": 10}).status_code == 404
-    assert applicant.post(f"/api/v1/verifications/{case['id']}/evidence", json={"content_type": "text/html", "size_bytes": 10}).status_code == 422
+    assert other.post(f"/api/v1/verifications/{case['id']}/evidence", json={"kind": "DOC_FRONT", "content_type": "image/jpeg", "size_bytes": 10}).status_code == 404
 
 
-def test_approval_needs_evidence_and_escalation_needs_a_superadmin(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage) -> None:
+def test_approval_needs_the_checklist_and_attributes_and_escalation_needs_a_superadmin(
+    client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage, sms_box: vs.RecordingSms
+) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.86")
     mod = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.87")
     boss = admin.staff_client(client, postgres_session, fake, "boss@example.com", "superadmin", "203.0.113.88")
-    case = _submit_case(applicant, storage, with_evidence=False)
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
     task, lease = claim(mod, postgres_session, uuid.UUID(case["id"]))
-    base = {"reason_code": "r1", "task_id": str(task.id), "lease_token": lease}
-    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 1})
-    no_evidence = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "approved", "expected_version": 2})
-    assert no_evidence.status_code == 422 and no_evidence.json()["error"]["code"] == "EVIDENCE_REQUIRED"
-    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "escalated", "expected_version": 2}).status_code == 200
-    stale_tab = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "rejected", "expected_version": 3})
+    base = {"reason_code": "documents-ok", "task_id": str(task.id), "lease_token": lease}
+    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 2})
+    no_attributes = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "approved", "expected_version": 3, "checklist": vs.CHECKLIST})
+    assert no_attributes.status_code == 422 and no_attributes.json()["error"]["field_errors"][0]["field"] == "attributes", "VF-05"
+    unticked = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "approved", "expected_version": 3, "checklist": ["genuine"], "attributes": {"gender": "FEMALE", "birth_year": 1998}})
+    assert unticked.status_code == 422 and any(e["field"] == "checklist.face" for e in unticked.json()["error"]["field_errors"])
+    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "escalated", "expected_version": 3}).status_code == 200
+    stale_tab = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "rejected", "expected_version": 4, "reason_code": "other"})
     assert stale_tab.status_code in (403, 409)
     task, lease = claim(boss, postgres_session, uuid.UUID(case["id"]))
-    rejected = boss.post(f"{BASE}/verification-cases/{case['id']}/transition", json={"reason_code": "not-eligible", "task_id": str(task.id), "lease_token": lease, "to": "rejected", "expected_version": 3})
+    bad_reason = boss.post(f"{BASE}/verification-cases/{case['id']}/transition", json={"reason_code": "not-eligible", "task_id": str(task.id), "lease_token": lease, "to": "rejected", "expected_version": 4})
+    assert bad_reason.status_code == 422, "reject reasons come from the strict list (L5)"
+    rejected = boss.post(f"{BASE}/verification-cases/{case['id']}/transition", json={"reason_code": "details-mismatch", "note": "internal", "task_id": str(task.id), "lease_token": lease, "to": "rejected", "expected_version": 4})
     assert rejected.status_code == 200
     postgres_session.expire_all()
     stored = postgres_session.get(VerificationCase, uuid.UUID(case["id"]))
     assert stored is not None and stored.purge_after is not None and stored.purge_after > datetime.now(UTC) + timedelta(days=29)
+    mine = applicant.get("/api/v1/verifications/mine").json()
+    assert mine["case"]["decision_reason"]["en"] == "Details do not match the document" and mine["case"]["decision_note"] is None, "never the internal note"
+    assert mine["cooldown_until"] is not None
+    again = applicant.post("/api/v1/verifications", json={})
+    assert again.status_code == 409 and again.json()["error"]["code"] == "VERIFICATION_COOLDOWN", "VF-09"
 
 
-def test_clarification_round_trip(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage) -> None:
+def test_clarification_round_trip(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage, sms_box: vs.RecordingSms) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.89")
     mod = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.90")
-    case = _submit_case(applicant, storage)
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
     task, lease = claim(mod, postgres_session, uuid.UUID(case["id"]))
-    base = {"reason_code": "r1", "task_id": str(task.id), "lease_token": lease}
-    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 1})
-    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "needs_clarification", "expected_version": 2}).status_code == 422, "a question is required"
-    asked = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "needs_clarification", "expected_version": 2, "note": "Which department?"})
-    assert asked.status_code == 200
+    base = {"reason_code": "blurry-photo", "task_id": str(task.id), "lease_token": lease}
+    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 2})
+    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "needs_clarification", "expected_version": 3, "steps": ["document"]}).status_code == 422, "a question is required"
+    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "needs_clarification", "expected_version": 3, "note": "Retake the front"}).status_code == 422, "steps are required"
+    asked = mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "needs_clarification", "expected_version": 3, "note": "Retake the front photo", "steps": ["document"]})
+    assert asked.status_code == 200, asked.text
     view = applicant.get("/api/v1/verifications/mine").json()["case"]
-    assert view["state"] == "needs_clarification" and view["decision_note"] == "Which department?"
-    answered = applicant.post(f"/api/v1/verifications/{case['id']}/respond", json={"statement": "Computer Science."})
-    assert answered.status_code == 200 and answered.json()["state"] == "in_review"
+    assert view["state"] == "needs_clarification" and view["decision_note"] == "Retake the front photo" and view["clarification_steps"] == ["document"]
+    assert view["decision_reason"]["en"] == "Blurry photo"
+    locked = applicant.patch(f"/api/v1/verifications/{case['id']}/steps/personal", json=vs.PERSONAL)
+    assert locked.status_code == 422, "only the named steps can change"
+    vs.upload(applicant, storage, case["id"], "DOC_FRONT")
+    answered = applicant.post(f"/api/v1/verifications/{case['id']}/respond", json={})
+    assert answered.status_code == 200 and answered.json()["state"] == "submitted"
     postgres_session.expire_all()
     assert postgres_session.scalar(select(ModerationTask).where(ModerationTask.subject_id == uuid.UUID(case["id"]), ModerationTask.status == "open")) is not None, "back in the queue"
 
@@ -381,10 +392,10 @@ def test_a_broken_event_is_retried_then_parked(postgres_session: Session) -> Non
     assert postgres_session.get(OutboxEvent, event.id).status == "processed", "an event with nothing to say is simply processed"
 
 
-def test_the_daily_digest_bundles_non_critical_notifications(postgres_session: Session, fake: support.FakeGoTrue, auth_env: None, client: TestClient, storage: FakeStorage) -> None:
+def test_the_daily_digest_bundles_non_critical_notifications(postgres_session: Session, fake: support.FakeGoTrue, auth_env: None, client: TestClient, storage: FakeStorage, sms_box: vs.RecordingSms) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.107")
     mod = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.108")
-    case = _submit_case(applicant, storage)
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
     sessions = factory(postgres_session)
     worker.run_once(sessions, None)
     staff_note = postgres_session.scalar(select(Notification).where(Notification.kind == "staff.verification_submitted"))
@@ -406,26 +417,33 @@ def test_the_stream_route_needs_a_session(client: TestClient) -> None:
 # ============================ retention ============================
 
 
-def test_retention_keeps_what_an_open_appeal_needs(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage) -> None:
+def test_retention_keeps_what_an_open_appeal_needs_then_shreds(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, storage: FakeStorage, sms_box: vs.RecordingSms) -> None:
     applicant = member(client, postgres_session, fake, "nila@example.com", "203.0.113.111")
     mod = admin.staff_client(client, postgres_session, fake, "mod@example.com", "moderator", "203.0.113.112")
-    case = _submit_case(applicant, storage)
+    case = _submit_case(applicant, storage, postgres_session, sms_box)
     task, lease = claim(mod, postgres_session, uuid.UUID(case["id"]))
-    base = {"reason_code": "r1", "task_id": str(task.id), "lease_token": lease}
-    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 1})
-    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "rejected", "expected_version": 2})
+    base = {"reason_code": "face-mismatch", "task_id": str(task.id), "lease_token": lease}
+    mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "in_review", "expected_version": 2})
+    assert mod.post(f"{BASE}/verification-cases/{case['id']}/transition", json={**base, "to": "rejected", "expected_version": 3}).status_code == 200
     appeal = applicant.post("/api/v1/appeals", json={"target_type": "verification_case", "target_id": case["id"], "reason": "My card is valid, please check again."})
     assert appeal.status_code == 201
     postgres_session.execute(update(VerificationCase).values(purge_after=datetime.now(UTC) - timedelta(minutes=1)))
     postgres_session.commit()
+    deleted_before = len(storage.deleted)
+    sealed_before = {key for (bucket, key) in storage.blobs if bucket == "verification-sealed"}
+    assert len(sealed_before) == 3
     kept = retention.run(factory(postgres_session), storage)  # type: ignore[arg-type]
-    assert kept["cases"] == 0 and storage.deleted == [], "preserved while the appeal is open"
+    assert kept["cases"] == 0 and len(storage.deleted) == deleted_before, "preserved while the appeal is open"
     postgres_session.execute(update(Appeal).values(state="upheld"))
     postgres_session.commit()
     purged = retention.run(factory(postgres_session), storage)  # type: ignore[arg-type]
-    assert purged["cases"] == 1 and purged["evidence_files"] == 1 and len(storage.deleted) == 1
+    assert purged["cases"] == 1 and purged["evidence_files"] == 3
+    assert not {key for (bucket, key) in storage.blobs if bucket == "verification-sealed"}, "VF-07: images gone"
     postgres_session.expire_all()
-    assert postgres_session.get(VerificationCase, uuid.UUID(case["id"])) is None
+    shredded = postgres_session.get(VerificationCase, uuid.UUID(case["id"]))
+    assert shredded is not None and shredded.state == "rejected", "the decision stays for the cooldown rules"
+    assert shredded.legal_name_enc is None and shredded.dob_enc is None and shredded.doc_number_enc is None, "personal data shredded"
+    assert shredded.doc_hash is not None, "the keyed hash stays for duplicate and ban checks"
 
 
 def test_old_notifications_are_purged_by_class(postgres_session: Session) -> None:
