@@ -2,8 +2,9 @@
 %  Abhijatri Project Proposal -- Team ChoturMatra
 %  CSE 3102: Software Development Project
 %  Compile with pdflatex (run twice for the table of contents).
-%  Revised 31 October 2026: as-built use case diagram, system models and status (Section 10).
-%  Required files (in diagrams/ next to this file): usecase-model.png, dfd-context.png, review-state.png
+%  Revised 8 November 2026: one-page executive summary with the scope decision; feature objectives only;
+%  the system models and as-built status section was removed.
+%  Required file (in diagrams/ next to this file): usecase-model.png
 % =====================================================================
 \documentclass[11pt,a4paper]{article}
 
@@ -33,6 +34,7 @@
 \usepackage{needspace}
 \usepackage{amsmath}
 \usepackage{xcolor}
+\usepackage{pifont}                  % tick and cross symbols in the role matrix
 \usepackage{tikz}
 \usepackage{afterpage}
 \usepackage[section]{placeins}
@@ -114,6 +116,9 @@
 \newcommand{\ganttfont}{\fontsize{7.2}{8}\selectfont}
 \newcommand{\extlink}[2]{\href{#1}{\textbf{\underline{#2}}}}
 \newcommand{\ganttsmall}{\fontsize{6.5}{7.2}\selectfont}
+\newcommand{\yes}{\textcolor{green!45!black}{\ding{51}}}       % allowed
+\newcommand{\no}{\textcolor{red!70!black}{\ding{55}}}          % not allowed
+\newcommand{\na}{\textcolor{black!45}{--}}                      % not applicable
 
 \begin{document}
 
@@ -140,7 +145,7 @@
     \hd{Project type}     & Software development \\
     \hd{Platform}         & Bangla-first, offline-ready Progressive Web Application (PWA) \\
     \hd{Proposal date}    & 12 October 2026 \\
-    \hd{Revised}          & 31 October 2026: as-built status and system models (Section~\ref{sec:asbuilt}) \\
+    \hd{Revised}          & 8 November 2026 \\
     \hd{Final completion} & 17 or 18 January 2027 \\
     \bottomrule
   \end{tabular}
@@ -178,18 +183,21 @@
 \setcounter{page}{1}
 
 % =====================================================================
-\section*{Scope Decision}
-\phantomsection
-\addcontentsline{toc}{section}{\protect\numberline{}Scope Decision}
-Abhijatri will be developed as a Bangla-first, offline-ready Progressive Web Application. The semester minimum viable product (MVP) is organized around one complete journey: a traveller explores a destination, generates a contextual cost estimate, downloads an offline travel pack, and submits a moderated review after reconnecting. Verified Member identity checks, group tours, tourmate matching and tour chat are part of the platform; vendor commerce and real payments are future phases. A reservation and payment sandbox may be demonstrated only as a non-production extension; it is not part of semester acceptance.
-
-% =====================================================================
 \section{Executive Summary}
-Travellers in Bangladesh often plan trips from social media posts, agency advertisements, personal blogs, maps, and informal recommendations. These sources vary in age, format, and reliability. They rarely explain why two trips to the same destination have different costs, and they become difficult to use when network access is weak.
+\textbf{The problem.} Travellers in Bangladesh often plan trips from social media posts, agency advertisements, personal blogs, maps, and informal recommendations. These sources vary in age, format, and reliability. They rarely explain why two trips to the same destination cost different amounts, they seldom say when a price or a restriction was last checked, and they become hard to use exactly where travellers need them most: in hill districts, rural areas, and remote destinations where mobile data is slow, unstable, or absent. International travel services offer reviews and maps, but not Bangla-first guidance with Bangladesh-specific pricing units, local seasonality, and contextual cost explanations in one place.
 
-Abhijatri is a community-driven travel platform designed for Bangladesh. It combines bilingual destination guidance, structured community reviews, transparent ratings, dated travel advisories, an explainable rule-based cost planner, and downloadable offline travel packs. Bangla is the default language; English is available through a persistent language control.
+\textbf{The product.} Abhijatri is a community-driven travel platform designed for Bangladesh. It combines bilingual destination guidance, structured community reviews, transparent ratings, dated travel advisories, an explainable rule-based cost planner, and downloadable offline travel packs. Bangla is the default language; English is available through a persistent language control. Every piece of guidance shows its source and date, and expired information is never presented as current.
 
-The semester outcome is a tested PWA with five seeded destination profiles: Cox's Bazar, Sajek, Sylhet, the Sundarbans, and Bandarban. The final demonstration will cover the destination, estimate, offline, review, and moderation flow. The platform will not use machine learning for cost prediction. It will use documented pricing rules, source dates, pricing units, season factors, low--expected--high ranges, and confidence labels.
+\textbf{Scope decision.} Abhijatri will be developed as a Bangla-first, offline-ready Progressive Web Application (PWA). The semester minimum viable product (MVP) is organized around one complete journey: a traveller explores a destination, generates a contextual cost estimate, downloads an offline travel pack, and submits a moderated review after reconnecting. Verified Member identity checks, group tours, tourmate matching, and tour chat are part of the platform. Vendor commerce and real payments are future phases. A reservation and payment sandbox may be demonstrated only as a non-production extension; it is not part of semester acceptance.
+
+\textbf{What the semester delivers.} The outcome is a tested PWA with five seeded destination profiles: Cox's Bazar, Sajek, Sylhet, the Sundarbans, and Bandarban. Each profile carries bilingual guidance, dated sources, contacts, seasonality, and advisories with current, stale, and expired states. Reviews are structured, moderated before publication, and counted in a documented Bayesian rating; a review written without a connection stays on the device and is submitted after reconnecting without ever creating a duplicate. A downloaded travel pack opens in airplane mode, and payment credentials are never collected.
+
+\textbf{How it is built.} The platform will not use machine learning for cost prediction. The cost planner uses documented pricing rules, source dates, pricing units, season factors, low--expected--high ranges, and confidence labels, so every estimate can be explained line by line. The application is a React and TypeScript PWA over a FastAPI and PostgreSQL backend, with role-based access, rate limits, and audit logs.
+
+\textbf{Trust and privacy.} Community content can be duplicated, biased, or manipulated, so review counts, moderation status, source dates, confidence labels, and advisory validity stay visible, and readers can report reviews into a moderation queue with recorded reasons and an audit trail. Verified Member status is decided by a moderator from an identity document photo, a live selfie, and a verified phone number; the images are deleted after the decision and only the last four digits of the document number are kept. Sensitive credentials and identity records never enter offline packs.
+
+\textbf{Delivery.} Team ChoturMatra (four members: project leadership, frontend and offline, backend and data, and software quality assurance) works to the milestones in the Timeline and Milestones section. Formal testing runs from 4 to 11 January 2027, and the final demonstration, covering the destination, estimate, offline, review, and moderation flow, completes the project on 17 or 18 January 2027.
+\clearpage
 
 % =====================================================================
 \section{Problem Statement}
@@ -210,29 +218,24 @@ Community content can be duplicated, biased, or manipulated. Prices and travel r
 
 % =====================================================================
 \section{Objectives and Goals}
-Each objective is measurable against the final completion date.
+Each objective is a product feature, measurable against the final completion date.
 
-\begin{longtable}{L{10mm}L{46mm}L{88mm}}
-\caption{Project objectives and completion measures}\label{tab:objectives}\\
+% A short table on one page: a plain table, so no repeated header row is printed on a page break.
+\begin{table}[H]
+\centering
+\caption{Project objectives and completion measures}\label{tab:objectives}
+\begin{tabular}{L{10mm}L{46mm}L{88mm}}
 \toprule
 \hd{ID} & \hd{Objective} & \hd{Completion measure} \\
 \midrule
-\endfirsthead
-\toprule
-\hd{ID} & \hd{Objective} & \hd{Completion measure} \\
-\midrule
-\endhead
-\bottomrule
-\endlastfoot
 O1 & Deliver a bilingual PWA & Bangla-default interface, persistent English selection, and installable application shell \\
 O2 & Publish seeded destination profiles & Five profiles with bilingual guidance, dated sources, contacts, seasonality, and advisories \\
 O3 & Provide explainable cost estimation & Itemized BDT estimate with pricing units, low--expected--high range, per-person cost, source dates, and confidence label \\
 O4 & Provide dependable offline access & Every completed pack download opens successfully in 10 of 10 airplane-mode tests \\
 O5 & Implement trustworthy reviews & Structured reviews, offline drafts, moderation states, reporting, and duplicate-safe submission \\
-O6 & Evaluate estimator performance & Ten held-out trips evaluated after the seed catalogue is frozen, without tuning on those trips (Section~\ref{sec:planner-validation}) \\
-O7 & Validate usability & At least eight consenting participants, including a Bangla-preferring user and a less technical user \\
-O8 & Meet the reporting schedule & Biweekly evidence-based progress reports, formal testing from 4 to 11 January, and final completion on 17 or 18 January 2027 \\
-\end{longtable}
+\bottomrule
+\end{tabular}
+\end{table}
 
 % =====================================================================
 \section{Functional Requirements}
@@ -260,23 +263,62 @@ The following capabilities belong to the product vision but are not required for
   \item \textbf{Platform expansion:} native mobile applications, advanced route planning, and context-aware machine learning once sufficient verified data exists.
 \end{itemize}
 
+% The roles table does not fit on the previous page, so break the page here explicitly: a break
+% decided while longtable is running makes it print its continued header above this heading.
+\clearpage
 \subsection{User Roles}
-\begin{table}[H]
-\centering
-\caption{User roles and permitted actions}\label{tab:roles}
-\begin{tabularx}{\textwidth}{L{40mm}Y}
-\toprule
-\hd{Role} & \hd{Permitted actions} \\
-\midrule
-Guest & Browse public destinations, switch language, generate estimates, and download public offline packs \\
-Email-verified user & All guest actions plus saved trip briefs, review drafts, review submission, reporting, and account deletion request \\
-Moderator & Review reports and publish, hide, reject, or flag content with a recorded reason \\
-Administrator & Manage destinations, translations, prices, advisories, users, permissions, and audit records \\
-\bottomrule
-\end{tabularx}
-\end{table}
+Abhijatri has five roles. Guests, Members, and Verified Members use the public application; Moderators and Superadmins use a separate staff dashboard that ordinary users never see. Table~\ref{tab:roles} shows what each role can do.
 
-As built, the roles are named Guest, Member, Verified Member, Moderator, Superadmin (the administrator role), and Ops operator; Section~\ref{sec:asbuilt} gives their status.
+{\small
+\begin{longtable}{L{69mm}C{13mm}C{13mm}C{13mm}C{13mm}C{13mm}}
+\caption{What each user role can do}\label{tab:roles}\\
+\toprule
+\hd{Feature or action} & \hd{Guest} & \hd{Member} & \hd{Verified Member} & \hd{Mode\-rator} & \hd{Super\-admin} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{l}{\small\textbf{Table \thetable} (continued)}\\
+\toprule
+\hd{Feature or action} & \hd{Guest} & \hd{Member} & \hd{Verified Member} & \hd{Mode\-rator} & \hd{Super\-admin} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{p{148mm}}{\footnotesize \yes\ allowed \quad \no\ not allowed \quad \na\ not applicable: staff use the public application through their own Member account}\\
+\bottomrule
+\endlastfoot
+\addlinespace[3pt]\multicolumn{6}{l}{\textbf{Public application: reading and offline use}} \\
+\addlinespace[1pt]
+Read destination guides, dated advisories, and emergency contacts in Bangla or English & \yes & \yes & \yes & \na & \na \\
+Save destination packs for offline use and read them in airplane mode & \yes & \yes & \yes & \na & \na \\
+Generate an itemized cost estimate & \yes & \yes & \yes & \na & \na \\
+Save a trip brief with notes and contacts & \no & \yes & \yes & \na & \na \\
+\addlinespace[3pt]\multicolumn{6}{l}{\textbf{Public application: reviews}} \\
+\addlinespace[1pt]
+Write a review draft that stays on the device without a connection & \yes & \yes & \yes & \na & \na \\
+Submit a text review (moderated before publication) & \yes & \yes & \yes & \na & \na \\
+Check status, withdraw, appeal, or request removal with the receipt & \yes & \yes & \yes & \na & \na \\
+Report a published review & \yes & \yes & \yes & \na & \na \\
+Keep reviews in an account: ``My reviews'', edit while pending, withdraw, appeal & \no & \yes & \yes & \na & \na \\
+Rating counts towards the Community Rating (Bayesian score) & \no & \no & \yes & \na & \na \\
+Rating counts towards the separate Guest Feedback & \yes & \no & \no & \na & \na \\
+Verified Member badge on reviews & \no & \no & \yes & \na & \na \\
+Attach photos and a video to a review (checked before publication) & \no & \no & \yes & \na & \na \\
+\addlinespace[3pt]\multicolumn{6}{l}{\textbf{Public application: account and community}} \\
+\addlinespace[1pt]
+In-app notifications and a list of one's own reports & \no & \yes & \yes & \na & \na \\
+Request account deletion & \no & \yes & \yes & \na & \na \\
+Apply for Verified Member status & \no & \yes & \na & \na & \na \\
+Find tourmates: create or join tours, workspace, group chat (age 18 or over) & \no & \no & \yes & \na & \na \\
+\addlinespace[3pt]\multicolumn{6}{l}{\textbf{Staff dashboard (two-factor sign-in)}} \\
+\addlinespace[1pt]
+Work the moderation queue (reviews, reports, appeals) with a recorded reason & \no & \no & \no & \yes & \yes \\
+Decide Verified Member applications & \no & \no & \no & \yes & \yes \\
+Decide on review photos and video & \no & \no & \no & \yes & \yes \\
+Open and reverse enforcement cases; search the audit trail; queue monitoring & \no & \no & \no & \yes & \yes \\
+Manage destination content, prices, and advisories & \no & \no & \no & \yes & \yes \\
+Grant and revoke the Moderator and Superadmin roles & \no & \no & \no & \no & \yes \\
+Manage notification delivery (templates, rules, suppressions) & \no & \no & \no & \no & \yes \\
+\end{longtable}
+}
 
 \subsection{Functional Requirement Catalogue}
 {\small
@@ -429,7 +471,7 @@ Ten independent trips are collected and sealed outside the seed catalogue. After
 
 % ---------------------------------------------------------------------
 \subsection{Primary Use Cases}\label{sec:usecases}
-The use case model (Figure~\ref{fig:usecase}) shows the complete Abhijatri PWA system boundary, its four actors, and the use cases grouped by functional domain. Table~\ref{tab:uc-scope} summarises the scope of the diagram. Packages 4 (booking) and 6c (payment verification) are demonstration-only and lie outside semester acceptance, consistent with the scope decision. The editable source model is available online: \extlink{https://lucid.app/lucidchart/3c63746b-daf8-4da1-9ed0-32f712b0815c/edit?invitationId=inv_a2367b47-ef68-4ead-a3f2-f5632099bf45&page=fM5RpGvEhdCb2\#}{open the original use case diagram in Lucidchart}. The status of each use case as built on 31 October 2026 is given in Section~\ref{sec:asbuilt}.
+The use case model (Figure~\ref{fig:usecase}) shows the complete Abhijatri PWA system boundary, its four actors, and the use cases grouped by functional domain. Table~\ref{tab:uc-scope} summarises the scope of the diagram. Packages 4 (booking) and 6c (payment verification) are demonstration-only and lie outside semester acceptance, consistent with the scope decision. The editable source model is available online: \extlink{https://lucid.app/lucidchart/3c63746b-daf8-4da1-9ed0-32f712b0815c/edit?invitationId=inv_a2367b47-ef68-4ead-a3f2-f5632099bf45&page=fM5RpGvEhdCb2\#}{open the original use case diagram in Lucidchart}.
 
 \begin{table}[!htbp]
 \centering
@@ -505,7 +547,7 @@ The semester acceptance scope excludes real payments, refunds, live inventory, v
 \bottomrule
 \endlastfoot
 Performance & Core destination text becomes usable within 5 seconds under the agreed Fast 3G throttle on the target low-end Android device. A downloaded pack opens within 2 seconds. Catalogue, review, and estimator APIs remain below 2 seconds at the 95th percentile under a 50-user academic load test. \\
-Security and access control & Argon2id password hashing, opaque server-side sessions, HttpOnly and Secure production cookies, CSRF protection, input validation, least-privilege roles, rate limits, and audit logs. Sensitive credentials and identity records never enter offline packs. As built, passwords and staff TOTP are held by Supabase Auth behind the API (Section~\ref{sec:asbuilt}). \\
+Security and access control & Argon2id password hashing, opaque server-side sessions, HttpOnly and Secure production cookies, CSRF protection, input validation, least-privilege roles, rate limits, and audit logs. Sensitive credentials and identity records never enter offline packs. As built, passwords and staff TOTP are held by Supabase Auth behind the API. \\
 Reliability and availability & Identical retries do not create duplicate reviews. Interrupted pack updates preserve the last complete version. The deployed pilot includes a database backup and one restore test. Online, offline, stale, and expired states are distinct. \\
 Scalability & Stateless FastAPI application layer, PostgreSQL indexes, pagination, and bounded queries. The architecture permits multiple API instances later. The semester load target is 50 concurrent virtual users. \\
 Usability and accessibility & Bangla is the default locale. Forms have labels, keyboard access, clear errors, readable contrast, and tested Bengali conjunct rendering. Applicable WCAG 2.2 AA criteria are evaluated with at least eight users. \\
@@ -514,6 +556,42 @@ Portability & Current Chromium-based Android browsers and modern desktop browser
 Privacy & Minimum account and pilot data, informed consent, optional personal contacts kept local to the device, defined retention periods, and support for account deletion and review-removal requests. \\
 \end{longtable}
 }
+
+% =====================================================================
+\section{Comparison with Existing Applications}\label{sec:comparison}
+Travellers in Bangladesh already combine several kinds of application, and each covers only part of what a trip needs. Table~\ref{tab:comparison} shows which common travel features each kind typically offers. The columns describe the typical, publicly available capabilities of each kind of application in November 2026; individual applications and later versions may differ, and the examples are given only for orientation.
+
+{\small
+\begin{longtable}{L{52mm}C{14mm}C{17mm}C{17mm}C{17mm}C{17mm}}
+\caption{Travel features offered by Abhijatri and by existing kinds of application}\label{tab:comparison}\\
+\toprule
+\hd{Feature} & \hd{Abhijatri} & \hd{Global review sites} & \hd{Map apps} & \hd{Local booking apps} & \hd{Social media groups} \\
+ & & {\footnotesize e.g.\ Tripadvisor} & {\footnotesize e.g.\ Google Maps} & {\footnotesize e.g.\ ShareTrip, GoZayaan} & {\footnotesize e.g.\ Facebook groups} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{l}{\small\textbf{Table \thetable} (continued)}\\
+\toprule
+\hd{Feature} & \hd{Abhijatri} & \hd{Global review sites} & \hd{Map apps} & \hd{Local booking apps} & \hd{Social media groups} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{p{148mm}}{\footnotesize \yes\ offered \quad \no\ not offered as a typical capability of that kind of application}\\
+\bottomrule
+\endlastfoot
+Destination and attraction information & \yes & \yes & \yes & \no & \yes \\
+Traveller reviews and ratings & \yes & \yes & \yes & \yes & \no \\
+Bangla-language interface & \yes & \no & \yes & \no & \yes \\
+Works without an internet connection & \yes & \no & \yes & \no & \no \\
+Trip price information & \yes & \yes & \no & \yes & \no \\
+Group tours or finding travel companions & \yes & \no & \no & \yes & \yes \\
+Dated safety advisories with emergency contacts & \yes & \no & \no & \no & \no \\
+Explainable cost estimate (pricing units, low--expected--high range, source dates) & \yes & \no & \no & \no & \no \\
+\midrule
+\textbf{Features covered} & \textbf{8 of 8} & 3 of 8 & 4 of 8 & 3 of 8 & 3 of 8 \\
+\end{longtable}
+}
+
+Each existing kind of application offers some of these features, but none offers them all, so a traveller today moves between several applications and still has no dated safety information or explainable cost estimate. Abhijatri brings all of them into one Bangla-first application that keeps working without a connection.
 
 % =====================================================================
 \clearpage
@@ -532,7 +610,6 @@ Privacy & Minimum account and pilot data, informed consent, optional personal co
 \bottomrule
 \endlastfoot
 Course instructor and evaluators & Approve scope, review progress, and evaluate the outcome & Proposal, biweekly reports, demonstrations, and final evidence \\
-Team ChoturMatra & Design, implement, test, document, and maintain the MVP & Shared repository, issue tracking, reviews, and demonstrations \\
 Travellers and tourists & Use destination, estimate, offline, and review functions & Usability sessions and pilot feedback \\
 Local residents and experienced travellers & Provide local context and cost reports & Consent-based pilot and source verification \\
 Moderators and administrators & Protect content quality and maintain dated information & Moderation and administration tests \\
@@ -595,10 +672,10 @@ Exit criteria & By 11 January & Every in-scope requirement has a status. No bloc
 Each biweekly report records planned work, completed work, evidence, measured progress, defects, blocked items, changed assumptions, accepted work, and approved scope changes.
 
 \subsection{Project Gantt Chart}\label{sec:gantt}
-The operational schedule contains 74 tasks in six phases, with dependencies, primary owners, effort points, and five fixed gates. Table~\ref{tab:phases} summarises the phases, Table~\ref{tab:workload} shows that primary effort is balanced at 87 points (25 percent) per member, and Figures~\ref{fig:gantt1}--\ref{fig:gantt3} present the complete task-level chart. Acceptance evidence and risk notes for every task are maintained in the live schedule:
+The operational schedule contains 74 tasks in six phases, with dependencies, primary owners, effort points, and five fixed gates. Table~\ref{tab:phases} summarises the phases, Table~\ref{tab:workload} shows that primary effort is balanced at 87 points (25 percent) per member, and Figure~\ref{fig:gantt} summarises the chart by phase and workstream. Acceptance evidence and risk notes for every task are maintained in the live schedule:
 \extlink{https://docs.google.com/spreadsheets/d/1efTW9JKtYhHZKrualfaJKGMggvZNjNmESuBnQbCRPiQ/edit?gid=1652090786\#gid=1652090786}{open the live 74-task implementation schedule in Google Sheets}.
 
-\textbf{Reading the chart.} Grey bars span each task from its start day to its end day; black diamonds mark milestones and gates; dark summary bars show the span of each phase; vertical dashed lines mark the fixed dates M1 (2 Nov), M2 (7 Dec), G1 (3 Jan), M3 (11 Jan), and M4 (17 Jan). Week columns are labelled with the date of each Monday. Effort is given in points; support members are listed in the live schedule.
+\textbf{Reading the chart.} Each row groups related tasks, with its task IDs; a dot marks every week in which that work is active, with week columns labelled by the date of each Monday. Coloured diamonds and vertical dashed lines mark the fixed dates M1 (2 Nov), M2 (7 Dec), G1 (3 Jan), M3 (11 Jan), and M4 (17 Jan). Individual tasks, owners, dates, dependencies, and acceptance evidence are in the live schedule.
 
 \begin{table}[!htbp]
 \centering
@@ -608,12 +685,12 @@ The operational schedule contains 74 tasks in six phases, with dependencies, pri
 \toprule
 \hd{Phase} & \hd{Window} & \hd{Tasks} & \hd{Effort} & \hd{Exit gate} \\
 \midrule
-Foundation & 12--16 Oct 2026 & 7 & 29 & Scope, architecture, test plan \\
-M1: Destination, reviews, offline & 15 Oct -- 2 Nov 2026 & 21 & 99 & M1, 2 Nov 2026 \\
-M2: Cost estimator and checkpoint & 3 Nov -- 7 Dec 2026 & 15 & 75 & M2, 7 Dec 2026 \\
-Hardening and test readiness & 8 Dec 2026 -- 3 Jan 2027 & 12 & 60 & G1, 3 Jan 2027 \\
-Formal testing & 4--11 Jan 2027 & 10 & 48 & M3, 11 Jan 2027 \\
-Completion and final delivery & 12--18 Jan 2027 & 9 & 37 & M4, 17/18 Jan 2027 \\
+Phase 1: Foundation & 12--16 Oct 2026 & 7 & 29 & Scope, architecture, test plan \\
+Phase 2: Destination, reviews, offline & 15 Oct -- 2 Nov 2026 & 21 & 99 & M1, 2 Nov 2026 \\
+Phase 3: Cost estimator and checkpoint & 3 Nov -- 7 Dec 2026 & 15 & 75 & M2, 7 Dec 2026 \\
+Phase 4: Hardening and test readiness & 8 Dec 2026 -- 3 Jan 2027 & 12 & 60 & G1, 3 Jan 2027 \\
+Phase 5: Formal testing & 4--11 Jan 2027 & 10 & 48 & M3, 11 Jan 2027 \\
+Phase 6: Completion and final delivery & 12--18 Jan 2027 & 9 & 37 & M4, 17/18 Jan 2027 \\
 \midrule
 \textbf{Total} & \textbf{14 weeks} & \textbf{74} & \textbf{348} & \\
 \bottomrule
@@ -646,20 +723,15 @@ Md.\ Irfan Iqbal & SQA, test management & 18 & 87 & 25\% \\
 \thispagestyle{plain}
 \vspace*{-10mm}
 \noindent\begin{minipage}[b][150mm][t]{\linewidth}\centering
-\captionof{figure}{Implementation Gantt chart, part 1 of 3: foundation and first major feature (M1)}\label{fig:gantt1}
+\captionof{figure}{Implementation Gantt chart: summary by phase and workstream (M1 to M4)}\label{fig:gantt}
 \vspace{-1mm}
-{\small Live schedule: \extlink{https://docs.google.com/spreadsheets/d/1efTW9JKtYhHZKrualfaJKGMggvZNjNmESuBnQbCRPiQ/edit?gid=1652090786\#gid=1652090786}{open the Gantt chart in Google Sheets}\par}
+{\small Task-level schedule: \extlink{https://docs.google.com/spreadsheets/d/1efTW9JKtYhHZKrualfaJKGMggvZNjNmESuBnQbCRPiQ/edit?gid=1652090786\#gid=1652090786}{open the Gantt chart in Google Sheets}\par}
 \vspace{1.5mm}
 \makebox[\linewidth][c]{%
 \begin{tikzpicture}[x=1mm,y=-1mm,font=\ganttfont]
 \fill[black!10] (0,0) rectangle (244.0,9.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,4.5) {ID};
-\node[anchor=west,font=\ganttfont\bfseries] at (9,4.5) {Task / deliverable};
-\node[anchor=west,font=\ganttfont\bfseries] at (75,4.5) {Owner};
-\node[anchor=center,font=\ganttfont\bfseries] at (91.5,4.5) {Eff.};
-\node[anchor=west,font=\ganttfont\bfseries] at (96,4.5) {Start};
-\node[anchor=west,font=\ganttfont\bfseries] at (106.5,4.5) {End};
-\node[anchor=west,font=\ganttfont\bfseries] at (117,4.5) {Depends on};
+\node[anchor=west,font=\ganttfont\bfseries] at (1,4.5) {IDs};
+\node[anchor=west,font=\ganttfont\bfseries] at (19,4.5) {Work grouped by workstream};
 \node[font=\ganttfont\bfseries] at (147.8080808080808,2.43) {October 2026};
 \node[font=\ganttfont\bfseries] at (174.82828282828282,2.43) {November};
 \draw[black!45] (158.6161616161616,0) -- (158.6161616161616,9.0);
@@ -682,818 +754,109 @@ Md.\ Irfan Iqbal & SQA, test management & 18 & 87 & 25\% \\
 \node[anchor=west,font=\ganttsmall] at (220.22222222222223,6.75) {28};
 \node[anchor=west,font=\ganttsmall] at (227.7878787878788,6.75) {4};
 \node[anchor=west,font=\ganttsmall] at (235.35353535353536,6.75) {11};
-\draw[black!14] (144.56565656565655,4.5) -- (144.56565656565655,164.59999999999997);
-\draw[black!14] (152.13131313131314,4.5) -- (152.13131313131314,164.59999999999997);
-\draw[black!14] (159.6969696969697,4.5) -- (159.6969696969697,164.59999999999997);
-\draw[black!14] (167.26262626262627,4.5) -- (167.26262626262627,164.59999999999997);
-\draw[black!14] (174.82828282828282,4.5) -- (174.82828282828282,164.59999999999997);
-\draw[black!14] (182.3939393939394,4.5) -- (182.3939393939394,164.59999999999997);
-\draw[black!14] (189.95959595959596,4.5) -- (189.95959595959596,164.59999999999997);
-\draw[black!14] (197.52525252525254,4.5) -- (197.52525252525254,164.59999999999997);
-\draw[black!14] (205.0909090909091,4.5) -- (205.0909090909091,164.59999999999997);
-\draw[black!14] (212.65656565656565,4.5) -- (212.65656565656565,164.59999999999997);
-\draw[black!14] (220.22222222222223,4.5) -- (220.22222222222223,164.59999999999997);
-\draw[black!14] (227.7878787878788,4.5) -- (227.7878787878788,164.59999999999997);
-\draw[black!14] (235.35353535353536,4.5) -- (235.35353535353536,164.59999999999997);
-\draw[black!14] (242.91919191919192,4.5) -- (242.91919191919192,164.59999999999997);
+\draw[black!14] (144.56565656565655,4.5) -- (144.56565656565655,127.00000000000003);
+\draw[black!14] (152.13131313131314,4.5) -- (152.13131313131314,127.00000000000003);
+\draw[black!14] (159.6969696969697,4.5) -- (159.6969696969697,127.00000000000003);
+\draw[black!14] (167.26262626262627,4.5) -- (167.26262626262627,127.00000000000003);
+\draw[black!14] (174.82828282828282,4.5) -- (174.82828282828282,127.00000000000003);
+\draw[black!14] (182.3939393939394,4.5) -- (182.3939393939394,127.00000000000003);
+\draw[black!14] (189.95959595959596,4.5) -- (189.95959595959596,127.00000000000003);
+\draw[black!14] (197.52525252525254,4.5) -- (197.52525252525254,127.00000000000003);
+\draw[black!14] (205.0909090909091,4.5) -- (205.0909090909091,127.00000000000003);
+\draw[black!14] (212.65656565656565,4.5) -- (212.65656565656565,127.00000000000003);
+\draw[black!14] (220.22222222222223,4.5) -- (220.22222222222223,127.00000000000003);
+\draw[black!14] (227.7878787878788,4.5) -- (227.7878787878788,127.00000000000003);
+\draw[black!14] (235.35353535353536,4.5) -- (235.35353535353536,127.00000000000003);
+\draw[black!14] (242.91919191919192,4.5) -- (242.91919191919192,127.00000000000003);
 \fill[black!22] (0,9.0) rectangle (244.0,14.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,11.5) {Foundation};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,11.5) {12 Oct -- 16 Oct\quad 7 tasks, 29 pts};
-\fill[black!70] (137.0,11.0) rectangle (142.40404040404042,12.0);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,16.6) {F01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,16.6) {Freeze first-release scope and acceptance gates};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,16.6) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,16.6) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,16.6) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,16.6) {13 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,16.6) {--};
-\fill[black!55] (137.15,15.450000000000001) rectangle (139.01161616161616,17.75);
-\fill[black!5] (0,19.2) rectangle (244.0,24.4);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,21.8) {F02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,21.8) {Define architecture, database schema and API contract};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,21.8) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,21.8) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,21.8) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,21.8) {14 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,21.8) {F01};
-\fill[black!55] (137.15,20.650000000000002) rectangle (140.09242424242424,22.95);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,27.0) {F03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,27.0) {Create bilingual information architecture and UI component plan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,27.0) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,27.0) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,27.0) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,27.0) {14 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,27.0) {F01};
-\fill[black!55] (137.15,25.85) rectangle (140.09242424242424,28.15);
-\fill[black!5] (0,29.599999999999998) rectangle (244.0,34.8);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,32.199999999999996) {F04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,32.199999999999996) {Create master test plan and requirement traceability matrix};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,32.199999999999996) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,32.199999999999996) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,32.199999999999996) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,32.199999999999996) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,32.199999999999996) {F01};
-\fill[black!55] (137.15,31.049999999999997) rectangle (141.17323232323233,33.349999999999994);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,37.4) {F05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,37.4) {Define source/date/licence template for destinations};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,37.4) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,37.4) {3};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,37.4) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,37.4) {14 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,37.4) {F01};
-\fill[black!55] (137.15,36.25) rectangle (140.09242424242424,38.55);
-\fill[black!5] (0,40.0) rectangle (244.0,45.2);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,42.6) {F06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,42.6) {Set up repositories, CI checks and shared environments};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,42.6) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,42.6) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,42.6) {12 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,42.6) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,42.6) {F02};
-\fill[black!55] (137.15,41.45) rectangle (141.17323232323233,43.75);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,47.800000000000004) {F07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,47.800000000000004) {Create privacy, access-control and cache-safety checklist};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,47.800000000000004) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,47.800000000000004) {3};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,47.800000000000004) {13 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,47.800000000000004) {16 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,47.800000000000004) {F02};
-\fill[black!55] (138.2308080808081,46.650000000000006) rectangle (142.2540404040404,48.95);
-\fill[black!22] (0,50.400000000000006) rectangle (244.0,55.400000000000006);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,52.900000000000006) {M1: Destination, reviews, bilingual interface and offline support};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,52.900000000000006) {15 Oct -- 2 Nov\quad 21 tasks, 99 pts};
-\fill[black!70] (140.24242424242425,52.400000000000006) rectangle (160.77777777777777,53.400000000000006);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,58.00000000000001) {R01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,58.00000000000001) {Prepare one complete bilingual seeded destination};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,58.00000000000001) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,58.00000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,58.00000000000001) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,58.00000000000001) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,58.00000000000001) {F05};
-\fill[black!55] (140.39242424242425,56.85000000000001) rectangle (148.73888888888888,59.150000000000006);
-\fill[black!5] (0,60.60000000000001) rectangle (244.0,65.80000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,63.20000000000001) {R02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,63.20000000000001) {Build destination, advisory and contact data services};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,63.20000000000001) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,63.20000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,63.20000000000001) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,63.20000000000001) {21 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,63.20000000000001) {F02, R01};
-\fill[black!55] (140.39242424242425,62.05000000000001) rectangle (147.6580808080808,64.35000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,68.4) {R03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,68.4) {Build bilingual destination list and detail screens};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,68.4) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,68.4) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,68.4) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,68.4) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,68.4) {F03, R02};
-\fill[black!55] (140.39242424242425,67.25) rectangle (148.73888888888888,69.55000000000001);
-\fill[black!5] (0,71.00000000000001) rectangle (244.0,76.20000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,73.60000000000001) {R04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,73.60000000000001) {Implement registration, email verification, sign-in/out and reset};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,73.60000000000001) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,73.60000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,73.60000000000001) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,73.60000000000001) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,73.60000000000001) {F02, F07};
-\fill[black!55] (140.39242424242425,72.45) rectangle (148.73888888888888,74.75000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,78.80000000000001) {R05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,78.80000000000001) {Build account, verification and session screens};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,78.80000000000001) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,78.80000000000001) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,78.80000000000001) {18 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,78.80000000000001) {23 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,78.80000000000001) {R04};
-\fill[black!55] (143.6348484848485,77.65) rectangle (149.81969696969696,79.95000000000002);
-\fill[black!5] (0,81.40000000000002) rectangle (244.0,86.60000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,84.00000000000001) {R06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,84.00000000000001) {Finalize review fields, lifecycle and moderation policy};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,84.00000000000001) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,84.00000000000001) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,84.00000000000001) {15 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,84.00000000000001) {19 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,84.00000000000001) {F01, F04};
-\fill[black!55] (140.39242424242425,82.85000000000001) rectangle (145.49646464646463,85.15000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,89.20000000000002) {R07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,89.20000000000002) {Implement structured review CRUD, ownership and pagination};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,89.20000000000002) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,89.20000000000002) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,89.20000000000002) {18 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,89.20000000000002) {26 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,89.20000000000002) {R04, R06};
-\fill[black!55] (143.6348484848485,88.05000000000001) rectangle (153.0621212121212,90.35000000000002);
-\fill[black!5] (0,91.80000000000003) rectangle (244.0,97.00000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,94.40000000000002) {R08};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,94.40000000000002) {Implement Bayesian score and rating exclusion logic};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,94.40000000000002) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,94.40000000000002) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,94.40000000000002) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,94.40000000000002) {27 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,94.40000000000002) {R07};
-\fill[black!55] (147.9580808080808,93.25000000000001) rectangle (154.1429292929293,95.55000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,99.60000000000002) {R09};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,99.60000000000002) {Build review form, list, filters and author controls};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,99.60000000000002) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,99.60000000000002) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,99.60000000000002) {20 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,99.60000000000002) {27 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,99.60000000000002) {R05, R07};
-\fill[black!55] (145.79646464646464,98.45000000000002) rectangle (154.1429292929293,100.75000000000003);
-\fill[black!5] (0,102.20000000000003) rectangle (244.0,107.40000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,104.80000000000003) {R10};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,104.80000000000003) {Build moderation queue, reason capture and audit view};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,104.80000000000003) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,104.80000000000003) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,104.80000000000003) {20 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,104.80000000000003) {27 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,104.80000000000003) {R06};
-\fill[black!55] (145.79646464646464,103.65000000000002) rectangle (154.1429292929293,105.95000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,110.00000000000003) {R11};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,110.00000000000003) {Implement review reporting, moderation actions and audit log};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,110.00000000000003) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,110.00000000000003) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,110.00000000000003) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,110.00000000000003) {28 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,110.00000000000003) {R07, R10};
-\fill[black!55] (147.9580808080808,108.85000000000002) rectangle (155.22373737373738,111.15000000000003);
-\fill[black!5] (0,112.60000000000004) rectangle (244.0,117.80000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,115.20000000000003) {R12};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,115.20000000000003) {Create installable PWA shell and cache public destination views};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,115.20000000000003) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,115.20000000000003) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,115.20000000000003) {19 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,115.20000000000003) {25 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,115.20000000000003) {R03};
-\fill[black!55] (144.71565656565656,114.05000000000003) rectangle (151.98131313131313,116.35000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,120.40000000000003) {R13};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,120.40000000000003) {Store versioned destination pack and published-review snapshot in IndexedDB};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,120.40000000000003) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,120.40000000000003) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,120.40000000000003) {23 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,120.40000000000003) {30 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,120.40000000000003) {R12, R14};
-\fill[black!55] (149.0388888888889,119.25000000000003) rectangle (157.38535353535354,121.55000000000004);
-\fill[black!5] (0,123.00000000000004) rectangle (244.0,128.20000000000005);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,125.60000000000004) {R14};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,125.60000000000004) {Implement pack manifest, version and freshness endpoints};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,125.60000000000004) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,125.60000000000004) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,125.60000000000004) {22 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,125.60000000000004) {27 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,125.60000000000004) {R02};
-\fill[black!55] (147.9580808080808,124.45000000000003) rectangle (154.1429292929293,126.75000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,130.80000000000004) {R15};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,130.80000000000004) {Implement offline review drafts and idempotent reconnect submission};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,130.80000000000004) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,130.80000000000004) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,130.80000000000004) {25 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,130.80000000000004) {31 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,130.80000000000004) {R09, R13, R16};
-\fill[black!55] (151.20050505050506,129.65000000000003) rectangle (158.4661616161616,131.95000000000005);
-\fill[black!5] (0,133.40000000000003) rectangle (244.0,138.60000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,136.00000000000003) {R16};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,136.00000000000003) {Implement server-side idempotency-key storage and expiry};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,136.00000000000003) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,136.00000000000003) {3};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,136.00000000000003) {24 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,136.00000000000003) {28 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,136.00000000000003) {R07};
-\fill[black!55] (150.11969696969697,134.85000000000002) rectangle (155.22373737373738,137.15000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,141.20000000000002) {R17};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,141.20000000000002) {Execute account, review, moderation and rating tests};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,141.20000000000002) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,141.20000000000002) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,141.20000000000002) {20 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,141.20000000000002) {31 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,141.20000000000002) {R04, R07, R11};
-\fill[black!55] (145.79646464646464,140.05) rectangle (158.4661616161616,142.35000000000002);
-\fill[black!5] (0,143.8) rectangle (244.0,149.0);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,146.4) {R18};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,146.4) {Test airplane mode, weak network, Bangla and storage failure};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,146.4) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,146.4) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,146.4) {23 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,146.4) {1 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,146.4) {R12, R15};
-\fill[black!55] (149.0388888888889,145.25) rectangle (159.54696969696968,147.55);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,151.6) {R19};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,151.6) {Run integration, defect triage and scope control};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,151.6) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,151.6) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,151.6) {25 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,151.6) {1 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,151.6) {R03, R11, R13};
-\fill[black!55] (151.20050505050506,150.45) rectangle (159.54696969696968,152.75);
-\fill[black!5] (0,154.2) rectangle (244.0,159.39999999999998);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,156.79999999999998) {R20};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,156.79999999999998) {Run M1 acceptance regression and prepare test summary};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,156.79999999999998) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,156.79999999999998) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,156.79999999999998) {30 Oct};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,156.79999999999998) {2 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,156.79999999999998) {R17--R19};
-\fill[black!55] (156.60454545454547,155.64999999999998) rectangle (160.62777777777777,157.95);
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (1,161.99999999999997) {M1};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (9,161.99999999999997) {Major feature accepted: destination + reviews + bilingual offline support};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (75,161.99999999999997) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont\bfseries] at (91.5,161.99999999999997) {1};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (96,161.99999999999997) {2 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (106.5,161.99999999999997) {2 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (117,161.99999999999997) {R20};
-\fill[black] (160.23737373737373,160.39999999999998) -- (161.83737373737372,161.99999999999997) -- (160.23737373737373,163.59999999999997) -- (158.63737373737374,161.99999999999997) -- cycle;
-\node[anchor=west,font=\ganttsmall\bfseries] at (162.17777777777778,161.99999999999997) {M1};
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (160.23737373737373,9.0) -- (160.23737373737373,164.59999999999997);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (198.06565656565658,9.0) -- (198.06565656565658,164.59999999999997);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (227.24747474747477,9.0) -- (227.24747474747477,164.59999999999997);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (235.8939393939394,9.0) -- (235.8939393939394,164.59999999999997);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (242.37878787878788,9.0) -- (242.37878787878788,164.59999999999997);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,11.5) {Phase 1: Foundation};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,17.1) {F01--F07};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,17.1) {Scope, architecture and API contract, UX plan, test plan, content template, repositories and CI, security checklist};
+\fill[black!65] (140.7828282828283,17.1) circle (1.15);
+\fill[black!22] (0,20.2) rectangle (244.0,25.2);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,22.7) {Phase 2: Destination, reviews, offline};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,28.3) {R01--R11};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,28.3) {Destination and account services and screens, review rules, services and screens, rating, moderation and reporting};
+\fill[black!65] (140.7828282828283,28.3) circle (1.15);
+\fill[black!65] (148.34848484848484,28.3) circle (1.15);
+\fill[black!65] (155.91414141414143,28.3) circle (1.15);
+\fill[black!5] (0,31.4) rectangle (244.0,37.6);
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,34.5) {R12--R16};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,34.5) {Installable offline app, offline destination packs, pack API, offline review drafts, idempotency};
+\fill[black!65] (148.34848484848484,34.5) circle (1.15);
+\fill[black!65] (155.91414141414143,34.5) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,40.7) {R17--R20};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,40.7) {Functional and offline testing, integration and defect triage, M1 acceptance regression};
+\fill[black!65] (148.34848484848484,40.7) circle (1.15);
+\fill[black!65] (155.91414141414143,40.7) circle (1.15);
+\fill[black!65] (163.47979797979798,40.7) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries,text=green!55!black] at (1,46.400000000000006) {M1};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (19,46.400000000000006) {Major feature accepted: destination + reviews + bilingual offline support};
+\fill[green!55!black] (160.23737373737373,44.800000000000004) -- (161.83737373737372,46.400000000000006) -- (160.23737373737373,48.00000000000001) -- (158.63737373737374,46.400000000000006) -- cycle;
+\node[anchor=west,font=\ganttsmall\bfseries,text=green!55!black] at (162.13737373737374,46.400000000000006) {M1};
+\fill[black!22] (0,49.00000000000001) rectangle (244.0,54.00000000000001);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,51.50000000000001) {Phase 3: Cost estimator and checkpoint};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,57.10000000000001) {E01--E05};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,57.10000000000001) {Estimator rules, pricing units and confidence; price and advisory research for four destinations};
+\fill[black!65] (163.47979797979798,57.10000000000001) circle (1.15);
+\fill[black!65] (171.04545454545456,57.10000000000001) circle (1.15);
+\fill[black!5] (0,60.20000000000001) rectangle (244.0,66.4);
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,63.30000000000001) {E06--E10};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,63.30000000000001) {Pricing catalogue, estimator engine and screens, saved trip brief, price and advisory maintenance};
+\fill[black!65] (171.04545454545456,63.30000000000001) circle (1.15);
+\fill[black!65] (178.61111111111111,63.30000000000001) circle (1.15);
+\fill[black!65] (186.1767676767677,63.30000000000001) circle (1.15);
+\fill[black!65] (193.74242424242425,63.30000000000001) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,69.5) {E11--E14};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,69.5) {Estimator test scenarios and tests, integration of all flows, progress audit and evidence pack};
+\fill[black!65] (171.04545454545456,69.5) circle (1.15);
+\fill[black!65] (178.61111111111111,69.5) circle (1.15);
+\fill[black!65] (186.1767676767677,69.5) circle (1.15);
+\fill[black!65] (193.74242424242425,69.5) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries,text=orange!85!black] at (1,75.2) {M2};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (19,75.2) {Original core scope progress checkpoint: 50--60\% complete};
+\fill[orange!85!black] (198.06565656565658,73.60000000000001) -- (199.66565656565658,75.2) -- (198.06565656565658,76.8) -- (196.4656565656566,75.2) -- cycle;
+\node[anchor=west,font=\ganttsmall\bfseries,text=orange!85!black] at (199.9656565656566,75.2) {M2};
+\fill[black!22] (0,77.80000000000001) rectangle (244.0,82.80000000000001);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,80.30000000000001) {Phase 4: Hardening and test readiness};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,85.9) {H01--H11};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,85.9) {Remaining destinations, review UX, offline and backend reliability, security, moderation polish, regression, pilot, accessibility, release readiness};
+\fill[black!65] (201.30808080808083,85.9) circle (1.15);
+\fill[black!65] (208.87373737373738,85.9) circle (1.15);
+\fill[black!65] (216.43939393939394,85.9) circle (1.15);
+\fill[black!65] (224.00505050505052,85.9) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries,text=violet!80!black] at (1,91.60000000000001) {G1};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (19,91.60000000000001) {Testing-entry readiness review};
+\fill[violet!80!black] (227.24747474747477,90.00000000000001) -- (228.84747474747476,91.60000000000001) -- (227.24747474747477,93.2) -- (225.64747474747477,91.60000000000001) -- cycle;
+\node[anchor=west,font=\ganttsmall\bfseries,text=violet!80!black] at (229.14747474747477,91.60000000000001) {G1};
+\fill[black!22] (0,94.20000000000002) rectangle (244.0,99.20000000000002);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,96.70000000000002) {Phase 5: Formal testing};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,102.30000000000001) {T01--T09};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,102.30000000000001) {Test build and records, functional and non-functional testing, defect fixing, regression, exit summary};
+\fill[black!65] (231.5707070707071,102.30000000000001) circle (1.15);
+\fill[black!65] (239.13636363636365,102.30000000000001) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries,text=teal] at (1,108.00000000000001) {M3};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (19,108.00000000000001) {Formal testing completed};
+\fill[teal] (235.8939393939394,106.40000000000002) -- (237.4939393939394,108.00000000000001) -- (235.8939393939394,109.60000000000001) -- (234.2939393939394,108.00000000000001) -- cycle;
+\node[anchor=west,font=\ganttsmall\bfseries,text=teal] at (237.7939393939394,108.00000000000001) {M3};
+\fill[black!22] (0,110.60000000000002) rectangle (244.0,115.60000000000002);
+\node[anchor=west,font=\ganttfont\bfseries] at (1,113.10000000000002) {Phase 6: Completion and final delivery};
+\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,118.70000000000002) {C01--C08};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont] at (19,118.70000000000002) {Defect closure, content freeze, release smoke test, documentation, final demonstration and demo data};
+\fill[black!65] (239.13636363636365,118.70000000000002) circle (1.15);
+\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries,text=red!75!black] at (1,124.40000000000002) {M4};
+\node[anchor=west,text width=114mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (19,124.40000000000002) {Final project completion};
+\fill[red!75!black] (242.37878787878788,122.80000000000003) -- (243.97878787878787,124.40000000000002) -- (242.37878787878788,126.00000000000001) -- (240.77878787878788,124.40000000000002) -- cycle;
+\node[anchor=east,font=\ganttsmall\bfseries,text=red!75!black] at (240.47878787878787,124.40000000000002) {M4};
+\draw[green!55!black,dash pattern=on 1.2pt off 1pt,line width=0.45pt] (160.23737373737373,9.0) -- (160.23737373737373,127.00000000000003);
+\draw[orange!85!black,dash pattern=on 1.2pt off 1pt,line width=0.45pt] (198.06565656565658,9.0) -- (198.06565656565658,127.00000000000003);
+\draw[violet!80!black,dash pattern=on 1.2pt off 1pt,line width=0.45pt] (227.24747474747477,9.0) -- (227.24747474747477,127.00000000000003);
+\draw[teal,dash pattern=on 1.2pt off 1pt,line width=0.45pt] (235.8939393939394,9.0) -- (235.8939393939394,127.00000000000003);
+\draw[red!75!black,dash pattern=on 1.2pt off 1pt,line width=0.45pt] (242.37878787878788,9.0) -- (242.37878787878788,127.00000000000003);
 \draw[line width=0.6pt] (0,0) -- (244.0,0);
 \draw[line width=0.4pt] (0,9.0) -- (244.0,9.0);
-\draw[line width=0.6pt] (0,164.59999999999997) -- (244.0,164.59999999999997);
-\draw[black!45] (137.0,0) -- (137.0,164.59999999999997);
-\end{tikzpicture}
-}
-\end{minipage}
-\clearpage
-\thispagestyle{plain}
-\vspace*{-10mm}
-\noindent\begin{minipage}[b][150mm][t]{\linewidth}\centering
-\captionof{figure}{Implementation Gantt chart, part 2 of 3: cost estimator, 50--60\% checkpoint (M2), and hardening}\label{fig:gantt2}
-\vspace{-1mm}
-{\small Live schedule: \extlink{https://docs.google.com/spreadsheets/d/1efTW9JKtYhHZKrualfaJKGMggvZNjNmESuBnQbCRPiQ/edit?gid=1652090786\#gid=1652090786}{open the Gantt chart in Google Sheets}\par}
-\vspace{1.5mm}
-\makebox[\linewidth][c]{%
-\begin{tikzpicture}[x=1mm,y=-1mm,font=\ganttfont]
-\fill[black!10] (0,0) rectangle (244.0,9.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,4.5) {ID};
-\node[anchor=west,font=\ganttfont\bfseries] at (9,4.5) {Task / deliverable};
-\node[anchor=west,font=\ganttfont\bfseries] at (75,4.5) {Owner};
-\node[anchor=center,font=\ganttfont\bfseries] at (91.5,4.5) {Eff.};
-\node[anchor=west,font=\ganttfont\bfseries] at (96,4.5) {Start};
-\node[anchor=west,font=\ganttfont\bfseries] at (106.5,4.5) {End};
-\node[anchor=west,font=\ganttfont\bfseries] at (117,4.5) {Depends on};
-\node[font=\ganttfont\bfseries] at (147.8080808080808,2.43) {October 2026};
-\node[font=\ganttfont\bfseries] at (174.82828282828282,2.43) {November};
-\draw[black!45] (158.6161616161616,0) -- (158.6161616161616,9.0);
-\node[font=\ganttfont\bfseries] at (207.7929292929293,2.43) {December};
-\draw[black!45] (191.04040404040404,0) -- (191.04040404040404,9.0);
-\node[font=\ganttfont\bfseries] at (234.27272727272728,2.43) {January 2027};
-\draw[black!45] (224.54545454545456,0) -- (224.54545454545456,9.0);
-\draw[black!45] (137.0,4.5) -- (244.0,4.5);
-\node[anchor=west,font=\ganttsmall] at (137.0,6.75) {12};
-\node[anchor=west,font=\ganttsmall] at (144.56565656565655,6.75) {19};
-\node[anchor=west,font=\ganttsmall] at (152.13131313131314,6.75) {26};
-\node[anchor=west,font=\ganttsmall] at (159.6969696969697,6.75) {2};
-\node[anchor=west,font=\ganttsmall] at (167.26262626262627,6.75) {9};
-\node[anchor=west,font=\ganttsmall] at (174.82828282828282,6.75) {16};
-\node[anchor=west,font=\ganttsmall] at (182.3939393939394,6.75) {23};
-\node[anchor=west,font=\ganttsmall] at (189.95959595959596,6.75) {30};
-\node[anchor=west,font=\ganttsmall] at (197.52525252525254,6.75) {7};
-\node[anchor=west,font=\ganttsmall] at (205.0909090909091,6.75) {14};
-\node[anchor=west,font=\ganttsmall] at (212.65656565656565,6.75) {21};
-\node[anchor=west,font=\ganttsmall] at (220.22222222222223,6.75) {28};
-\node[anchor=west,font=\ganttsmall] at (227.7878787878788,6.75) {4};
-\node[anchor=west,font=\ganttsmall] at (235.35353535353536,6.75) {11};
-\draw[black!14] (144.56565656565655,4.5) -- (144.56565656565655,159.39999999999998);
-\draw[black!14] (152.13131313131314,4.5) -- (152.13131313131314,159.39999999999998);
-\draw[black!14] (159.6969696969697,4.5) -- (159.6969696969697,159.39999999999998);
-\draw[black!14] (167.26262626262627,4.5) -- (167.26262626262627,159.39999999999998);
-\draw[black!14] (174.82828282828282,4.5) -- (174.82828282828282,159.39999999999998);
-\draw[black!14] (182.3939393939394,4.5) -- (182.3939393939394,159.39999999999998);
-\draw[black!14] (189.95959595959596,4.5) -- (189.95959595959596,159.39999999999998);
-\draw[black!14] (197.52525252525254,4.5) -- (197.52525252525254,159.39999999999998);
-\draw[black!14] (205.0909090909091,4.5) -- (205.0909090909091,159.39999999999998);
-\draw[black!14] (212.65656565656565,4.5) -- (212.65656565656565,159.39999999999998);
-\draw[black!14] (220.22222222222223,4.5) -- (220.22222222222223,159.39999999999998);
-\draw[black!14] (227.7878787878788,4.5) -- (227.7878787878788,159.39999999999998);
-\draw[black!14] (235.35353535353536,4.5) -- (235.35353535353536,159.39999999999998);
-\draw[black!14] (242.91919191919192,4.5) -- (242.91919191919192,159.39999999999998);
-\fill[black!22] (0,9.0) rectangle (244.0,14.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,11.5) {M2: Cost estimator and 50--60\% progress checkpoint};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,11.5) {3 Nov -- 7 Dec\quad 15 tasks, 75 pts};
-\fill[black!70] (160.77777777777777,11.0) rectangle (198.60606060606062,12.0);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,16.6) {E01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,16.6) {Freeze rule engine, pricing units, confidence and scope};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,16.6) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,16.6) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,16.6) {3 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,16.6) {8 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,16.6) {M1};
-\fill[black!55] (160.92777777777778,15.450000000000001) rectangle (167.11262626262626,17.75);
-\fill[black!5] (0,19.2) rectangle (244.0,24.4);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,21.8) {E02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,21.8) {Research destination A prices and advisories};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,21.8) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,21.8) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,21.8) {3 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,21.8) {14 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,21.8) {E01};
-\fill[black!55] (160.92777777777778,20.650000000000002) rectangle (173.59747474747476,22.95);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,27.0) {E03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,27.0) {Research destination B prices and advisories};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,27.0) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,27.0) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,27.0) {3 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,27.0) {14 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,27.0) {E01};
-\fill[black!55] (160.92777777777778,25.85) rectangle (173.59747474747476,28.15);
-\fill[black!5] (0,29.599999999999998) rectangle (244.0,34.8);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,32.199999999999996) {E04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,32.199999999999996) {Research destination C prices and advisories};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,32.199999999999996) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,32.199999999999996) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,32.199999999999996) {3 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,32.199999999999996) {14 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,32.199999999999996) {E01};
-\fill[black!55] (160.92777777777778,31.049999999999997) rectangle (173.59747474747476,33.349999999999994);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,37.4) {E05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,37.4) {Research destination D prices and advisories};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,37.4) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,37.4) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,37.4) {3 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,37.4) {14 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,37.4) {E01};
-\fill[black!55] (160.92777777777778,36.25) rectangle (173.59747474747476,38.55);
-\fill[black!5] (0,40.0) rectangle (244.0,45.2);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,42.6) {E06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,42.6) {Implement pricing catalogue, units, season and freshness model};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,42.6) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,42.6) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,42.6) {9 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,42.6) {22 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,42.6) {E01--E05};
-\fill[black!55] (167.41262626262628,41.45) rectangle (182.2439393939394,43.75);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,47.800000000000004) {E07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,47.800000000000004) {Implement itemized rule engine and confidence calculation};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,47.800000000000004) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,47.800000000000004) {7};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,47.800000000000004) {16 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,47.800000000000004) {29 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,47.800000000000004) {E06};
-\fill[black!55] (174.97828282828283,46.650000000000006) rectangle (189.80959595959595,48.95);
-\fill[black!5] (0,50.400000000000006) rectangle (244.0,55.60000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,53.00000000000001) {E08};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,53.00000000000001) {Build traveller-context input and itemized result screens};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,53.00000000000001) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,53.00000000000001) {7};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,53.00000000000001) {16 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,53.00000000000001) {30 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,53.00000000000001) {E01, E07};
-\fill[black!55] (174.97828282828283,51.85000000000001) rectangle (190.89040404040404,54.150000000000006);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,58.20000000000001) {E09};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,58.20000000000001) {Save estimate, notes and optional contacts; include in offline pack};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,58.20000000000001) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,58.20000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,58.20000000000001) {23 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,58.20000000000001) {3 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,58.20000000000001) {E08, R13};
-\fill[black!55] (182.5439393939394,57.05000000000001) rectangle (194.13282828282829,59.35000000000001);
-\fill[black!5] (0,60.80000000000001) rectangle (244.0,66.00000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,63.40000000000001) {E10};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,63.40000000000001) {Build minimal price/advisory maintenance interface};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,63.40000000000001) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,63.40000000000001) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,63.40000000000001) {16 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,63.40000000000001) {30 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,63.40000000000001) {E06};
-\fill[black!55] (174.97828282828283,62.250000000000014) rectangle (190.89040404040404,64.55000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,68.60000000000001) {E11};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,68.60000000000001) {Create hand-calculated scenarios, baseline and held-out protocol};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,68.60000000000001) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,68.60000000000001) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,68.60000000000001) {9 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,68.60000000000001) {24 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,68.60000000000001) {E01};
-\fill[black!55] (167.41262626262628,67.45) rectangle (184.40555555555557,69.75000000000001);
-\fill[black!5] (0,71.20000000000002) rectangle (244.0,76.40000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,73.80000000000001) {E12};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,73.80000000000001) {Execute calculation, stale-data and confidence tests};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,73.80000000000001) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,73.80000000000001) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,73.80000000000001) {23 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,73.80000000000001) {4 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,73.80000000000001) {E07, E11};
-\fill[black!55] (182.5439393939394,72.65) rectangle (195.21363636363637,74.95000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,79.00000000000001) {E13};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,79.00000000000001) {Integrate estimator, saved brief, review and offline flows};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,79.00000000000001) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,79.00000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,79.00000000000001) {28 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,79.00000000000001) {5 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,79.00000000000001) {E08--E10};
-\fill[black!55] (187.9479797979798,77.85000000000001) rectangle (196.29444444444445,80.15000000000002);
-\fill[black!5] (0,81.60000000000002) rectangle (244.0,86.80000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,84.20000000000002) {E14};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,84.20000000000002) {Run progress audit, defect triage and evidence pack};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,84.20000000000002) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,84.20000000000002) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,84.20000000000002) {30 Nov};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,84.20000000000002) {6 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,84.20000000000002) {E10, E12};
-\fill[black!55] (190.10959595959596,83.05000000000001) rectangle (197.37525252525253,85.35000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (1,89.40000000000002) {M2};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (9,89.40000000000002) {Significant progress checkpoint: 50--60\% complete};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (75,89.40000000000002) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont\bfseries] at (91.5,89.40000000000002) {1};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (96,89.40000000000002) {7 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (106.5,89.40000000000002) {7 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (117,89.40000000000002) {E14};
-\fill[black] (198.06565656565658,87.80000000000003) -- (199.66565656565658,89.40000000000002) -- (198.06565656565658,91.00000000000001) -- (196.4656565656566,89.40000000000002) -- cycle;
-\node[anchor=west,font=\ganttsmall\bfseries] at (200.00606060606063,89.40000000000002) {M2};
-\fill[black!22] (0,92.00000000000003) rectangle (244.0,97.00000000000003);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,94.50000000000003) {Hardening and testing-entry readiness};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,94.50000000000003) {8 Dec -- 3 Jan\quad 12 tasks, 60 pts};
-\fill[black!70] (198.60606060606062,94.00000000000003) rectangle (227.7878787878788,95.00000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,99.60000000000002) {H01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,99.60000000000002) {Add and quality-check remaining MVP destinations};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,99.60000000000002) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,99.60000000000002) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,99.60000000000002) {8 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,99.60000000000002) {20 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,99.60000000000002) {M2};
-\fill[black!55] (198.75606060606063,98.45000000000002) rectangle (212.50656565656564,100.75000000000003);
-\fill[black!5] (0,102.20000000000003) rectangle (244.0,107.40000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,104.80000000000003) {H02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,104.80000000000003) {Improve review transparency, filtering and rating explanation};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,104.80000000000003) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,104.80000000000003) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,104.80000000000003) {8 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,104.80000000000003) {18 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,104.80000000000003) {M2};
-\fill[black!55] (198.75606060606063,103.65000000000002) rectangle (210.3449494949495,105.95000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,110.00000000000003) {H03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,110.00000000000003) {Harden cache versioning, invalidation and storage recovery};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,110.00000000000003) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,110.00000000000003) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,110.00000000000003) {8 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,110.00000000000003) {24 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,110.00000000000003) {M2};
-\fill[black!55] (198.75606060606063,108.85000000000002) rectangle (216.82979797979797,111.15000000000003);
-\fill[black!5] (0,112.60000000000004) rectangle (244.0,117.80000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,115.20000000000003) {H04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,115.20000000000003) {Add pagination, structured errors, logging and retry safety};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,115.20000000000003) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,115.20000000000003) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,115.20000000000003) {8 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,115.20000000000003) {22 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,115.20000000000003) {M2};
-\fill[black!55] (198.75606060606063,114.05000000000003) rectangle (214.6681818181818,116.35000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,120.40000000000003) {H05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,120.40000000000003) {Harden sessions, CSRF/origin policy and role permissions};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,120.40000000000003) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,120.40000000000003) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,120.40000000000003) {15 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,120.40000000000003) {27 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,120.40000000000003) {F07, H04};
-\fill[black!55] (206.32171717171718,119.25000000000003) rectangle (220.07222222222222,121.55000000000004);
-\fill[black!5] (0,123.00000000000004) rectangle (244.0,128.20000000000005);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,125.60000000000004) {H06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,125.60000000000004) {Polish moderation and source-maintenance workflow};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,125.60000000000004) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,125.60000000000004) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,125.60000000000004) {15 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,125.60000000000004) {27 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,125.60000000000004) {E10, H02};
-\fill[black!55] (206.32171717171718,124.45000000000003) rectangle (220.07222222222222,126.75000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,130.80000000000004) {H07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,130.80000000000004) {Expand automated regression and smoke-test suite};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,130.80000000000004) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,130.80000000000004) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,130.80000000000004) {8 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,130.80000000000004) {27 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,130.80000000000004) {M2};
-\fill[black!55] (198.75606060606063,129.65000000000003) rectangle (220.07222222222222,131.95000000000005);
-\fill[black!5] (0,133.40000000000003) rectangle (244.0,138.60000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,136.00000000000003) {H08};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,136.00000000000003) {Run pilot with at least eight consenting participants};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,136.00000000000003) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,136.00000000000003) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,136.00000000000003) {15 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,136.00000000000003) {29 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,136.00000000000003) {H01};
-\fill[black!55] (206.32171717171718,134.85000000000002) rectangle (222.2338383838384,137.15000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,141.20000000000002) {H09};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,141.20000000000002) {Fix keyboard, readability, responsive and Bangla-rendering issues};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,141.20000000000002) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,141.20000000000002) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,141.20000000000002) {21 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,141.20000000000002) {2 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,141.20000000000002) {H02, H08};
-\fill[black!55] (212.80656565656565,140.05) rectangle (226.55707070707072,142.35000000000002);
-\fill[black!5] (0,143.8) rectangle (244.0,149.0);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,146.4) {H10};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,146.4) {Prepare frozen test build, data, environment and procedures};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,146.4) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,146.4) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,146.4) {28 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,146.4) {3 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,146.4) {H03--H05, H07};
-\fill[black!55] (220.37222222222223,145.25) rectangle (227.6378787878788,147.55);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,151.6) {H11};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,151.6) {Prepare deployment, recovery, setup and operator documentation};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,151.6) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,151.6) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,151.6) {21 Dec};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,151.6) {3 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,151.6) {H04, H06};
-\fill[black!55] (212.80656565656565,150.45) rectangle (227.6378787878788,152.75);
-\fill[black!5] (0,154.2) rectangle (244.0,159.39999999999998);
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (1,156.79999999999998) {G1};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (9,156.79999999999998) {Testing-entry readiness review};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (75,156.79999999999998) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont\bfseries] at (91.5,156.79999999999998) {1};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (96,156.79999999999998) {3 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (106.5,156.79999999999998) {3 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (117,156.79999999999998) {H10};
-\fill[black] (227.24747474747477,155.2) -- (228.84747474747476,156.79999999999998) -- (227.24747474747477,158.39999999999998) -- (225.64747474747477,156.79999999999998) -- cycle;
-\node[anchor=west,font=\ganttsmall\bfseries] at (229.18787878787882,156.79999999999998) {G1};
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (160.23737373737373,9.0) -- (160.23737373737373,159.39999999999998);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (198.06565656565658,9.0) -- (198.06565656565658,159.39999999999998);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (227.24747474747477,9.0) -- (227.24747474747477,159.39999999999998);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (235.8939393939394,9.0) -- (235.8939393939394,159.39999999999998);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (242.37878787878788,9.0) -- (242.37878787878788,159.39999999999998);
-\draw[line width=0.6pt] (0,0) -- (244.0,0);
-\draw[line width=0.4pt] (0,9.0) -- (244.0,9.0);
-\draw[line width=0.6pt] (0,159.39999999999998) -- (244.0,159.39999999999998);
-\draw[black!45] (137.0,0) -- (137.0,159.39999999999998);
-\end{tikzpicture}
-}
-\end{minipage}
-\clearpage
-\thispagestyle{plain}
-\vspace*{-10mm}
-\noindent\begin{minipage}[b][150mm][t]{\linewidth}\centering
-\captionof{figure}{Implementation Gantt chart, part 3 of 3: formal testing (M3) and final completion (M4)}\label{fig:gantt3}
-\vspace{-1mm}
-{\small Live schedule: \extlink{https://docs.google.com/spreadsheets/d/1efTW9JKtYhHZKrualfaJKGMggvZNjNmESuBnQbCRPiQ/edit?gid=1652090786\#gid=1652090786}{open the Gantt chart in Google Sheets}\par}
-\vspace{1.5mm}
-\makebox[\linewidth][c]{%
-\begin{tikzpicture}[x=1mm,y=-1mm,font=\ganttfont]
-\fill[black!10] (0,0) rectangle (244.0,9.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,4.5) {ID};
-\node[anchor=west,font=\ganttfont\bfseries] at (9,4.5) {Task / deliverable};
-\node[anchor=west,font=\ganttfont\bfseries] at (75,4.5) {Owner};
-\node[anchor=center,font=\ganttfont\bfseries] at (91.5,4.5) {Eff.};
-\node[anchor=west,font=\ganttfont\bfseries] at (96,4.5) {Start};
-\node[anchor=west,font=\ganttfont\bfseries] at (106.5,4.5) {End};
-\node[anchor=west,font=\ganttfont\bfseries] at (117,4.5) {Depends on};
-\node[font=\ganttfont\bfseries] at (147.8080808080808,2.43) {October 2026};
-\node[font=\ganttfont\bfseries] at (174.82828282828282,2.43) {November};
-\draw[black!45] (158.6161616161616,0) -- (158.6161616161616,9.0);
-\node[font=\ganttfont\bfseries] at (207.7929292929293,2.43) {December};
-\draw[black!45] (191.04040404040404,0) -- (191.04040404040404,9.0);
-\node[font=\ganttfont\bfseries] at (234.27272727272728,2.43) {January 2027};
-\draw[black!45] (224.54545454545456,0) -- (224.54545454545456,9.0);
-\draw[black!45] (137.0,4.5) -- (244.0,4.5);
-\node[anchor=west,font=\ganttsmall] at (137.0,6.75) {12};
-\node[anchor=west,font=\ganttsmall] at (144.56565656565655,6.75) {19};
-\node[anchor=west,font=\ganttsmall] at (152.13131313131314,6.75) {26};
-\node[anchor=west,font=\ganttsmall] at (159.6969696969697,6.75) {2};
-\node[anchor=west,font=\ganttsmall] at (167.26262626262627,6.75) {9};
-\node[anchor=west,font=\ganttsmall] at (174.82828282828282,6.75) {16};
-\node[anchor=west,font=\ganttsmall] at (182.3939393939394,6.75) {23};
-\node[anchor=west,font=\ganttsmall] at (189.95959595959596,6.75) {30};
-\node[anchor=west,font=\ganttsmall] at (197.52525252525254,6.75) {7};
-\node[anchor=west,font=\ganttsmall] at (205.0909090909091,6.75) {14};
-\node[anchor=west,font=\ganttsmall] at (212.65656565656565,6.75) {21};
-\node[anchor=west,font=\ganttsmall] at (220.22222222222223,6.75) {28};
-\node[anchor=west,font=\ganttsmall] at (227.7878787878788,6.75) {4};
-\node[anchor=west,font=\ganttsmall] at (235.35353535353536,6.75) {11};
-\draw[black!14] (144.56565656565655,4.5) -- (144.56565656565655,117.80000000000004);
-\draw[black!14] (152.13131313131314,4.5) -- (152.13131313131314,117.80000000000004);
-\draw[black!14] (159.6969696969697,4.5) -- (159.6969696969697,117.80000000000004);
-\draw[black!14] (167.26262626262627,4.5) -- (167.26262626262627,117.80000000000004);
-\draw[black!14] (174.82828282828282,4.5) -- (174.82828282828282,117.80000000000004);
-\draw[black!14] (182.3939393939394,4.5) -- (182.3939393939394,117.80000000000004);
-\draw[black!14] (189.95959595959596,4.5) -- (189.95959595959596,117.80000000000004);
-\draw[black!14] (197.52525252525254,4.5) -- (197.52525252525254,117.80000000000004);
-\draw[black!14] (205.0909090909091,4.5) -- (205.0909090909091,117.80000000000004);
-\draw[black!14] (212.65656565656565,4.5) -- (212.65656565656565,117.80000000000004);
-\draw[black!14] (220.22222222222223,4.5) -- (220.22222222222223,117.80000000000004);
-\draw[black!14] (227.7878787878788,4.5) -- (227.7878787878788,117.80000000000004);
-\draw[black!14] (235.35353535353536,4.5) -- (235.35353535353536,117.80000000000004);
-\draw[black!14] (242.91919191919192,4.5) -- (242.91919191919192,117.80000000000004);
-\fill[black!22] (0,9.0) rectangle (244.0,14.0);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,11.5) {Formal testing};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,11.5) {4 Jan -- 11 Jan\quad 10 tasks, 48 pts};
-\fill[black!70] (227.7878787878788,11.0) rectangle (236.43434343434345,12.0);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,16.6) {T01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,16.6) {Freeze build and brief testers on data, environment and defects};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,16.6) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,16.6) {3};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,16.6) {4 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,16.6) {4 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,16.6) {G1};
-\fill[black!55] (227.93787878787882,15.450000000000001) rectangle (228.7186868686869,17.75);
-\fill[black!5] (0,19.2) rectangle (244.0,24.4);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,21.8) {T02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,21.8) {Finalize RTM, master register and execution records};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,21.8) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,21.8) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,21.8) {4 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,21.8) {5 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,21.8) {H10};
-\fill[black!55] (227.93787878787882,20.650000000000002) rectangle (229.79949494949497,22.95);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,27.0) {T03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,27.0) {Execute destination-estimate-offline-review full flow};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,27.0) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,27.0) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,27.0) {5 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,27.0) {8 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,27.0) {T02};
-\fill[black!55] (229.0186868686869,25.85) rectangle (233.0419191919192,28.15);
-\fill[black!5] (0,29.599999999999998) rectangle (244.0,34.8);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,32.199999999999996) {T04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,32.199999999999996) {Execute 2G/3G, airplane, device, accessibility and privacy tests};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,32.199999999999996) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,32.199999999999996) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,32.199999999999996) {5 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,32.199999999999996) {9 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,32.199999999999996) {T02};
-\fill[black!55] (229.0186868686869,31.049999999999997) rectangle (234.12272727272727,33.349999999999994);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,37.4) {T05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,37.4) {Resolve assigned UI, bilingual and offline defects};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,37.4) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,37.4) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,37.4) {6 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,37.4) {10 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,37.4) {T03};
-\fill[black!55] (230.09949494949498,36.25) rectangle (235.20353535353536,38.55);
-\fill[black!5] (0,40.0) rectangle (244.0,45.2);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,42.6) {T06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,42.6) {Resolve assigned API, security and data defects};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,42.6) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,42.6) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,42.6) {6 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,42.6) {10 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,42.6) {T03};
-\fill[black!55] (230.09949494949498,41.45) rectangle (235.20353535353536,43.75);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,47.800000000000004) {T07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,47.800000000000004) {Resolve data, advisory and moderation defects};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,47.800000000000004) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,47.800000000000004) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,47.800000000000004) {6 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,47.800000000000004) {10 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,47.800000000000004) {T03};
-\fill[black!55] (230.09949494949498,46.650000000000006) rectangle (235.20353535353536,48.95);
-\fill[black!5] (0,50.400000000000006) rectangle (244.0,55.60000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,53.00000000000001) {T08};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,53.00000000000001) {Retest fixes and run affected-flow regression};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,53.00000000000001) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,53.00000000000001) {6};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,53.00000000000001) {8 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,53.00000000000001) {11 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,53.00000000000001) {T05--T07};
-\fill[black!55] (232.26111111111112,51.85000000000001) rectangle (236.28434343434344,54.150000000000006);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,58.20000000000001) {T09};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,58.20000000000001) {Complete SQA summary and exit recommendation};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,58.20000000000001) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,58.20000000000001) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,58.20000000000001) {11 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,58.20000000000001) {11 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,58.20000000000001) {T08};
-\fill[black!55] (235.50353535353537,57.05000000000001) rectangle (236.28434343434344,59.35000000000001);
-\fill[black!5] (0,60.80000000000001) rectangle (244.0,66.00000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (1,63.40000000000001) {M3};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (9,63.40000000000001) {Formal testing completed};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (75,63.40000000000001) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont\bfseries] at (91.5,63.40000000000001) {1};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (96,63.40000000000001) {11 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (106.5,63.40000000000001) {11 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (117,63.40000000000001) {T09};
-\fill[black] (235.8939393939394,61.80000000000001) -- (237.4939393939394,63.40000000000001) -- (235.8939393939394,65.00000000000001) -- (234.2939393939394,63.40000000000001) -- cycle;
-\node[anchor=west,font=\ganttsmall\bfseries] at (237.83434343434345,63.40000000000001) {M3};
-\fill[black!22] (0,66.00000000000001) rectangle (244.0,71.00000000000001);
-\node[anchor=west,font=\ganttfont\bfseries] at (1,68.50000000000001) {Completion and final delivery};
-\node[anchor=east,font=\ganttfont\bfseries] at (136.0,68.50000000000001) {12 Jan -- 18 Jan\quad 9 tasks, 37 pts};
-\fill[black!70] (236.43434343434345,68.00000000000001) rectangle (244.0,69.00000000000001);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,73.60000000000001) {C01};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,73.60000000000001) {Close remaining approved UI defects and freeze client};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,73.60000000000001) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,73.60000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,73.60000000000001) {12 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,73.60000000000001) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,73.60000000000001) {M3};
-\fill[black!55] (236.58434343434345,72.45) rectangle (240.60757575757575,74.75000000000001);
-\fill[black!5] (0,76.20000000000002) rectangle (244.0,81.40000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,78.80000000000001) {C02};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,78.80000000000001) {Close remaining approved backend defects and freeze services};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,78.80000000000001) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,78.80000000000001) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,78.80000000000001) {12 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,78.80000000000001) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,78.80000000000001) {M3};
-\fill[black!55] (236.58434343434345,77.65) rectangle (240.60757575757575,79.95000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,84.00000000000001) {C03};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,84.00000000000001) {Freeze destination, price and advisory content};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,84.00000000000001) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,84.00000000000001) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,84.00000000000001) {12 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,84.00000000000001) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,84.00000000000001) {M3};
-\fill[black!55] (236.58434343434345,82.85000000000001) rectangle (240.60757575757575,85.15000000000002);
-\fill[black!5] (0,86.60000000000002) rectangle (244.0,91.80000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,89.20000000000002) {C04};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,89.20000000000002) {Run release-candidate smoke test and verify evidence archive};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,89.20000000000002) {Irfan};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,89.20000000000002) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,89.20000000000002) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,89.20000000000002) {16 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,89.20000000000002) {C01--C03};
-\fill[black!55] (239.82676767676767,88.05000000000001) rectangle (241.68838383838383,90.35000000000002);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,94.40000000000002) {C05};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,94.40000000000002) {Finalize report, setup guide, limitations and maintenance plan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,94.40000000000002) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,94.40000000000002) {5};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,94.40000000000002) {12 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,94.40000000000002) {16 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,94.40000000000002) {M3};
-\fill[black!55] (236.58434343434345,93.25000000000001) rectangle (241.68838383838383,95.55000000000003);
-\fill[black!5] (0,97.00000000000003) rectangle (244.0,102.20000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,99.60000000000002) {C06};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,99.60000000000002) {Prepare and rehearse timed final demonstration};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,99.60000000000002) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,99.60000000000002) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,99.60000000000002) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,99.60000000000002) {17 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,99.60000000000002) {C04};
-\fill[black!55] (239.82676767676767,98.45000000000002) rectangle (242.7691919191919,100.75000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,104.80000000000003) {C07};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,104.80000000000003) {Prepare stable demo build and backup deployment};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,104.80000000000003) {Muhtasim};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,104.80000000000003) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,104.80000000000003) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,104.80000000000003) {17 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,104.80000000000003) {C02, C04};
-\fill[black!55] (239.82676767676767,103.65000000000002) rectangle (242.7691919191919,105.95000000000003);
-\fill[black!5] (0,107.40000000000003) rectangle (244.0,112.60000000000004);
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (1,110.00000000000003) {C08};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont] at (9,110.00000000000003) {Prepare final screenshots and bilingual demo data};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (75,110.00000000000003) {Abdullah};
-\node[anchor=center,inner sep=0pt,font=\ganttfont] at (91.5,110.00000000000003) {4};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (96,110.00000000000003) {15 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (106.5,110.00000000000003) {17 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont] at (117,110.00000000000003) {C01, C03};
-\fill[black!55] (239.82676767676767,108.85000000000002) rectangle (242.7691919191919,111.15000000000003);
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (1,115.20000000000003) {M4};
-\node[anchor=west,text width=64mm,align=left,inner sep=0pt,font=\ganttfont\bfseries] at (9,115.20000000000003) {Final project completion};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (75,115.20000000000003) {Shahriar};
-\node[anchor=center,inner sep=0pt,font=\ganttfont\bfseries] at (91.5,115.20000000000003) {1};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (96,115.20000000000003) {17 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (106.5,115.20000000000003) {18 Jan};
-\node[anchor=west,inner sep=0pt,font=\ganttfont\bfseries] at (117,115.20000000000003) {C04, C06--C08};
-\fill[black] (242.37878787878788,113.60000000000004) -- (243.97878787878787,115.20000000000003) -- (242.37878787878788,116.80000000000003) -- (240.77878787878788,115.20000000000003) -- cycle;
-\fill[black] (243.45959595959596,113.60000000000004) -- (245.05959595959595,115.20000000000003) -- (243.45959595959596,116.80000000000003) -- (241.85959595959596,115.20000000000003) -- cycle;
-\node[anchor=west,font=\ganttsmall\bfseries] at (245.4,115.20000000000003) {M4};
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (160.23737373737373,9.0) -- (160.23737373737373,117.80000000000004);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (198.06565656565658,9.0) -- (198.06565656565658,117.80000000000004);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (227.24747474747477,9.0) -- (227.24747474747477,117.80000000000004);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (235.8939393939394,9.0) -- (235.8939393939394,117.80000000000004);
-\draw[black!60,dash pattern=on 1.2pt off 1pt,line width=0.35pt] (242.37878787878788,9.0) -- (242.37878787878788,117.80000000000004);
-\draw[line width=0.6pt] (0,0) -- (244.0,0);
-\draw[line width=0.4pt] (0,9.0) -- (244.0,9.0);
-\draw[line width=0.6pt] (0,117.80000000000004) -- (244.0,117.80000000000004);
-\draw[black!45] (137.0,0) -- (137.0,117.80000000000004);
+\draw[line width=0.6pt] (0,127.00000000000003) -- (244.0,127.00000000000003);
+\draw[black!45] (137.0,0) -- (137.0,127.00000000000003);
 \end{tikzpicture}
 }
 \end{minipage}
@@ -1573,140 +936,5 @@ Pilot participation is voluntary and uses a short consent notice. The project do
 
 \subsection{Feasibility Conclusion}
 Abhijatri is feasible as a semester project if the team preserves the MVP boundary and treats commercial and social expansion as future work. The selected technology is available, direct academic cost is limited, risk is tested early, and the schedule includes formal acceptance evidence.
-
-% =====================================================================
-\section{System Models and As-Built Status}\label{sec:asbuilt}
-This section records the system as built on 31 October 2026 and the models used in the companion documents: the data flow diagrams (\texttt{Abhijatri-DFD.docx}), the Software Requirements Specification (\texttt{Abhijatri-SRS-Completion.docx}) and the Venn diagrams (\texttt{Abhijatri-Venn-Diagram.docx}). Anything not built is marked as a prototype or as planned.
-
-\subsection{System Context}
-Figure~\ref{fig:context} shows the platform as one process with its ten external entities. Supabase Auth issues tokens, but the API sends all account email itself through the email provider. Cloudflare Turnstile checks guest submissions only.
-
-\afterpage{%
-\begin{landscape}
-\thispagestyle{plain}
-\begin{figure}[p]
-  \centering
-  \includegraphics[width=\linewidth,height=0.86\textheight,keepaspectratio]{dfd-context.png}
-  \caption{Context data flow diagram of the Abhijatri platform}\label{fig:context}
-\end{figure}
-\end{landscape}}
-
-\subsection{Data Flow Model}
-The level~0 data flow diagram has seven processes (Table~\ref{tab:dfd0}), eleven data stores, and the ten external entities. Level~1 diagrams decompose processes 3.0 to 7.0, and level~2 diagrams decompose editing a review (4.3) and deciding a review (6.2). A script checks every diagram for the Gane--Sarson rules, checks that each level realises every flow of its parent by name, and checks that every data store is both written and read.
-
-\begin{table}[!htbp]
-\centering
-\caption{Level 0 processes of the data flow model}\label{tab:dfd0}
-{\small
-\begin{tabularx}{\textwidth}{L{9mm}L{50mm}Y}
-\toprule
-\hd{No.} & \hd{Process} & \hd{What it does} \\
-\midrule
-1.0 & Browse destinations and advice & Destination profiles, advisories with a freshness state, contacts, ratings, and the public review feed \\
-2.0 & Plan trips offline (prototype) & Cost estimate, offline pack, and saved trip screens; no estimator API or IndexedDB yet \\
-3.0 & Authenticate and manage accounts & Registration, email verification, sign-in, password reset, staff TOTP, and staff roles \\
-4.0 & Submit and manage reviews & Guest and member reviews, edits while unpublished, withdrawal, status, media, appeals, and reports \\
-5.0 & Notify members and staff & Outbox relay, inbox, email with retries, provider webhooks, and notification administration \\
-6.0 & Moderate, verify and rate & Task queue with leases, decisions with the rating change in the same transaction, appeals, enforcement, and verification \\
-7.0 & Monitor, audit and retain data & Ops panels, daily visit rollup, audit log view, and retention \\
-\bottomrule
-\end{tabularx}
-}
-\end{table}
-
-\subsection{Review Lifecycle}
-Figure~\ref{fig:states} shows the review states and every transition the code allows. A review can be edited only while it is pending or changes are requested. Publishing counts its rating once; hiding, enforcement, and withdrawal remove it in the same transaction.
-
-\afterpage{%
-\begin{landscape}
-\thispagestyle{plain}
-\begin{figure}[p]
-  \centering
-  \includegraphics[width=\linewidth,height=0.86\textheight,keepaspectratio]{review-state.png}
-  \caption{Review lifecycle: states and transitions}\label{fig:states}
-\end{figure}
-\end{landscape}}
-
-\subsection{Positioning}
-Figure~\ref{fig:venn} shows the three needs that, according to the problem statement, travellers find met only separately. Each region states how much of it is built.
-
-\begin{figure}[!htbp]
-\centering
-\begin{tikzpicture}[font=\sffamily\small]
-  \def\r{2.2}
-  \definecolor{cA}{HTML}{0072B2}
-  \definecolor{cB}{HTML}{009E73}
-  \definecolor{cC}{HTML}{E69F00}
-  \fill[cA,opacity=.30] (-1.2, 0.7) circle (\r);
-  \fill[cB,opacity=.30] ( 1.2, 0.7) circle (\r);
-  \fill[cC,opacity=.30] ( 0  ,-1.4) circle (\r);
-  \draw[cA,thick] (-1.2, 0.7) circle (\r);
-  \draw[cB,thick] ( 1.2, 0.7) circle (\r);
-  \draw[cC,thick] ( 0  ,-1.4) circle (\r);
-  \node[font=\bfseries,align=center] at (-2.9, 3.3) {Bangla-first};
-  \node[font=\bfseries,align=center] at ( 2.9, 3.3) {Moderated\\and dated};
-  \node[font=\bfseries,align=center] at ( 0  ,-4.1) {Offline and priced};
-  \node[align=center,font=\scriptsize] at (-2.45, 1.0) {Bangla\\interface\\(built)};
-  \node[align=center,font=\scriptsize] at ( 2.45, 1.0) {moderated\\reviews, dated\\advisories\\(built)};
-  \node[align=center,font=\scriptsize] at ( 0  ,-2.75) {estimates and\\offline packs\\(prototype)};
-  \node[align=center,font=\scriptsize] at ( 0  , 1.62) {Bangla,\\dated\\(built)};
-  \node[align=center,font=\scriptsize] at (-1.3,-0.5) {Bangla\\offline\\(planned)};
-  \node[align=center,font=\scriptsize] at ( 1.3,-0.5) {dated\\prices\\(planned)};
-  \node[align=center,font=\bfseries\footnotesize] at (0, 0.15) {Abhijatri};
-\end{tikzpicture}
-\caption{Three needs that the proposal found met only separately}\label{fig:venn}
-\end{figure}
-
-\subsection{Requirement Status}
-{\small
-\begin{longtable}{L{11mm}L{34mm}L{24mm}L{72mm}}
-\caption{Functional requirement status on 31 October 2026}\label{tab:frstatus}\\
-\toprule
-\hd{ID} & \hd{Requirement} & \hd{Status} & \hd{Evidence or note} \\
-\midrule
-\endfirsthead
-\multicolumn{4}{l}{\small\textbf{Table \thetable} (continued)}\\
-\toprule
-\hd{ID} & \hd{Requirement} & \hd{Status} & \hd{Evidence or note} \\
-\midrule
-\endhead
-\bottomrule
-\endlastfoot
-FR01 & Destination catalogue & Implemented & Five destinations with sourced, dated content \\
-FR02 & Language selection & Implemented & Bangla default, English selectable; no automated test of the switch yet \\
-FR03 & Account lifecycle & Partly & Register, verify, sign in, reset and sign out built; account deletion request not built \\
-FR04 & Structured review & Implemented & Guest and member reviews with seven category ratings; the offline draft is FR12 \\
-FR05 & Review moderation & Implemented & Publish, reject, hide, restore and request changes, with actor, reason and audit \\
-FR06 & Review reporting & Implemented (member) & Member reports with duplicate control \\
-FR07 & Destination rating & Implemented & Guest Feedback average and Bayesian Community Rating from eligible Verified Member reviews \\
-FR08, FR09 & Cost planner, pricing units & Prototype & Screen only; no estimator logic, price catalogue or API \\
-FR10, FR14, FR17 & Offline pack, update, storage & Prototype & No service worker, manifest or IndexedDB yet \\
-FR11 & Saved trip brief & Prototype & Screen only \\
-FR12 & Offline review draft & Not implemented & Planned with IndexedDB \\
-FR13 & Retry-safe submission & Partly & Draft-id deduplication built and tested; Idempotency-Key on staff decisions \\
-FR15 & Advisory freshness & Implemented & Current, stale, expired and not-yet-effective on the Dhaka date \\
-FR16 & Administration & Partly & Staff roles, audit log and notification administration built; destination editing not built \\
-\end{longtable}
-}
-
-\subsection{Differences from this Proposal}
-\begin{table}[!htbp]
-\centering
-\caption{Recorded differences between the proposal and the build}\label{tab:deviations}
-{\small
-\begin{tabularx}{\textwidth}{L{30mm}Y L{40mm}}
-\toprule
-\hd{Topic} & \hd{As built} & \hd{Record} \\
-\midrule
-Authentication & Supabase Auth holds passwords and TOTP behind the API; the API sets HttpOnly session cookies with a CSRF token and sends account email itself. This deviates from Platform Foundation 8.1 & Decisions.md, 27 Oct 2026; Platform Foundation amendment pending \\
-Media & Any signed-in member may attach up to five photos and one video; guests stay text-only & Decisions.md, 27 Oct 2026; Review.md amendment pending \\
-Review lifecycle & Adds changes requested, withdrawal, edits while unpublished, appeals, and append-only revisions & Review.md; SRS Section 3.5 \\
-Notifications and monitoring & Outbox, inbox, email with retries, digests, ops dashboard, and audit log & Added scope; SRS Section 3.2 \\
-Offline and estimator & Prototype screens only & Remaining semester work \\
-Hosting & API on Railway (interim), web apps on Vercel, Supabase, and Upstash, on free or low-cost plans & SRS Section 2.7 \\
-\bottomrule
-\end{tabularx}
-}
-\end{table}
 
 \end{document}
