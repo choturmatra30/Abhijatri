@@ -8,14 +8,16 @@ import { advisoryState, isShownState } from './advisoryState';
  * upcoming advisory appears on its start date and an expired one disappears with no network.
  */
 
-export function packToProfile(stored: StoredPack, today: string): DestinationProfile {
+export function packToProfile(stored: StoredPack, today: string, now: Date = new Date()): DestinationProfile {
   const { pack } = stored;
+  // Past `expires_at` every advisory is marked, so none is presented as current (Handoff F1).
+  const expired = isPackExpired(stored, now);
   return {
     ...pack.destination,
     guide_items: pack.guide_items,
     contacts: pack.contacts,
     advisories: pack.advisories
-      .map((a) => ({ ...a, state: advisoryState(a, today, pack.stale_after_days) }))
+      .map((a) => ({ ...a, state: advisoryState(a, today, pack.stale_after_days), ...(expired ? { from_expired_pack: true } : {}) }))
       .filter((a) => isShownState(a.state)),
     as_of: today,
     // Read from the top of the pack: it is not inside `destination` (guideline 5.5).

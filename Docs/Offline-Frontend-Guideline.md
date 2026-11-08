@@ -11,19 +11,21 @@
 
 ## 1. Where things stand
 
+*Updated 8 November 2026 (Handoff DOC1).*
+
 | Area | State | Where |
 |---|---|---|
 | App shell, 40 precached entries, update prompt | Done, live | `frontend/src/sw.ts`, `components/common/UpdatePrompt.tsx` |
 | Opened destination pages and reviews saved for 7 days | Done, live; checked in Chrome on 6 Nov | `sw.ts` `PUBLIC_API`, `offline/savedDestinations.ts` |
 | Offline and server-down banners, not-saved states | Done, live | `components/common/StatusBanners.tsx`, `StatusViews.tsx` |
 | Offline destination list | Done, live | `hooks/useDestinationCatalog.ts` |
-| Persistent storage request | Done, but the result is not shown | `UpdatePrompt.tsx` |
+| Persistent storage request | Done; the result and space used are shown on `/offline-packs` | `UpdatePrompt.tsx`, `offline/storageStatus.ts` |
 | `Idempotency-Key` on review writes | Done in code, kept **in memory only** | `api/idempotency.ts`, `hooks/useIdempotencyKeys.ts` |
 | Pack, manifest and freshness API (R14) | **Live** | API.md 5.23 |
-| Key replay API (R16) | In PR #39; **live after that merge** | API.md 3 |
-| IndexedDB | **Not started**; `src/` has no `indexedDB` use | |
-| Offline packs page | **Placeholder**: `OfflinePacksPage.tsx` shows "not built yet"; the sidebar item is marked Soon | `pages/OfflinePacksPage.tsx`, `components/layout/Sidebar.tsx` |
-| Offline drafts | **Not started**; offline, the reviews page shows an error state | `pages/ReviewsPage.tsx` |
+| Key replay API (R16) | **Live** (PR #39, 7 Nov 2026). Section 7 check passed; R1 to R5 passed on a local stack on 8 Nov 2026 (R6 not run) | API.md 3 |
+| IndexedDB | **Done** (R13): `packs`, `drafts`, `meta`. The scope secret write-through (4.3, Decisions 2026-11-08) is not done yet | `offline/db.ts` |
+| Offline packs (R13) | **Done, live** (PR #55): download, verify, read offline, Delete, freshness on reconnect; sidebar Soon removed | `offline/packs.ts`, `packManager.ts`, `pages/OfflinePacksPage.tsx` |
+| Offline drafts (R15) | **Part 1 live** (PR #55): the form opens offline, autosave and restore, Delete draft. **Not built:** pending list, Submit after reconnect, stored key, export (tasks 10, 11) | `offline/draftStore.ts`, `GuestReviewForm.tsx` |
 
 **Backend readiness (audited on the live system, 6 Nov 2026).** No backend change is needed for R13 or R15. All 5 destinations downloaded through the website with `fetch` and WebCrypto: SHA-256, size, `schema_version` and versions all matched; freshness matched; no private fields and no media links in any pack. A `304` works despite gzip, a stale version gives `409`, an unknown id gives `404`. Median direct latency: manifest 0.43 s, pack 0.27 s. Not yet run inside a real browser with IndexedDB; that is task 3's first check.
 
@@ -756,7 +758,7 @@ Each has a default so the work is not blocked.
 
 ## 11. Definition of done
 
-- [ ] PR #39 merged; section 7 check passes; R group passes
+- [x] PR #39 merged; section 7 check passes; R group passes (R1 to R5 on a local stack, 8 Nov 2026; R6 not run)
 - [ ] R13 acceptance: download, open, delete and freshness states work offline
 - [ ] R15 acceptance: no retry creates a duplicate review (D7, D8, D9, D10)
 - [ ] An interrupted download or a hash mismatch leaves the old pack intact

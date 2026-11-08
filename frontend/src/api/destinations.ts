@@ -33,10 +33,11 @@ export async function listAllDestinations(signal?: AbortSignal): Promise<Destina
 
 export function getDestination(
   id: string,
-  options: { includeExpired?: boolean; signal?: AbortSignal } = {},
+  options: { includeExpired?: boolean; signal?: AbortSignal; refuseSavedCopy?: boolean } = {},
 ): Promise<DestinationProfile> {
   return apiRequest<DestinationProfile>(`/api/v1/destinations/${encodeURIComponent(id)}`, {
     params: { include_expired: options.includeExpired || undefined },
     signal: options.signal,
+    refuseSavedCopy: options.refuseSavedCopy,
   });
 }

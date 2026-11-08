@@ -1454,10 +1454,144 @@ CI (`.github/workflows/ci.yml`) runs on every pull request: backend (ruff, mypy,
 | R10 | Moderation queue, reason capture, audit view | Staff UI task | 5.14, 5.22 |
 | R11 | Reporting, moderation actions, audit log | Done | 5.22 |
 | R12 | Installable PWA shell, cached public views | Frontend; live, and checked in Chrome on 6 Nov | 5.24.7 |
-| R13 | Versioned pack in IndexedDB | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.23 |
+| R13 | Versioned pack in IndexedDB | Frontend; **live** (PR #55), checked in Chrome on 8 Nov, F1 and F2 fixed | 5.23, 7 |
 | R14 | Pack manifest, version, freshness | Done, merged and live | 5.23 |
-| R15 | Offline drafts, idempotent reconnect | **Not built** (frontend); `Offline-Frontend-Guideline.md` | 5.24 |
-| R16 | Idempotency-key storage and expiry | Built, tested, CI green; **in PR #39, not deployed** | 5.24 |
+| R15 | Offline drafts, idempotent reconnect | Frontend; part 1 live (offline form, autosave, restore); part 2 (pending list, send after reconnect) not built | 5.24, 7 |
+| R16 | Idempotency-key storage and expiry | Done, live since PR #39; test group R passed in Chrome on 8 Nov | 5.24, 7 |
 | R17 to R20 | QA and release | Not tracked in this record | |
 
-Open handoff item: B6 needs the Railway variable change and the 10-minute check (5.24). B1 was closed on 6 November by correcting API.md 5.10: `counted_rating` is the contribution currently in an aggregate, for Guest and Member reviews alike.
+B6 was closed on 8 November: Railway and local development use the transaction pooler (section 7). B1 was closed on 6 November by correcting API.md 5.10: `counted_rating` is the contribution currently in an aggregate, for Guest and Member reviews alike.
+
+
+## 7. Implementation report, 8 November 2026 (Handoff-Backend follow-up)
+
+Work from `Handoff-Backend.md`: B6, Q1, DOC1, the R16 test group, and two defects (F1, F2) found in a full Chrome run of the offline packs. Everything below was run on 8 November 2026.
+
+### 7.1 Summary
+
+| Item | Result | Where |
+|---|---|---|
+| B6 shared database connections | **Done.** Railway and local development use the Supabase transaction pooler (port 6543); 10-minute check passed for the B6 error | 7.2 |
+| Q1 guest scope secret storage | **Answered** (frontend proposal confirmed); `Decisions.md` 2026-11-08, `Guest-Identity-and-Visits.md` 3.2 | `Handoff-Backend.md` Q1 |
+| DOC1 guideline status table | **Done**: `Offline-Frontend-Guideline.md` sections 1 and 11 | |
+| R16 test group R | **Passed** R1 to R5 in Chrome (R6 not run) | 7.5 |
+| F1 expired pack shows advisories as "Current" | **Fixed**, unit-tested, re-tested in Chrome | 7.3 |
+| F2 server down: older saved copy beats a newer pack | **Fixed**, unit-tested, re-tested in Chrome | 7.4 |
+| F3 freshness only on an offline-to-online change | **Not changed** (Low): needs a server-reachability signal the app does not have; recorded as a known limit | `Handoff-Testing.md` |
+| DEP2, TS1 | DEP2 closed (PR #55 live). TS1: the site key is in the live bundle; a live submission is not yet confirmed | `Handoff-Backend.md` |
+| Flaky unit test | `test_scopes_are_keyed_digests_separated_by_kind` failed when an earlier test cleared the settings cache. It now pins its own settings | `backend/tests/test_idempotency_unit.py` |
+
+### 7.2 B6: transaction pooler
+
+**Problem.** `DATABASE_URL` used the session pooler (`aws-0-ap-southeast-1.pooler.supabase.com:5432`), which allows 15 clients in total. Each backend process may hold `DB_POOL_SIZE` 5 + `DB_MAX_OVERFLOW` 2 = 7, so Railway plus one or two local backends ran out (`EMAXCONNSESSION`, then `503` on every route).
+
+**Change.**
+
+| Where | Before | After |
+|---|---|---|
+| Railway `abhijatri-api` (production) | `...pooler.supabase.com:5432` | `...pooler.supabase.com:6543`, same user, password and database. Set with the Railway CLI; redeploy `55e88b7c` (commit `9732eb5`), replacing `112f4391` (kept for rollback) |
+| Local `backend/.env` (gitignored) | port 5432 | port 6543; a copy of the old file was kept outside the repository during the change |
+| Code | none needed | `app/db.connect_args_for` already sets `prepare_threshold=None` when the port is 6543 (`Settings.uses_prepared_statements`, 5.24); `DB_PREPARED_STATEMENTS` overrides it |
+
+**Checks before the switch.** With the production credentials on port 6543 and the app's own engine: prepared statements reported off, 30 repeated identical parameterised queries succeeded (they fail under transaction mode if prepared statements stay on), 5 published destinations, `alembic_version` = `0022_request_idempotency`.
+
+**Checks after the switch.** Deployment `55e88b7c` reached `SUCCESS`; its start-up migration check ran through 6543. `/health`, `/destinations` (5 items), destination detail, reviews, pack manifest, freshness and review parameters all answered `200`.
+
+**10-minute check (acceptance: "Railway and two local backends at the same time for 10 minutes without the error").** Script: 18 threads for 601 s, 6 each against Railway and two local backends (ports 8011 and 8012, default pool 5 + 2, both on 6543). Each thread called random database-backed public routes without pause. A third local backend (port 8000, still on the old session pooler) was running at the same time.
+
+| Target | 200 | 429 | 504 | Client timeouts or drops |
+|---|---|---|---|---|
+| Railway | 18,919 | 3,860 (per-network rate limit, expected for one address) | 0 | 0 |
+| Local 8011 | 4,455 | 0 | 9 | 7 |
+| Local 8012 | 4,493 | 0 | 6 | 7 |
+
+- **`EMAXCONNSESSION` / "max clients": 0** in Railway's logs and in both local logs. **Railway: no `500`, `503` or `504`, no traceback** since the switch. B6 is closed.
+- The local `504`s (0.3 % of local requests) are not the B6 failure. From this laptop each query is a round trip to Singapore: one reviews request takes about 1.6 s with no load. Six threads per process hammering without pause made some requests wait past the 15-second request limit (`REQUEST_TIMEOUT`, 504). The logs also show Windows connection aborts (`10053`) on that link. Two `IdleInTransactionSessionTimeout` entries followed requests that the time limit had cancelled. Railway, next to the database, served three times the traffic with none of these.
+- A first 10-minute run is not counted: its Railway half failed in the test client before any request (Python's bundled certificate list could not verify Railway's TLS chain; `curl` and Windows' own store could). The local half of that run had zero database errors. The counted run used the Windows certificate store.
+
+**Rollback.** Set Railway `DATABASE_URL` back to port 5432, or redeploy `112f4391`. No code depends on the port.
+
+### 7.3 F1: an expired pack labelled its advisories "Current"
+
+**Seen.** With `expires_at` in the past, the page showed the red "Out of date" banner, but the advisory card still said **Current**. This broke guideline rule 4, Security 7.4 and PF 18.4.
+
+**Fix.**
+- `frontend/src/offline/packAdapter.ts`: `packToProfile(stored, today, now)` marks every advisory `from_expired_pack: true` once `isPackExpired(stored, now)`.
+- `frontend/src/types/index.ts`: the optional client-only field `Advisory.from_expired_pack`.
+- `frontend/src/components/destination/AdvisoryCard.tsx`: a marked advisory is muted and labelled "Out of date offline copy: check when online" (Bangla "পুরনো অফলাইন কপি: অনলাইনে যাচাই করুন") instead of its state.
+
+**Test.** `advisoryState.test.ts`: one second before `expires_at` the advisory is `CURRENT` and unmarked; one second after, it is marked. In Chrome, with the stored pack's `expires_at` backdated, the page showed the new label in English and Bangla, and the word "Current" / "বর্তমান" did not appear. With the date restored, it showed "Current" again.
+
+### 7.4 F2: with the server down, the older saved copy beat a newer pack
+
+**Seen.** `loadDestination` and `ReviewFeedSection` read the pack first only when `navigator.onLine === false`. With dead Wi-Fi or a server outage the device still reports online. The service worker then answered from its 7-day opened-page cache, the page took that as a success, and the pack was never read. The review feed said "No published reviews yet" while the pack held 3 reviews. This broke guideline 10: "the pack wins".
+
+**Fix.**
+- `frontend/src/offline/cacheNames.ts`: `SAVED_COPY_HEADER = 'X-Abhijatri-Saved-Copy'`.
+- `frontend/src/sw.ts`: a `markSavedCopy` plugin (`cachedResponseWillBeUsed`) on the public destination route adds the header to every answer served from the cache. NetworkFirst reads the cache only when the network failed or stalled. The stored copy itself is unchanged, so `CACHE_VERSION` stays `v1`.
+- `frontend/src/api/client.ts`: the request option `refuseSavedCopy` makes `apiRequest` throw `ApiError(0, 'SAVED_COPY')` for a marked answer.
+- `frontend/src/api/destinations.ts`, `api/reviews.ts`: `getDestination` and `getReviewFeed` pass the option through.
+- `frontend/src/offline/destinationSource.ts` and `components/reviews/ReviewFeedSection.tsx` set `refuseSavedCopy` only when a pack is stored, and use the pack on `SAVED_COPY`. Without a pack the saved copy is still used, so R12 is unchanged. A live answer still wins over the pack.
+
+**Test.** New `offline/destinationSource.test.ts` (6 tests):
+- a saved copy is returned when not refused, refused when asked, and a live answer is accepted;
+- `loadDestination` uses the pack for a saved copy, keeps the saved copy without a pack, and prefers live content over the pack.
+
+In Chrome, the exact failure was rebuilt: the service-worker copy had 2 reviews, the pack 3 (one review existed only in the pack). With both servers stopped and `navigator.onLine` true, the page showed "You are reading the offline copy…" and the pack's 3 reviews. With the servers back, it showed live content with filters.
+
+**Limit.** For 60 seconds after an online visit, the browser's own HTTP cache (`public, max-age=60`) can still answer before the service worker falls back. This is the accepted public cache lifetime (guideline 5.1a). The first Chrome attempt hit it; the second one, after a minute, passed.
+
+### 7.5 Chrome run of the offline packs and R16
+
+Setup: backend on a separate local database `abhijatri_local` (on `127.0.0.1:54322`), all 22 migrations and five seeded destinations. A local moderator and a few test reviews were created through the API. The production frontend build with its service worker was served by `vite preview`. The developer backend on port 8000 and the shared database were not used for writes. Offline was simulated by stopping both servers and, where it matters, forcing `navigator.onLine` in the page.
+
+| Area | Result |
+|---|---|
+| Download, SHA-256 check (matches the server's manifest), Offline packs page, storage status | Pass |
+| Offline list, guide, advisories, contacts, review snapshot, no filters | Pass |
+| Update on start and on reconnect: new review added, hidden review removed, archived destination's pack removed with a notice | Pass |
+| Delete with confirmation, only that pack removed | Pass |
+| Offline review form, autosave, restore after reload, draft and receipt removed after a successful send | Pass |
+| Expired pack (F1), server down with a newer pack (F2) | Failed first, **pass after the fixes** |
+| R1 guest submit with a lost response, then retry | Same key; `201` then `200` "already submitted"; one review in the database |
+| R2 edit retry, R3 withdraw retry | Same key; second answer `Idempotent-Replayed: true` |
+| R4 keys on writes; R5 new key after a changed edit | Pass. R5 then got `409 REVIEW_VERSION_CONFLICT`, correct because the lost save was applied; never `IDEMPOTENCY_KEY_REUSED` |
+| Privacy (Cache Storage, IndexedDB, Local Storage) | Pass |
+
+API contract checked directly: manifest `ETag` gives `304`; an unknown id gives `404`; `version=0` gives `422`; repeated freshness ids give `422`. An archived destination gives freshness `WITHDRAWN` and manifest `410`. Responses carry `public, max-age=60`.
+
+The manual test cases, with these results in a column, are in `Handoff-Testing.md` section H.
+
+### 7.6 Automated checks
+
+| Suite | Result |
+|---|---|
+| Backend `ruff check .` | Clean |
+| Backend unit tests | 394 passed |
+| Backend PostgreSQL integration tests (`-m integration`, local database) | 489 passed |
+| `alembic upgrade head` + `alembic check` | No drift |
+| `openapi-v1.json` re-export | No change |
+| Frontend `vitest run` | 192 passed (21 files; 7 new tests for F1 and F2) |
+| Frontend `tsc -b`, `tsc -p tsconfig.sw.json`, `vite build` | Clean |
+
+### 7.7 Files changed
+
+| File | Change |
+|---|---|
+| `backend/tests/test_idempotency_unit.py` | Test-order fix |
+| `frontend/src/offline/packAdapter.ts`, `types/index.ts`, `components/destination/AdvisoryCard.tsx` | F1 |
+| `frontend/src/offline/cacheNames.ts`, `sw.ts`, `api/client.ts`, `api/destinations.ts`, `api/reviews.ts`, `offline/destinationSource.ts`, `components/reviews/ReviewFeedSection.tsx` | F2 |
+| `frontend/src/offline/advisoryState.test.ts`, `offline/destinationSource.test.ts` (new) | Tests |
+| `Docs/Decisions.md`, `Guest-Identity-and-Visits.md` | Q1 |
+| `Docs/Offline-Frontend-Guideline.md` | DOC1 |
+| `Docs/Handoff-Backend.md`, `Handoff-Testing.md`, this file | Status, findings, manual tests |
+| Railway `abhijatri-api` variable `DATABASE_URL`; local `backend/.env` | B6 (not in git) |
+
+### 7.8 Still open
+
+- **TS1:** one live guest submission to confirm Turnstile end to end (then withdraw it).
+- **Q1 frontend work:** write the scope secret through to IndexedDB `meta`, and store it on each draft (Decisions 2026-11-08).
+- **R15 part 2:** pending-drafts list, Submit after reconnect, stored key, export (guideline tasks 10 and 11).
+- **F3:** freshness when the server returns while the device stayed online.
+- **Real-phone runs:** `Handoff-Testing.md` H2.6, H1.6, H1.7, H5.4 and R6 were not run.
+- The live site gets F1 and F2 only after these frontend changes are merged to `main` and deployed by Vercel.

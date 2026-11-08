@@ -228,7 +228,7 @@ Scope owner (Shahriar Islam), 20 Oct 2026: "Guest er shudhu count rakhlei hobe â
 | Rating display | Community Rating and Guest Feedback are separate and always show a count. Below five eligible Verified Member reviews the interface shows "Editorial seeded selection" instead of a score. | Review.md 6.1, 6.2, 6.4. |
 | No destination images | Destination screens are text-first until the API carries licensed images. The hotlinked Unsplash photos are removed. | PF 17 licensing, PF 16.3 `img-src`, asset budget. |
 | Offline claims | Interface text claiming PWA, IndexedDB or pack downloads is removed until R12 and R13 deliver them. | Same as above. |
-| Guest scope secret storage | Kept in `localStorage` (key `abhijatri_guest_scope`) until the IndexedDB draft store (R15) exists, then moved there. The receipt is never stored; it is held in memory and shown once. | PF 18.1 names IndexedDB; PF 13.5 forbids keeping submitted-review receipts. |
+| Guest scope secret storage | Kept in `localStorage` (key `abhijatri_guest_scope`) until the IndexedDB draft store (R15) exists, then moved there. The receipt is never stored; it is held in memory and shown once. **Amended 2026-11-08 (Handoff Q1), see that entry.** | PF 18.1 names IndexedDB; PF 13.5 forbids keeping submitted-review receipts. |
 | Draft identity on retry | One `client_draft_id` and receipt per draft, reused on every retry; replaced only after success or `DRAFT_ALREADY_SUBMITTED`. | Review.md 4.1, API.md 5.2 order of checks. |
 | Turnstile widget | Deferred to an R09 follow-up. Development runs with `TURNSTILE_ENABLED=false`; production submission needs the widget before release. | Needs the site key and the CSP origin in PF 16.3. |
 | Seed content ownership | The five-destination content was researched and sourced by Abdullah to unblock R03. It stays R01 work owned by Shahriar Islam and is accepted only after that review sets `reviewer`. | Gantt R01 ownership; R01 acceptance "pass review". |
@@ -390,3 +390,14 @@ The Review specification is frozen after the schema amendments. Necessary implem
 | Role-denied staff requests | Audited as `denied.role`; a non-staff caller (404) is not recorded. | Moderation spec 9; strangers must not be able to fill the log. |
 | Database data errors | A database data exception answers `422`, not `503`. | A NUL character is the caller's mistake, not an outage. |
 | Sanction expiry | A sanction is in force only until its end time; a request that meets an expired one ends it. The daily job is a sweeper, not the mechanism. | P-01. |
+
+## 2026-11-08 (Handoff Q1: guest scope secret and draft receipts)
+Answers `Handoff-Backend.md` Q1. Amends the 2026-10-19 row "Guest scope secret storage".
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Where the guest scope secret lives | `localStorage` (`abhijatri_guest_scope`) stays the **reader** for M1. The frontend **writes through** the same value to IndexedDB `meta` (Offline-Frontend-Guideline 4.3). A full async move to IndexedDB as the reader is post-M1 work. | PF 18.1 allows IndexedDB to hold it; every caller of `getGuestScopeSecret()` is synchronous. Write-through meets PF 18.1 without an async change across the app. |
+| The value never changes | The copy in `meta` is the **existing** value. A missing `localStorage` value may be restored from `meta`; a new secret is made only by "Start as a new guest" or when both are empty. | A new secret gives a new guest tag and breaks review recovery (`client_draft_id` is unique per guest scope). |
+| Scope on a draft | Each unsent draft stores its own copy of the scope secret when it is created and always sends that copy (guideline 6.2, test D10). | Sending an old draft under a new scope after "Start as a new guest" would look like a new review and could duplicate it after a lost response. |
+| Receipt custody | The receipt of an **unsent** draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5). After acknowledgement it is deleted on the user's confirmation or after 7 days (guideline 6.5). | The draft cannot be sent later without its receipt; PF 13.5, PF 18.1 and guideline 6.5 already allow this. Replaces "the receipt is never stored" in the 2026-10-19 row. |
+| Server | No API change. The server never stores the scope secret or a receipt in plain form (keyed digests only, PF 13.2, 13.4). | Storage location is a client concern. |

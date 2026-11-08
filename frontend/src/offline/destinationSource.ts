@@ -1,3 +1,4 @@
+import { ApiError, SAVED_COPY } from '../api/client';
 import { getDestination } from '../api/destinations';
 import { failureKind } from '../components/common/StatusViews';
 import type { DestinationProfile } from '../types';
@@ -25,8 +26,12 @@ export async function loadDestination(id: string, { signal }: { signal?: AbortSi
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
   if (stored && offline) return { profile: packToProfile(stored, dhakaToday()), source: 'pack', stored };
   try {
-    return { profile: await getDestination(id, { signal }), source: 'network', stored };
+    // With a pack stored, the service worker's saved copy is refused: the pack wins (Handoff F2).
+    return { profile: await getDestination(id, { signal, refuseSavedCopy: stored !== null }), source: 'network', stored };
   } catch (error) {
+    if (stored && error instanceof ApiError && error.code === SAVED_COPY) {
+      return { profile: packToProfile(stored, dhakaToday()), source: 'pack', stored };
+    }
     const kind = failureKind(error);
     if (stored && (kind === 'offline' || kind === 'timeout')) {
       return { profile: packToProfile(stored, dhakaToday()), source: 'pack', stored };

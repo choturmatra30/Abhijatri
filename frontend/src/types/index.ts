@@ -104,6 +104,11 @@ export interface Advisory {
   valid_until: string;
   state: AdvisoryState;
   provenance: Provenance;
+  /**
+   * Client only: the advisory comes from an offline pack past its `expires_at`, so it is never shown as
+   * current safety guidance (Security 7.4, PF 18.4; Handoff F1).
+   */
+  from_expired_pack?: boolean;
 }
 
 export interface Contact {

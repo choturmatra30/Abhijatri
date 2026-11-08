@@ -80,7 +80,10 @@ def test_body_method_and_path_all_change_the_request_fingerprint() -> None:
 # ---------- scopes ----------
 
 
-def test_scopes_are_keyed_digests_separated_by_kind() -> None:
+def test_scopes_are_keyed_digests_separated_by_kind(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fixture above empties the environment, so a settings cache cleared by an earlier test would
+    # rebuild production defaults here. Pin explicit test settings instead of depending on test order.
+    monkeypatch.setattr("app.crypto.get_settings", lambda: _settings())
     secret = "s" * 43
     guest, receipt = idem.guest_scope(secret), idem.receipt_scope(secret)
     member = idem.member_scope(uuid.UUID(int=1))

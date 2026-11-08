@@ -6,6 +6,7 @@
  */
 
 import type { ApiErrorBody, FieldError } from '../types';
+import { SAVED_COPY_HEADER } from '../offline/cacheNames';
 
 /**
  * In a production build the app calls `/api/...` on its own address and Vercel forwards it to the
@@ -36,6 +37,11 @@ export class ApiError extends Error {
 export const NETWORK_ERROR = 'NETWORK_ERROR';
 /** Raised when a request got no response before its deadline (slow or stalled network). */
 export const TIMEOUT_ERROR = 'TIMEOUT';
+/**
+ * The answer is the service worker's saved copy (the network failed) and the caller asked to be told,
+ * because it holds a downloaded pack that wins over that copy (Handoff F2).
+ */
+export const SAVED_COPY = 'SAVED_COPY';
 /** Window event fired when the API answers 401 AUTH_REQUIRED (session expired or revoked). */
 export const AUTH_REQUIRED_EVENT = 'abhijatri:auth-required';
 /** Default deadline for GET requests. Slow 3G is the design target (PF 19.4), so this is generous. */
@@ -51,6 +57,11 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
    * action: the server then returns the first response instead of acting twice.
    */
   idempotencyKey?: string;
+  /**
+   * Throw `ApiError(0, SAVED_COPY)` instead of returning the service worker's saved copy. Set it only
+   * when a downloaded pack can answer instead (Offline-Frontend-Guideline 10; Handoff F2).
+   */
+  refuseSavedCopy?: boolean;
 }
 
 /** A fresh key for one user action (one draft, one withdraw, one edit, one appeal). */
@@ -70,7 +81,7 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
  *   preflight round trip on slow networks (Platform Foundation 16.1).
  */
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers, body, idempotencyKey, ...rest } = options;
+  const { params, headers, body, idempotencyKey, refuseSavedCopy, ...rest } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
   if (params) {
@@ -132,6 +143,9 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
   }
 
   if (!response.ok) throw await toApiError(response);
+  if (refuseSavedCopy && response.headers.get(SAVED_COPY_HEADER)) {
+    throw new ApiError(0, SAVED_COPY, 'Saved copy from the service worker; a downloaded pack answers instead');
+  }
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;

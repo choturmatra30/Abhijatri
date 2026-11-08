@@ -182,11 +182,12 @@ export function resetGuestScopeSecret(): string {
 
 export function getReviewFeed(
   destinationId: string,
-  options: { after?: string | null; limit?: number; signal?: AbortSignal } = {},
+  options: { after?: string | null; limit?: number; signal?: AbortSignal; refuseSavedCopy?: boolean } = {},
 ): Promise<ReviewFeed> {
   return apiRequest<ReviewFeed>(`/api/v1/destinations/${encodeURIComponent(destinationId)}/reviews`, {
     params: { after: options.after, limit: options.limit },
     signal: options.signal,
+    refuseSavedCopy: options.refuseSavedCopy,
   });
 }
 

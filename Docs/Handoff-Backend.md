@@ -3,6 +3,7 @@
 **From:** Abdullah (frontend). **Date:** 6 November 2026.
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
 **Updated 7 November 2026 (afternoon):** B5 withdrawn (a measurement error), DEP1 closed, R16 merged and live. **New: DEP2 (R13 not deployed), TS1 (Turnstile site key missing on Vercel), DOC1 (guideline status table out of date).** Q1 has a likely answer in Decisions.md (see Q1). Still open: B6.
+**Update, 8 November 2026 (backend):** Q1 answered (Decisions 2026-11-08), DOC1 done, DEP2 closed (PR #55 is live), R16 test group R passed (R1 to R5, local stack). TS1: the live bundle now contains a Turnstile site key; a live submission is still unconfirmed. B6: Railway moved to the transaction pooler (port 6543) on 8 Nov 2026, see the B6 row. F1 and F2 fixed the same day. A full Chrome run of the offline packs found three frontend issues, listed as [F1 to F3](#f1-to-f3-found-in-the-chrome-run-8-november-2026). Backend checks: 394 unit and 489 PostgreSQL integration tests pass, `alembic check` clean, `openapi-v1.json` current.
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
 **Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
@@ -10,14 +11,17 @@
 | ID | What | Owner | Blocks | Priority | Status (6 Nov 2026) |
 |---|---|---|---|---|---|
 | [B5](#b5-withdrawn-cache-headers-are-correct) | ~~Live API sends `no-store`~~ **Withdrawn: headers are correct** | none | nothing | Closed |
-| [B6](#b6-shared-database-runs-out-of-connections) | Shared database runs out of connections (`EMAXCONNSESSION`) | Muhtasim, Supabase owner | Local development, possibly live | **High** | **Code done** (`DB_PREPARED_STATEMENTS`, auto-off on port 6543). Pending: set Railway `DATABASE_URL` to port 6543 and run the 10-minute check |
+| [B6](#b6-shared-database-runs-out-of-connections) | Shared database runs out of connections (`EMAXCONNSESSION`) | Muhtasim, Supabase owner | Local development, possibly live | **High** | **Done 8 Nov 2026.** Railway `DATABASE_URL` is on port 6543 (deployment `55e88b7c`); local `backend/.env` too. 10-minute check: see `Backend-Implemented.md` 7 |
 | [DEP1](#dep1-closed-the-abd-work-is-live) | ~~Live site has none of the `abd` work~~ **Closed: deployed** | Abdullah, Shahriar | nothing | Closed |
 | [R14](#r14-pack-manifest-endpoint) | Pack manifest endpoint | Muhtasim | R13 offline packs | Due 27 Oct (late) | **Merged and live (PR #37).** The route set differs from the proposal below: `manifest`, `pack?version=` and `packs/freshness` (API.md 5.23) |
-| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Merged and live (PR #39, 7 Nov 2026).** Live check passed: the API exposes `Idempotent-Replayed, Retry-After` (Offline-Frontend-Guideline 7). Remaining: test group R (guideline 9.6) |
-| [Q1](#q1-where-does-the-guest-scope-secret-live) | **Question:** where the guest scope secret is stored (two specs disagree) | Muhtasim (spec owner) | R15 offline drafts | Answer before R15 | **Open; likely answered by Decisions 2026-10-19** (see Q1) |
-| [DEP2](#dep2-r13-offline-packs-are-not-on-the-live-site) | R13 offline packs (and R15 part 1 once committed) are not on the live site | Abdullah (PR), Shahriar (merge) | R13 phone tests (guideline group P) | **High** | **Open (7 Nov 2026)** |
-| [TS1](#ts1-turnstile-site-key-missing-on-vercel) | `VITE_TURNSTILE_SITE_KEY` is not set on Vercel: the review form shows no security check | Shahriar (Vercel), whoever holds the Cloudflare widget | Guest review submission on the live site (likely) | **High** | **Open (7 Nov 2026), not yet confirmed by a submission** |
-| [DOC1](#doc1-offline-frontend-guideline-section-1-is-out-of-date) | `Offline-Frontend-Guideline.md` section 1 status table is out of date | Muhtasim (document owner) | Nothing; misleads readers | Low | **Open (7 Nov 2026)** |
+| [R16](#r16-idempotency-key-replay-on-review-submission) | `Idempotency-Key` replay on review submission | Muhtasim | R15 offline drafts | Due 28 Oct (late) | **Done.** Live since PR #39 (7 Nov 2026); expose-header check passed again 8 Nov. Test group R passed in Chrome on a local stack, 8 Nov 2026: R1 to R5 (R6, breached password, not run) |
+| [Q1](#q1-where-does-the-guest-scope-secret-live) | **Question:** where the guest scope secret is stored (two specs disagree) | Muhtasim (spec owner) | R15 offline drafts | Answer before R15 | **Answered 8 Nov 2026:** the frontend proposal is confirmed (Decisions 2026-11-08; `Guest-Identity-and-Visits.md` corrected) |
+| [DEP2](#dep2-r13-offline-packs-are-not-on-the-live-site) | R13 offline packs (and R15 part 1 once committed) are not on the live site | Abdullah (PR), Shahriar (merge) | R13 phone tests (guideline group P) | **High** | **Closed 8 Nov 2026:** PR #55 merged; the live bundle has "Save for offline use" and the freshness client |
+| [TS1](#ts1-turnstile-site-key-missing-on-vercel) | `VITE_TURNSTILE_SITE_KEY` is not set on Vercel: the review form shows no security check | Shahriar (Vercel), whoever holds the Cloudflare widget | Guest review submission on the live site (likely) | **High** | **Key now in the live bundle (8 Nov 2026).** Remaining: one live test submission, then withdraw it |
+| [DOC1](#doc1-offline-frontend-guideline-section-1-is-out-of-date) | `Offline-Frontend-Guideline.md` section 1 status table is out of date | Muhtasim (document owner) | Nothing; misleads readers | Low | **Done 8 Nov 2026** (section 1 and the R16 line of section 11) |
+| [F1](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Expired pack: advisory badge still says "Current" | Abdullah | P12, Security 7.4 | **High** | **Fixed 8 Nov 2026**, re-tested in Chrome (`Backend-Implemented.md` 7) |
+| [F2](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Server down while `navigator.onLine` is true: the older opened-page copy wins over a newer pack | Abdullah | Guideline 10 "the pack wins" | Medium | **Fixed 8 Nov 2026**, re-tested in Chrome (`Backend-Implemented.md` 7) |
+| [F3](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Freshness runs only on an `offline` to `online` change, not when the server comes back | Abdullah | Guideline 5.3 | Low | **Open (8 Nov 2026)** |
 
 ---
 
@@ -138,7 +142,9 @@ Two documents disagree:
 2. give each draft its own copy of the secret when it is created (guideline 6.2, test D10);
 3. update `Guest-Identity-and-Visits.md` to say so.
 
-Please confirm or object. The same decision row also says *"the receipt is never stored"*. That is stricter than PF 13.5, PF 18.1 and guideline 6.5, which allow the receipt of an **unsent** draft to be stored with it until the server acknowledges the review. R15 part 1 does store it, and deletes it after a successful send. The frontend proposes amending the row to: "the receipt of an unsent draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5)."
+**Answer, 8 November 2026 (Muhtasim, spec owner): confirmed, all three points and the receipt amendment.** Recorded as Decisions 2026-11-08; `Guest-Identity-and-Visits.md` 3.2 and the Reset paragraph now say so. Answers to the questions: (1) both documents are right once read together: `localStorage` is the reader for M1, IndexedDB `meta` holds a write-through copy with the same value; (2) yes, write-through is the M1 final state, the async move is post-M1; (3) yes, each draft keeps its own copy of the secret. No API change is needed. **Not done yet (frontend):** the write-through itself; the Chrome run on 8 Nov found IndexedDB `meta` holds only `review_parameters`, and a new draft stores `author: {kind: "pending"}` without the secret.
+
+Original request: please confirm or object. The same decision row also says *"the receipt is never stored"*. That is stricter than PF 13.5, PF 18.1 and guideline 6.5, which allow the receipt of an **unsent** draft to be stored with it until the server acknowledges the review. R15 part 1 does store it, and deletes it after a successful send. The frontend proposes amending the row to: "the receipt of an unsent draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5)."
 
 ---
 
@@ -173,6 +179,16 @@ Please confirm or object. The same decision row also says *"the receipt is never
 **What to do.** Muhtasim updates the table, or tells Abdullah to do it.
 
 ---
+
+## F1 to F3: found in the Chrome run (8 November 2026)
+
+Run: backend on a local database (`abhijatri_local` on `127.0.0.1:54322`, all migrations, five seeded destinations, three published test reviews), the production build served by `vite preview`, Chrome with the service worker. "Offline" was made by stopping both servers and, where `navigator.onLine` matters, by forcing it to `false` in the page. Full results and the manual test cases: `Handoff-Testing.md` section H.
+
+**F1 (High): an expired pack still labels its advisories "Current".** With `expires_at` in the past, the Offline packs page says "Out of date" and the guide shows the red "Out of date" banner, but each advisory card still shows **Current**. Rule 4 of the guideline and Security 7.4 say an expired pack is never shown as current safety guidance; `packAdapter.ts` says the same in its comment. Fix: in `packToProfile`, when `isPackExpired(stored)`, give advisories a state that is not `CURRENT` (for example show them as `STALE` or with an "Out of date" badge). Test P12.
+
+**F2 (Medium): with the server down but the device "online", the opened-page copy beats a newer pack.** `loadDestination` and `ReviewFeedSection` read the pack first only when `navigator.onLine === false`. Otherwise they call the network; the service worker answers from its 7-day opened-page cache, which is a success, so the pack is never read. Seen: the review feed showed "No published reviews yet" (old cached copy) while the pack held 3 reviews. Real airplane mode is not affected. It does affect a dead or captive Wi-Fi and a server outage. Fix idea: when both exist, show whichever is newer (`generated_at` against the cached response's `Date`), or prefer the pack whenever the answer came from the service worker cache.
+
+**F3 (Low): the freshness check runs only when `navigator.onLine` changes from false to true** (`useReconnectPackCheck`), and on app start. When the server comes back while the device stayed online, packs are not checked until the next start. Acceptable for M1; recorded in `Handoff-Testing.md` known limits.
 
 ## Older items still listed as open
 
