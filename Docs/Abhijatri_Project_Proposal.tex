@@ -497,7 +497,7 @@ Ten independent trips are collected and sealed outside the seed catalogue. After
 
 % ---------------------------------------------------------------------
 \subsection{Primary Use Cases}\label{sec:usecases}
-The use case model (Figure~\ref{fig:usecase}) shows the complete Abhijatri PWA system boundary, its four actors, and the use cases grouped by functional domain. Table~\ref{tab:uc-scope} summarises the scope of the diagram. Packages 4 (booking) and 6c (payment verification) are demonstration-only and lie outside semester acceptance, consistent with the scope decision. The editable source model is available online: \extlink{https://lucid.app/lucidchart/3c63746b-daf8-4da1-9ed0-32f712b0815c/edit?invitationId=inv_a2367b47-ef68-4ead-a3f2-f5632099bf45&page=fM5RpGvEhdCb2\#}{open the original use case diagram in Lucidchart}.
+The use case model (Figure~\ref{fig:usecase}) shows the Abhijatri PWA system boundary, its five actors, and the main use cases of each actor. Every main use case is decomposed one level into the steps it includes or optionally extends, in the same way as the reference break-down model. Table~\ref{tab:uc-scope} summarises the scope of the diagram. Reserving a package and paying are demonstration-only and lie outside semester acceptance, consistent with the scope decision. The editable source model is available online: \extlink{https://lucid.app/lucidchart/ec4bf35e-3ce5-4a7a-8c73-cd4d9411df9d/edit}{open the use case diagram in Lucidchart}.
 
 \begin{table}[!htbp]
 \centering
@@ -507,11 +507,11 @@ The use case model (Figure~\ref{fig:usecase}) shows the complete Abhijatri PWA s
 \toprule
 \hd{Element} & \hd{Content} \\
 \midrule
-Actors & Guest, email-verified user, moderator, and administrator \\
-Core packages & Supporting (language and account), 1.~Cost Estimator, 2.~Offline, 3.~Review, 5.~Community, Administration, 6a.~Advisory and offline-pack verification, 6b.~Email and account verification \\
-Demonstration only & 4.~Booking (demo reservation) and 6c.~Payment verification (demo). No money transfer and no live inventory \\
-System boundary & Abhijatri PWA and its controlled management functions \\
-Notation & Solid line: actor association. Dashed arrow labelled \guillemotleft include\guillemotright: mandatory sub-behaviour. Dashed arrow labelled \guillemotleft extend\guillemotright: optional or conditional behaviour. Bold ellipse: primary use case of a package \\
+Actors & Primary actors on the left: guest, member, and verified member (member specialises guest, verified member specialises member). Secondary actors on the right: moderator and superadmin (superadmin specialises moderator). Each specialised role inherits the use cases of the role it specialises \\
+Main use cases & Browse Destinations, Use Offline Pack, Access Account (guest); Manage Profile (member); Share Experience, Reserve Package (verified member); Moderate Content (moderator); Manage Platform (superadmin) \\
+Demonstration only & Reserve Package and Pay (Demo). No money transfer and no live inventory \\
+System boundary & Abhijatri PWA \\
+Notation & Solid arrow from actor to use case: the actor performs it. Hollow-triangle arrow between actors: inheritance. Dashed arrow labelled \guillemotleft include\guillemotright: mandatory sub-behaviour. Dashed arrow labelled \guillemotleft extend\guillemotright: optional or conditional behaviour. Bold ellipse: main use case of an actor \\
 \bottomrule
 \end{tabularx}
 }
@@ -522,11 +522,11 @@ Notation & Solid line: actor association. Dashed arrow labelled \guillemotleft i
 \thispagestyle{plain}
 \vspace*{-21mm}
 \noindent\begin{minipage}[b][150mm][t]{\linewidth}\centering
-  \makebox[\linewidth][c]{\includegraphics[height=181mm]{usecase-model.png}}\par
+  \makebox[\linewidth][c]{\includegraphics[height=181mm]{usecase-model-5roles.png}}\par
   \vspace{1mm}
-  \captionof{figure}{Abhijatri system use case model (UML). Packages 4 and 6c are demonstration-only.}\label{fig:usecase}
+  \captionof{figure}{Abhijatri system use case model (UML) for the five actors: guest, member, verified member, moderator, and superadmin.}\label{fig:usecase}
   \vspace{1mm}
-  {\small Original diagram: \extlink{https://lucid.app/lucidchart/3c63746b-daf8-4da1-9ed0-32f712b0815c/edit?invitationId=inv_a2367b47-ef68-4ead-a3f2-f5632099bf45&page=fM5RpGvEhdCb2\#}{open the editable use case model in Lucidchart}\par}
+  {\small Editable source: \extlink{https://lucid.app/lucidchart/ec4bf35e-3ce5-4a7a-8c73-cd4d9411df9d/edit}{open the use case model in Lucidchart}\par}
 \end{minipage}
 \end{landscape}}
 
