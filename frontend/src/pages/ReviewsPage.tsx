@@ -3,8 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CloudOff, MessageSquareText, ReceiptText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
+import { useDrafts } from '../hooks/useDrafts';
 import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
-import { GuestReviewForm, type SubmittedReview } from '../components/reviews/GuestReviewForm';
+import { GuestReviewForm, type OpenDraftRequest, type SubmittedReview } from '../components/reviews/GuestReviewForm';
+import { SavedDrafts } from '../components/reviews/SavedDrafts';
+import type { StoredDraft } from '../offline/draftStore';
 import { ReceiptPanel } from '../components/reviews/ReceiptPanel';
 import { ReceiptStatusPanel } from '../components/reviews/ReceiptStatusPanel';
 import { RemovalRequestForm } from '../components/reviews/RemovalRequestForm';
@@ -43,6 +46,18 @@ const SwitchLink: React.FC<{ to: string; text: [string, string] }> = ({ to, text
   );
 };
 
+/** An acknowledged draft whose receipt was not confirmed yet, as the receipt panel shows it. */
+const asSubmitted = (d: StoredDraft): SubmittedReview => ({
+  review_id: d.review!.review_id,
+  status: d.review!.status,
+  version: d.review!.version,
+  duplicate_recovered: d.review!.duplicate_recovered,
+  receipt: d.receipt,
+  destinationId: d.destination_id,
+  clientDraftId: d.client_draft_id,
+  member: d.author.kind === 'member',
+});
+
 /** Writing a guest review. `?destination=<id>` preselects the destination. */
 export const WriteReviewPage: React.FC = () => {
   const { t } = useLanguage();
@@ -53,6 +68,11 @@ export const WriteReviewPage: React.FC = () => {
   const { data: catalog, error, loading, reload } = useDestinationCatalog();
   const destinations = catalog?.items ?? null;
   const savedOnly = catalog?.saved ?? false;
+  // Drafts and kept receipts on this device (R15): the list above the form, and any receipt whose
+  // saving was not confirmed (closed before "Done"), shown again until confirmed or 7 days.
+  const drafts = useDrafts();
+  const [openRequest, setOpenRequest] = useState<OpenDraftRequest | null>(null);
+  const unconfirmed = submitted ? null : (drafts.unconfirmed[0] ?? null);
 
   return (
     <div className="flex flex-col gap-6 pb-12 max-w-3xl mx-auto">
@@ -65,6 +85,19 @@ export const WriteReviewPage: React.FC = () => {
           'No account needed. Reviews are published after moderation; you get a receipt when you submit.',
         ]}
       />
+
+      {unconfirmed && (
+        <ReceiptPanel key={unconfirmed.client_draft_id} review={asSubmitted(unconfirmed)} acknowledgedAt={unconfirmed.acknowledged_at} onDone={() => undefined} />
+      )}
+
+      {!submitted && destinations && (
+        <SavedDrafts
+          drafts={drafts.unsent}
+          destinations={destinations}
+          savedOnly={savedOnly}
+          onOpen={(destinationId) => setOpenRequest((r) => ({ destinationId, nonce: (r?.nonce ?? 0) + 1 }))}
+        />
+      )}
 
       {submitted ? (
         <ReceiptPanel review={submitted} onDone={() => setSubmitted(null)} />
@@ -93,7 +126,12 @@ export const WriteReviewPage: React.FC = () => {
           </p>
         </div>
       ) : destinations && destinations.length > 0 ? (
-        <GuestReviewForm destinations={destinations} initialDestinationId={searchParams.get('destination')} onSubmitted={setSubmitted} />
+        <GuestReviewForm
+          destinations={destinations}
+          initialDestinationId={searchParams.get('destination')}
+          onSubmitted={setSubmitted}
+          openRequest={openRequest}
+        />
       ) : (
         <EmptyState title={t('রিভিউ দেওয়ার মতো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations to review yet')} />
       )}

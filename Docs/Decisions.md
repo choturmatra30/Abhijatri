@@ -2,6 +2,19 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-09 (R15 part 2: sending saved drafts)
+
+Owner decisions (Abdullah) for `Offline-Frontend-Guideline.md` tasks 10 and 11.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Where a draft is sent | From the review form. The Write page lists "Saved drafts on this device" with Open, Delete, Clear all and Export; Open loads the draft into the form and Submit sends it. No separate pending list, so the guideline's `READY` state is `DRAFT`. | One place to send and to complete the security check; least new interface. Nothing is sent by itself (RV 7.3). |
+| Reconnect notice | An app-wide banner when the connection returns (and on the first online page of a visit), plus a count on "Write a review". Not shown on the Write page. | The traveller sees unsent drafts wherever they are. |
+| Receipt custody | Every acknowledged review keeps its receipt with its draft until the user confirms saving it ("Done"), or for 7 days; then it is deleted. Applies to all submissions, not only offline ones. | Every submission comes from a stored draft now; a closed tab must not lose the only copy of the receipt. Within Decisions 2026-11-08 and guideline 6.5. |
+| Export | Export only; no import. The file never holds the guest scope secret, the key or an acknowledged receipt; an unsent draft's receipt only after explicit confirmation. | PF 18.2 asks for export; the guideline marks import "where practical". |
+| Key rule | The `Idempotency-Key` is stored on the draft and renewed only when the SHA-256 of the request body (without the Turnstile token) changes. | Same effect as the guideline's `key_revision`, and it also covers a change that did not bump the revision. |
+| Sign-out | With unsent member drafts: ask, then keep or delete (guideline 6.7 default). | Kept drafts are visible only to the same member. |
+
 ## 2026-11-06 (R14 offline destination packs)
 
 | Decision | Choice | Reason |

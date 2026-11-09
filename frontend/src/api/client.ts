@@ -22,15 +22,27 @@ export class ApiError extends Error {
   code: string;
   requestId?: string;
   fieldErrors: FieldError[];
+  /** Seconds from the `Retry-After` header (429, 503, 409 IDEMPOTENCY_REQUEST_IN_PROGRESS), when sent. */
+  retryAfterSeconds?: number;
 
-  constructor(status: number, code: string, message: string, requestId?: string, fieldErrors: FieldError[] = []) {
+  constructor(status: number, code: string, message: string, requestId?: string, fieldErrors: FieldError[] = [], retryAfterSeconds?: number) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
     this.fieldErrors = fieldErrors;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+/** `Retry-After` as seconds: a number of seconds or an HTTP date; undefined when absent or unreadable. */
+export function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
+  if (!value) return undefined;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const at = Date.parse(text);
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
 /** Raised when the request never produced an HTTP response (offline, DNS, CORS, aborted). */
@@ -169,7 +181,14 @@ export async function toApiError(response: Response): Promise<ApiError> {
       // listens and switches the page to the guest view with a "session expired" notice.
       if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
     }
-    return new ApiError(response.status, code, message, request_id, field_errors ?? []);
+    return new ApiError(response.status, code, message, request_id, field_errors ?? [], parseRetryAfter(response.headers.get('Retry-After')));
   }
-  return new ApiError(response.status, `HTTP_${response.status}`, response.statusText || `HTTP ${response.status}`);
+  return new ApiError(
+    response.status,
+    `HTTP_${response.status}`,
+    response.statusText || `HTTP ${response.status}`,
+    undefined,
+    [],
+    parseRetryAfter(response.headers.get('Retry-After')),
+  );
 }

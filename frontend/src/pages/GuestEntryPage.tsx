@@ -11,6 +11,7 @@ import { CATEGORY_LABEL } from '../components/reviews/reviewLabels';
 import { formatNumber } from '../utils/format';
 import { LoadingState, SlowNetworkHint } from '../components/common/StatusViews';
 import { buttonVariants } from '@/components/ui/button';
+import { useGuardedSignOut } from '../components/reviews/useGuardedSignOut';
 
 /**
  * Guest entry (Review.md 3.2 step 1): the guest gives a name, which stays on this device for 30 days
@@ -28,6 +29,8 @@ const textButton = buttonVariants({ variant: 'link', size: 'sm', className: 'px-
 export const GuestEntryPage: React.FC = () => {
   const { t } = useLanguage();
   const { session, status, setGuestName, clearGuestName, startAsNewGuest, signOut } = useSession();
+  // A member with unsent review drafts is asked first whether to keep them (guideline 6.7).
+  const guardedSignOut = useGuardedSignOut();
   const navigate = useNavigate();
   const storedName = session.kind === 'guest' ? session.displayName : null;
   const guestTag = session.kind === 'guest' ? session.guestTag : null;
@@ -76,7 +79,7 @@ export const GuestEntryPage: React.FC = () => {
     const leaveAccount = async () => {
       setLeaving(true);
       try {
-        await signOut(); // the page then re-renders as a guest and shows the name form
+        await guardedSignOut.request(); // the page then re-renders as a guest and shows the name form
       } finally {
         setLeaving(false);
       }
@@ -114,6 +117,7 @@ export const GuestEntryPage: React.FC = () => {
           </button>
           <SlowNetworkHint active={leaving} />
         </div>
+        {guardedSignOut.dialog}
       </div>
     );
   }

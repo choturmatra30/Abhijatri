@@ -15,9 +15,9 @@
 | F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Plan written 20 Oct, awaiting approval:** `Docs/UI-Architecture.md` (language rules, sitemap, flows, component map, fonts, audit). Follow-ups U1 to U6 listed there. |
 | R03 | Bilingual destination list and detail screens | 15 to 22 Oct | **Implemented** against the R02 API, with loading, error and empty states (section 2). |
 | R05 | Account, verification and session screens | 18 to 23 Oct | **Implemented 27 Oct** with R04: `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, server-backed session, `/account/verification`, `/account/appeals`, `/account/notifications` (28 Oct). See `Docs/R04-R05-Checklist.md`. |
-| R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | Not started. No manifest, service worker or IndexedDB yet. |
+| R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | **Implemented and live** (section 5i); real-phone run pending. |
 | R09 | Review form, list, filters, author controls | 20 to 27 Oct | **Guest and member paths implemented**; members add photos and one video (27 Oct). Filters not started. |
-| R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | Not started. |
+| R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | **R13 and R15 part 1 live** (sections 5k, 5l); **R15 part 2 built 9 Nov, not deployed** (section 5m); phone tests pending. |
 
 ## 2. R03: Destination list and detail screens
 
@@ -393,6 +393,31 @@ Evidence (7 Nov 2026): 185 tests pass (11 new: visibility rules, newest draft pe
 
 Found and fixed during the check: an offline draft was hidden from the same guest back online; switching destination moved an existing draft; a sign-in change could clear the form; a destination change could drop the last half second of typing.
 
+## 5m. R15 part 2: sending saved drafts after reconnect, receipt custody, export (9 November 2026)
+
+`Offline-Frontend-Guideline.md` tasks 10 and 11, plus the guest scope write-through of 4.3 (Decisions 2026-11-08). Built on `abd`; **not deployed yet**.
+
+| Item | Files |
+|---|---|
+| Draft record gains the guest scope copy, a stored `Idempotency-Key` with the SHA-256 of the request it was sent with, the state (`DRAFT`, `SUBMITTING`, `NEEDS_ATTENTION`, `ACKNOWLEDGED`), the last error, `Retry-After` and the acknowledgement. Drafts saved by part 1 are filled in on read | `offline/draftStore.ts` |
+| Sending one stored draft and the guideline 6.4 answer table (`classifyFailure`) | `offline/submitDraft.ts` |
+| Form sends the stored draft (saved first), honours `Retry-After`, shows the last attempt's answer | `components/reviews/GuestReviewForm.tsx`, `hooks/useReviewDraft.ts`, `components/reviews/draftText.ts` |
+| "Saved drafts on this device" list: Open, Delete, Clear all (each asks first), Export, draft-loss warning when persistence was refused | `components/reviews/SavedDrafts.tsx`, `pages/ReviewsPage.tsx`, `hooks/useDrafts.ts` |
+| Receipt kept until "Done" or 7 days, shown again if the tab closed before "Done"; trap-2 note ("the first version was received") | `components/reviews/ReceiptPanel.tsx` |
+| App-wide banner when the connection returns and a count on "Write a review" | `components/offline/PendingDraftsBanner.tsx`, `components/layout/AppLayout.tsx`, `Sidebar.tsx` |
+| Sign-out with unsent member drafts: keep or delete (guideline 6.7 default) | `components/reviews/useGuardedSignOut.tsx`, `SignOutDraftsDialog.tsx`, `Sidebar.tsx`, `pages/GuestEntryPage.tsx` |
+| Guest scope secret written through to IndexedDB `meta`; restored from it when `localStorage` lost it | `offline/guestScope.ts`, `api/reviews.ts`, `main.tsx` |
+| Start-up: a draft left `SUBMITTING` goes back to `DRAFT`; receipts acknowledged over 7 days ago are deleted | `maintainDrafts` in `offline/draftStore.ts` |
+| `Retry-After` read into `ApiError.retryAfterSeconds`; date and time display | `api/client.ts`, `utils/format.ts` |
+
+**Owner decisions (9 Nov 2026).** A draft is sent from the review form, opened from the saved-drafts list (not a separate pending list), so guideline state `READY` is `DRAFT` here; nothing is sent by itself. The reconnect notice is an app-wide banner plus a count in the sidebar. Every acknowledged review keeps its receipt on the device until the user confirms saving it, or 7 days. Export only, no import.
+
+**Behaviour.** The key is reused while the request is unchanged and renewed when it changes; the draft id, receipt and scope copy never change, so a retry after a lost response is recovered by the server and never makes a second review. An edit after a lost response is sent with a new key; the server keeps the first version and the receipt screen says so, with a link to edit (receipt page for guests, My reviews for members). `IDEMPOTENCY_KEY_REUSED` renews the key and keeps the identity; `DRAFT_ALREADY_SUBMITTED` keeps the text under a new identity and removes the spent one. `429` keeps the draft, says when it can be sent, and blocks Send until then. Deleting the draft that is open in the form clears the form. The export never contains the guest scope secret, the key or any acknowledged receipt; an unsent draft's receipt only when the user ticks it.
+
+Evidence (9 Nov 2026): 227 tests pass (34 new in `offline/submitDraft.test.ts`: the answer table, D7, D9, D10, D11, D14, D17, D20, D22, scope write-through and restore). Types and build clean; first-visit JavaScript 126.8 KB gzip (122.5 before; budget 200). Built app in Chromium (Playwright) against the live API for reads, with **every review POST answered by the test, so no review was created**: lost response then retry used the same draft id, receipt and key and showed "This review was already submitted"; the receipt stayed in IndexedDB, came back after a reload, and was deleted on Done; the IndexedDB scope copy equals `localStorage`; a draft written offline showed no banner while offline, then the banner "You have 1 unsent review draft" and sidebar count 1 after reconnect, no request sent by itself, no banner on the Write page; `429` with `Retry-After: 3600` kept the draft, said "can be sent after 9 Nov 2026, 20:52", and a second Submit sent nothing; Bangla text and digits in the list; Export without receipts, scope or key; Delete from the list cleared the open form; no horizontal overflow at 390 px. **Not run in a browser:** the member sign-out dialog (no test account used; covered by unit tests), D8 and D21 on a real phone.
+
+Found and fixed during the check: a draft written offline (sign-in unknown) was not counted by the banner or sidebar until the form was opened; the wait time showed a date without the time.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
@@ -427,7 +452,7 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Item | Task |
 |---|---|
 | Cloudflare Turnstile widget. Production requires `turnstile_token`; local development has it disabled. | R09 follow-up. Needs the site key and the CSP entry in PF 16.3. |
-| Guest scope secret in IndexedDB. It is in `localStorage` until the draft store exists. | R15 |
+| Guest scope secret with IndexedDB as the reader. `localStorage` stays the reader for M1; IndexedDB holds a write-through copy (section 5m, Decisions 2026-11-08). | Post-M1 |
 | Offline drafts, installable PWA, service worker, destination packs | R12, R13, R15 |
 | Member review path; working sign-in, registration and verification screens | R05, R07, R09 (after R04) |
 | Review filters, edit-pending, appeals, reports | R09, R07, R11 |

@@ -1,17 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Copy, Download, KeyRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2, Copy, Download, Info, KeyRound } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { deleteDraft, RECEIPT_KEEP_DAYS } from '../../offline/draftStore';
+import { formatDateTime, formatNumber } from '../../utils/format';
 import { STATUS_LABEL } from './reviewLabels';
 import type { SubmittedReview } from './GuestReviewForm';
 
 /**
- * Shows the receipt once after the server acknowledges the review (PF 13.5 step 2).
- * The receipt is held only in memory; nothing here writes it to storage.
+ * Shows the receipt after the server acknowledges the review (PF 13.5 step 2). The receipt is kept
+ * with the acknowledged draft on this device until the user confirms saving it ("Done"), or for
+ * 7 days (Offline-Frontend-Guideline 6.5, Decisions 2026-11-08); then it is deleted.
  */
-export const ReceiptPanel: React.FC<{ review: SubmittedReview; onDone: () => void }> = ({ review, onDone }) => {
-  const { t } = useLanguage();
+export const ReceiptPanel: React.FC<{ review: SubmittedReview; onDone: () => void; acknowledgedAt?: string | null }> = ({
+  review,
+  onDone,
+  acknowledgedAt,
+}) => {
+  const { language, t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+
+  const finish = async () => {
+    setFinishing(true);
+    // Confirmed: the receipt leaves the device now. If storage fails, the 7-day cleanup removes it.
+    if (review.clientDraftId) await deleteDraft(review.clientDraftId);
+    setFinishing(false);
+    onDone();
+  };
+  const keepDays = formatNumber(RECEIPT_KEEP_DAYS, language);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Move focus to the result so keyboard and screen-reader users land on the receipt.
@@ -59,12 +77,45 @@ export const ReceiptPanel: React.FC<{ review: SubmittedReview; onDone: () => voi
           {t(...STATUS_LABEL[review.status])}
         </h2>
       </div>
+      {acknowledgedAt && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            `এই রিভিউটি ${formatDateTime(acknowledgedAt, language)}-এ জমা হয়েছিল, কিন্তু রিসিপ্ট সংরক্ষণের নিশ্চিতকরণ বাকি ছিল।`,
+            `This review was submitted on ${formatDateTime(acknowledgedAt, language)}, but saving its receipt was not confirmed yet.`,
+          )}
+        </p>
+      )}
       <p className="text-sm font-body text-on-surface dark:text-on-dark">
-        {t(
-          'নিচের রিসিপ্টটি এখনই সংরক্ষণ করুন। এটি আর দেখানো হবে না এবং হারালে পুনরুদ্ধার করা যাবে না।',
-          'Save the receipt below now. It will not be shown again and cannot be recovered if lost.',
-        )}
+        {review.clientDraftId
+          ? t(
+              `নিচের রিসিপ্টটি এখনই সংরক্ষণ করুন। নিচে নিশ্চিত না করা পর্যন্ত এটি এই ডিভাইসে রাখা থাকবে, সর্বোচ্চ ${keepDays} দিন; তারপর মুছে যাবে। হারালে পুনরুদ্ধার করা যাবে না।`,
+              `Save the receipt below now. It stays on this device until you confirm below, for at most ${keepDays} days, then it is deleted. It cannot be recovered if lost.`,
+            )
+          : t(
+              'নিচের রিসিপ্টটি এখনই সংরক্ষণ করুন। এটি আর দেখানো হবে না এবং হারালে পুনরুদ্ধার করা যাবে না।',
+              'Save the receipt below now. It will not be shown again and cannot be recovered if lost.',
+            )}
       </p>
+      {review.editedAfterFirstSend && (
+        <p role="status" className="flex items-start gap-2 p-3 rounded-xl border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 text-sm text-amber-900 dark:text-amber-100">
+          <Info size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            {t(
+              'আপনার পাঠানো প্রথম সংস্করণটি সার্ভারে পৌঁছেছিল; পরে এই ডিভাইসে করা পরিবর্তনগুলো যোগ হয়নি। ',
+              'The first version you sent had reached the server; the changes you made on this device afterwards were not applied. ',
+            )}
+            {review.member ? (
+              <Link to={`/account/reviews/${encodeURIComponent(review.review_id)}`} className="font-semibold underline underline-offset-2">
+                {t('আমার রিভিউ থেকে সম্পাদনা করুন', 'Edit it from My reviews')}
+              </Link>
+            ) : (
+              <Link to="/reviews/receipt" className="font-semibold underline underline-offset-2">
+                {t('রিসিপ্ট দিয়ে সম্পাদনা করুন', 'Edit it with the receipt')}
+              </Link>
+            )}
+          </span>
+        </p>
+      )}
       {Boolean(review.mediaUploaded) && (
         <p className="text-sm text-emerald-800 dark:text-emerald-300">
           {t(
@@ -115,8 +166,8 @@ export const ReceiptPanel: React.FC<{ review: SubmittedReview; onDone: () => voi
       </label>
       <button
         type="button"
-        onClick={onDone}
-        disabled={!saved}
+        onClick={() => void finish()}
+        disabled={!saved || finishing}
         className="self-start min-h-[44px] px-5 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold font-title disabled:opacity-50"
       >
         {t('সম্পন্ন', 'Done')}
