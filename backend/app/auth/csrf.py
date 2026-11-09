@@ -8,6 +8,7 @@ authenticated write. Rotating the session invalidates it. The Origin check is on
 import base64
 import hmac
 import secrets
+from urllib.parse import urlsplit
 
 from fastapi import Request
 
@@ -44,5 +45,11 @@ def require_valid(request: Request, binding: str) -> None:
 def check_origin(request: Request) -> None:
     """Browsers always send Origin on cross-site writes; a foreign one is refused outright."""
     origin = request.headers.get("origin")
-    if origin and origin.rstrip("/") not in get_settings().cors_origins:
+    if not origin:
+        return
+    # The staff dashboard is served by this API itself (/staff), so its writes come from our own host. A foreign
+    # site cannot send an Origin whose host is this API's Host header, so that stays safe.
+    if urlsplit(origin).netloc == request.headers.get("host"):
+        return
+    if origin.rstrip("/") not in get_settings().cors_origins:
         raise ApiError("CSRF_INVALID")
