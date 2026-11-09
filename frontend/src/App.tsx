@@ -22,6 +22,7 @@ import { DestinationDetailPage } from './pages/DestinationDetailPage';
 const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
   lazy(() => load().then((m) => ({ default: m[name] })));
 const SignInPage = page(() => import('./pages/SignInPage'), 'SignInPage');
+const PrivacyPage = page(() => import('./pages/PrivacyPage'), 'PrivacyPage');
 const RegisterPage = page(() => import('./pages/RegisterPage'), 'RegisterPage');
 const VerifyEmailPage = page(() => import('./pages/VerifyEmailPage'), 'VerifyEmailPage');
 const ForgotPasswordPage = page(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
@@ -76,6 +77,7 @@ export const App: React.FC = () => {
               <Route element={<PublicLayout />}>
                 <Route index element={<LandingPage />} />
                 <Route path="guest" element={<GuestEntryPage />} />
+                <Route path="privacy" element={<PrivacyPage />} />
                 <Route path="login" element={<SignInPage />} />
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="verify-email" element={<VerifyEmailPage />} />
