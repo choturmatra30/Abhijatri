@@ -1,5 +1,6 @@
 """One-time Gmail authorisation for EMAIL_PROVIDER=gmail: prints a refresh token.
 
+    python -m app.jobs.gmail_authorize        (reads GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET from backend/.env)
     python -m app.jobs.gmail_authorize --client-id <id> --client-secret <secret>
 
 Run it in your own terminal (not through a chat tool): it opens Google's consent page for the
@@ -25,9 +26,17 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105 - an endpoint, n
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Get a Gmail API refresh token (scope gmail.send).")
-    parser.add_argument("--client-id", required=True)
-    parser.add_argument("--client-secret", required=True)
+    parser.add_argument("--client-id", help="defaults to GMAIL_CLIENT_ID from backend/.env")
+    parser.add_argument("--client-secret", help="defaults to GMAIL_CLIENT_SECRET from backend/.env")
     arguments = parser.parse_args()
+    if not arguments.client_id or not arguments.client_secret:
+        from app.config import get_settings
+
+        settings = get_settings()
+        arguments.client_id = arguments.client_id or settings.gmail_client_id
+        arguments.client_secret = arguments.client_secret or settings.gmail_client_secret
+    if not arguments.client_id or not arguments.client_secret:
+        parser.error("no client id/secret: pass --client-id and --client-secret, or set them in backend/.env")
 
     state = secrets.token_urlsafe(16)
     result: dict[str, str] = {}

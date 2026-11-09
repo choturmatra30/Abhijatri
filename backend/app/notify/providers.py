@@ -10,6 +10,7 @@ accepted, and raises ``SendAmbiguous`` when it may have been (a timeout after th
 """
 
 import base64
+import contextlib
 import logging
 import re
 import smtplib
@@ -236,7 +237,15 @@ class GmailProvider:
             )
             if response.status_code != 200:
                 # invalid_grant means the token was revoked or expired: fix the configuration, then the retry works.
-                raise SendFailed(f"gmail token {response.status_code}", code="gmail_token")
+                reason = ""
+                with contextlib.suppress(ValueError):
+                    reason = str(response.json().get("error", ""))[:40]  # e.g. invalid_grant; never the token itself
+                logger.error(
+                    "gmail refresh token refused (%s). If invalid_grant: the token expired or was revoked. A Google OAuth "
+                    "app left in 'Testing' expires tokens after 7 days; publish it ('In production'), then run "
+                    "python -m app.jobs.gmail_authorize and put the new GMAIL_REFRESH_TOKEN in .env and Railway.", reason or response.status_code,
+                )
+                raise SendFailed(f"gmail token {response.status_code} {reason}".strip(), code="gmail_token")
             body = response.json()
             GmailProvider._token = (str(body["access_token"]), time.monotonic() + float(body.get("expires_in", 3600)))
             return GmailProvider._token[0]
