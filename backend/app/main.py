@@ -27,6 +27,7 @@ from app.ops import events
 from app.ops.routes import router as ops_router
 from app.public_reports import router as public_reports_router
 from app.scheduler import Scheduler
+from app.staff_site import mount_staff_site
 from app.tours.admin_routes import router as tour_admin_router
 from app.tours.realtime import router as realtime_router
 from app.tours.routes import router as tours_router
@@ -191,6 +192,7 @@ def create_app() -> FastAPI:
     application.include_router(verification_router)
     application.include_router(tours_router)
     application.include_router(realtime_router)
+    mount_staff_site(application)  # the staff dashboard at /staff, when it has been bundled
     return application
 
 
