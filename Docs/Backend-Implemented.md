@@ -1,6 +1,6 @@
 # Backend Implementation Record
 
-**Status:** Current as of 20 October 2026 (category ratings and the guest welcome counter added; section 5).
+**Status:** Current as of 11 November 2026 (E01 cost planner rule specification frozen; section 10). Earlier: 20 October 2026 (category ratings and the guest welcome counter; section 5).
 **Scope of this file:** what the backend actually does today, how it was built, and the evidence for each claim. The headline section is **R02**, the destination, advisory and contact data services. The sections after it record the shared backend work that was built alongside R02 because the approved API contract (`Docs/api/API.md`) required it.
 **Rule:** this file claims only what the repository contains and a test or migration check demonstrates. Anything not yet built is listed under "Not implemented" and in `Docs/Implemented.md`.
 **Related documents:** `Docs/api/API.md` (contract), `Docs/Schema.md` (tables), `Docs/Architecture.md` (environment variables), `Docs/Decisions.md` (decisions and reasons), `Docs/Implemented.md` (project-wide status).
@@ -1458,6 +1458,7 @@ CI (`.github/workflows/ci.yml`) runs on every pull request: backend (ruff, mypy,
 | R14 | Pack manifest, version, freshness | Done, merged and live | 5.23 |
 | R15 | Offline drafts, idempotent reconnect | Frontend; part 1 live (offline form, autosave, restore); part 2 (pending list, send after reconnect) not built | 5.24, 7 |
 | R16 | Idempotency-key storage and expiry | Done, live since PR #39; test group R passed in Chrome on 8 Nov | 5.24, 7 |
+| E01 | Freeze rule engine, pricing units, confidence and scope | Specification `planner-rules-1.0.0` frozen with constants (`app/planner/rules.py`), 12 hand-derived examples and 32 tests; **no engine, tables or routes** (E06, E07); approval pending | 10 |
 | R17 to R20 | QA and release | Not tracked in this record | |
 
 B6 was closed on 8 November: Railway and local development use the transaction pooler (section 7). B1 was closed on 6 November by correcting API.md 5.10: `counted_rating` is the contribution currently in an aggregate, for Guest and Member reviews alike.
@@ -1627,3 +1628,49 @@ Full record, test cases and defect list: [Testing-and-Implementation-Irfan.md](T
 - Staff verification details read the liveness gesture from the challenge table.
 - Test `test_chat_and_tour_reports_reach_the_staff_queue_and_resolve_under_lease`; 22 tours and verification tests pass, `ruff` and `mypy` clean.
 - Full backend suite after the fixes: 890 tests, 888 passed on the first run; the 2 failures were the OpenAPI snapshot and the `API.md` route list, both updated for the new resolve route and re-run green.
+
+## 10. E01: Cost planner rule specification freeze (11 November 2026)
+
+### 10.1 Task and requirements
+
+Gantt **E01** (M2, owner Shahriar Islam, support Muhtasim and Irfan, planned 3 to 8 November): "Freeze rule engine, pricing units, confidence and scope". Acceptance: "Rule specification and worked examples approved". Risk note: no ML. It gates E02 to E08, E11 and E12. Requirements: FR08, FR09, O3, US2. `Features/Execution.md` already named `Features/Cost-Planner.md` as the specification, but the file did not exist.
+
+Scope agreed for this task: the specification, a versioned constants module and hand-derived worked examples proved by tests. **No tables, routes, migration or engine** (those are E06 and E07).
+
+### 10.2 What was delivered
+
+| File | Purpose |
+|---|---|
+| `Features/Cost-Planner.md` | Frozen rule specification `planner-rules-1.0.0`: inputs and limits, price record contract, eight pricing units, season factors, calculation order, rounding, confidence and freshness, result shape, twelve worked examples, validation protocol, traceability, approval record. Fourteen recorded decisions (D1 to D14). |
+| `backend/app/planner/rules.py` | The single home of the constants: enums (`PricingUnit`, `Tier`, `SourceType`, `Category`, `SeasonBand`, `ConfidenceLabel`), `UNIT_RULES`, season factors, confidence weights and authority values, thresholds, refresh intervals, display rounding, input limits, `RULES_VERSION`. Constants only: no database, no web import. |
+| `backend/tests/planner_oracle.py` | Test-only reference calculator in `Decimal` that follows the written algorithm. E07 must reproduce the same fixtures. |
+| `backend/tests/planner_examples.json` | Twelve examples with inputs and hand-derived expected values (lines, totals, per person, display, confidence, label, warnings). Prices are illustrative placeholders, not research. |
+| `backend/tests/test_planner_rules.py` | Seven test groups, 32 test cases (PLN-E01-01 to 07). |
+
+### 10.3 The frozen rules in brief
+
+| Topic | Rule |
+|---|---|
+| Cost | `K^v = p^v x q x sum(s)` for low, expected, high; exact `Decimal`, rounded only for display (nearest BDT 10, halves up; per person from the unrounded total) |
+| Units | person, entry, meal (individual); room, vehicle, group, day/night, trip (shared). Room, vehicle, group quantity is `ceil(n / capacity)`; periods per unit as in Cost-Planner.md 5 |
+| Season | Factor of a date is the highest of regular 1.00, weekend (Fri, Sat) 1.15, peak 1.30, public holiday 1.25; never stacked. Official records and single-occurrence units always use 1.00 |
+| Confidence | `0.35A + 0.25F + 0.20R + 0.20G`; authority 1.0 / 0.8 / 0.6; fresh 1.0, stale 0.5; High at 0.80, Medium at 0.50, Low below with a warning |
+| Freshness | Stale after 12 months (official) or 3 months (others) and used with a warning; expired (`valid_until` before today) excluded and listed |
+| Missing data | An item with no usable record is `no_data`, never priced at 0; the estimate is `incomplete` and its label is capped at Medium |
+
+### 10.4 Decisions taken (proposal defects found)
+
+- **Meals were not season-scaled in the proposal example** while rooms and vehicles were. Decision D1: meals use the season factor (Thu 1.00, Fri and Sat 1.15, so 9.90 for three meals a day). The proposal case total changes from 35,660 to **36,560** (low 27,758, high 48,540). The proposal itself was not edited.
+- The proposal's per-category confidence values (0.90, 0.70, 0.60, 0.50, 0.95) cannot be produced by its own formula from the given prices. The worked example now derives confidence from the components: overall **0.7898, Medium** (the proposal printed 0.71).
+- Undefined points were frozen: eligible travellers equal party size (D2), rounding order (D3), division by zero in agreement (D4), reports for official sources (D5), empty totals (D6), missing data (D7), no tier fallback (D8), choosing among several records (D9), `basis` for group and day/night units (D10), several bands on one date (D11), peak and holiday values (D12), which date a night belongs to (D13), expiry measured on the estimate date (D14).
+
+### 10.5 Tests and evidence (11 November 2026)
+
+- `tests/test_planner_rules.py`: **32 passed**. It checks internal validity of the constants, that the JSON block in `Cost-Planner.md` equals `rules.py` exactly, that all twelve hand-derived examples are reproduced by the oracle, the proposal case with seasoned meals, invariants for every example (ordering, shared plus individual equals total, per person times party, display multiples of 10), a mutation check (changing a season factor, authority weight, refresh interval or threshold fails the doc guard and at least one hand example), and that the package imports no database or web code.
+- The expected values were derived by hand first and matched the oracle on its first run (no fixture was adjusted to fit the code).
+- Backend unit suite (`pytest -m "not integration"`): 413 passed, 1 skipped (32 new). `ruff check` clean, `mypy` clean (110 source files). Integration tests need PostgreSQL and were not run for this task because it adds no table, migration or route.
+- No change to `Docs/api/API.md`, `openapi-v1.json` or the schema: nothing public was added.
+
+### 10.6 Not built
+
+Price research E02 to E05 (real prices and sources); catalogue tables, units and freshness model E06; rule engine and confidence calculation E07; estimator API and screens E07, E08; admin price maintenance E10; saved brief E09; held-out trips and baseline E11; engine test execution E12. **Approval by Shahriar Islam and review by Irfan are pending** (Cost-Planner.md 17), so E01 is frozen and evidenced but not yet signed off in the Gantt.

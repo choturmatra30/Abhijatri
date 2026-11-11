@@ -8,7 +8,7 @@
 ifeq ($(OS),Windows_NT)
 # Never WSL's bash (it cannot see Windows npm/uv/railway): use Git's sh (8.3 paths, no spaces). Falls back to sh in PATH.
 SHELL := $(firstword $(wildcard C:/PROGRA~1/Git/bin/sh.exe C:/PROGRA~2/Git/bin/sh.exe) sh)
-OPEN := cmd //c start ""
+OPEN := cmd /c start ""
 # Git's sh rewrites arguments such as /staff/ into Windows paths; this switch turns that off.
 export MSYS_NO_PATHCONV := 1
 else
@@ -45,12 +45,13 @@ EMAIL ?=
 ROLE ?= moderator
 LIVE_API ?= https://abhijatri-backend.up.railway.app
 
-.PHONY: help backend frontend staff staff-live staff-bundle list-staff superadmin moderator revoke-role bootstrap reset-mfa gmail-token test-mail
+.PHONY: help backend frontend staff staff-open staff-live staff-bundle list-staff superadmin moderator revoke-role bootstrap reset-mfa gmail-token test-mail
 
 help:
 	@echo "make backend                         start the API on :8000 (local)"
 	@echo "make frontend                        start the member app on :5173"
 	@echo "make staff                           start the staff app (moderator + superadmin) on :5175"
+	@echo "make staff-open                      open the LIVE staff dashboard (superadmin / moderator) in your browser"
 	@echo "make staff-live                      staff app on http://localhost:5175 using the PRODUCTION API (opens the browser)"
 	@echo "make staff-bundle                    build the staff app into the API (served at /staff after you commit and deploy)"
 	@echo "make list-staff [PROD=1]             who holds a staff role"
@@ -70,6 +71,9 @@ frontend:
 
 staff:
 	cd staff && npm run dev
+
+staff-open:
+	$(OPEN) $(LIVE_API)/staff/
 
 # Local page, production data: for signing in as the real superadmin or moderator. Change LIVE_API if the API host changes.
 

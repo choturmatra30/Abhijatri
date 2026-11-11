@@ -1,6 +1,6 @@
 # Implemented status
 
-Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 7 November 2026 (R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
+Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 11 November 2026 (E01 cost planner rules); earlier 7 November 2026 (R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
 
 | Area | Status | Evidence |
 |---|---|---|
@@ -27,6 +27,7 @@ Claims here are limited to what is in the repository and evidenced by a test, mi
 | `Idempotency-Key` replay (WP4), edit-pending, appeals, reports (WP6, WP7), CSRF and credentialed CORS (WP9), authentication (WP10) | Not implemented | `Docs/api/API.md` section 4. |
 | Redis, CDN, media pipeline | Deferred | Decisions.md scope control. |
 | Offline pack API: manifest, versioned download, freshness (R14, WP11) | Implemented (6 Nov 2026) | `Docs/Backend-Implemented.md` section 5.23; `Docs/api/API.md` 5.23 |
+| E01 Cost planner rule specification (units, season factors, confidence, rounding, 12 hand-derived examples; constants in code) | Specification frozen 11 Nov 2026, **approval pending**; engine, catalogue and API not built (E06, E07) | `Features/Cost-Planner.md`, `app/planner/rules.py`, `tests/test_planner_rules.py` (32 tests); `Docs/Backend-Implemented.md` section 10 |
 
 ## R02: Destination, advisory and contact data services (19 October 2026)
 
