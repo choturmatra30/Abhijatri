@@ -454,3 +454,11 @@ Owner request: a user should not have to search for a review by its review ID an
 | Keyword search | Not built in the client. It waits for a server search over title and text (P4b). | Owner decision (11 Nov 2026). The list returns only titles, so a search on the device would miss words in the review text. |
 | "Reported" | Means "my reviews that other people reported". Not built: the server does not tell an author this, and it needs a privacy decision (P4c). | Owner decision (11 Nov 2026). |
 | 20-character limit | The limit meant is the review note's minimum of 20 characters. It is enforced by the server (`NOTE_MIN`), so the change is the backend's (P4d). The form already takes the limit from `GET /review-parameters` and will follow it. The new minimum is proposed as 1 (the note stays required); to be confirmed. | Owner decision (11 Nov 2026). Changing only the client would make the server refuse short notes with `422`. |
+
+## 2026-11-11 (Phase 1 update 5: side menu in the staff dashboard)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Section navigation of the staff dashboard | A side menu behind a hamburger button replaces the row of ten section buttons in the top bar. Open beside the page from 960 px; an overlay below that. | Owner request (11 Nov 2026). Ten buttons wrapped onto two or three lines and pushed the work queue down. |
+| What did not change | The sections, their order, who sees them (role), every screen, and every API call. The type filters inside a screen stay as buttons. | Navigation only. |
+| Who changed it | Abdullah, in `staff/src/App.tsx` and `staff/src/styles.css`. The staff app is otherwise Muhtasim's. The bundle the API serves at `/staff` was not rebuilt. | The owner asked for it as a frontend update. Rebuilding writes into `backend/`, so it is left to the backend owner (`Handoff-Phase1-Updates.md` P5). |

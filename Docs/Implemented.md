@@ -1,6 +1,6 @@
 # Implemented status
 
-Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 11 November 2026 (Phase 1 updates 1 to 4 frontend; 9 November: R15 part 2 frontend; 7 November: R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
+Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 11 November 2026 (Phase 1 updates 1 to 5 frontend; 9 November: R15 part 2 frontend; 7 November: R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
 
 | Area | Status | Evidence |
 |---|---|---|
@@ -73,6 +73,7 @@ Full account: [`Docs/Frontend-Implemented.md`](Frontend-Implemented.md). Evidenc
 | Phase 1 update 2: the review form asks for all seven category ratings and no overall rating; the overall rating is their rounded mean | Implemented in the web client on `abd` (11 Nov 2026), not deployed. **The server does not enforce it yet** (`Handoff-Phase1-Updates.md` P2); Review.md amendment A6 awaits the scope owner | `Docs/Frontend-Implemented.md` section 5o; `frontend/src/api/reviews.test.ts` |
 | Phase 1 update 3: a named guest sees "Exit" instead of "Sign out" (sidebar and `/guest`) | Implemented on `abd` (11 Nov 2026), not deployed. Label only; no backend change | `Docs/Frontend-Implemented.md` section 5p |
 | Phase 1 update 4: finding your own reviews without the review ID and receipt | **Part:** a member is sent to "My reviews" instead of "Check with receipt" (on `abd`, 11 Nov 2026, not deployed). **Not built, needs the backend** (`Handoff-Phase1-Updates.md` P4a to P4d): a guest's list of reviews, keyword search, the "reported" filter, removing the 20-character note minimum | `Docs/Frontend-Implemented.md` section 5q |
+| Phase 1 update 5: staff dashboard sections in a side menu behind a hamburger button | Implemented in `staff/` on `abd` (11 Nov 2026). **Not live:** the `/staff` bundle in `backend/app/staff_site` is not rebuilt (`Handoff-Phase1-Updates.md` P5) | `Docs/Frontend-Implemented.md` section 5r; `Docs/Moderation-Dashboard-Specification.md` 5.2 |
 | Interactive destination selector with licensed, self-hosted, credited Commons photos on the landing page | Implemented (4 Nov 2026) | `Docs/Frontend-Implemented.md` section 5c; `Docs/Image-Credits.md` |
 | shadcn/ui on Tailwind 4 with a new stone and green theme; shared buttons, inputs and toggles migrated | Implemented, partial migration (4 Nov 2026) | `Docs/Frontend-Implemented.md` section 5d |
 | Landing page with guest and sign-in paths; sign-in screen shown but disabled until R04 | Implemented (20 Oct 2026) | `Docs/Frontend-Implemented.md` section 3a |

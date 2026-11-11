@@ -10,7 +10,7 @@
 | 2 | Remove the overall rating; calculate it from the parameter ratings | **Done in the web client (11 Nov 2026)** | **Yes: [P2](#p2-the-server-calculates-the-overall-rating)** | [T2](#t2-tests-for-update-2) |
 | 3 | "Exit" instead of "Sign out" for a guest | **Done (11 Nov 2026)** | No | [T3](#t3-tests-for-update-3) |
 | 4 | No search by review ID and receipt; "My reviews" with keyword search; remove the 20-character limit | **Part done (11 Nov 2026):** members are sent to "My reviews". The rest waits for the backend | **Yes: [P4a](#p4a-a-guests-own-reviews-without-the-review-id-and-receipt), [P4b](#p4b-keyword-search-in-my-reviews), [P4c](#p4c-which-of-my-reviews-were-reported), [P4d](#p4d-remove-the-20-character-minimum-of-the-review-note)** | [T4](#t4-tests-for-update-4) |
-| 5 | Hamburger side menu for the moderation queue | Not started | To be listed | To be listed |
+| 5 | Hamburger side menu for the moderation queue | **Done in `staff/` (11 Nov 2026)**; not live until the bundle is rebuilt | **Yes: [P5](#p5-rebuild-the-staff-bundle-and-review-the-change)** | [T5](#t5-tests-for-update-5) |
 
 ---
 
@@ -228,3 +228,49 @@ Run on the deployed site after this work is merged.
 | T4.9 | Sign out. | The group shows "Check with receipt" again. |
 
 **Checked by the frontend (11 Nov 2026):** none in a browser; all of these need a member account. Types, unit tests and build pass. **After the backend work:** tests for the guest list, the search box, the "Reported" filter and a short note will be added here.
+
+---
+
+## Update 5: side menu for the moderation dashboard
+
+The staff dashboard (`staff/`, served by the API at `/staff`) showed its ten sections as a row of buttons in the top bar. They are now in a side menu that a hamburger button opens and closes.
+
+| Part | Behaviour |
+|---|---|
+| Hamburger button | Top left, before the title. Says "Open menu" or "Close menu" to a screen reader. |
+| Wide screen (960 px and more) | The menu starts open on the left, beside the page. The button hides it to give the page the full width. |
+| Narrow screen | The menu starts closed. The button slides it over the page. It closes when a section is chosen, on Escape, or on a press outside it. |
+| Sections | The same ones, in the same order, with the same role rule (Staff and Notifications only for a superadmin). The current section is highlighted and its name is shown next to the title. |
+| Not changed | Every screen, every API call, sign-in, the language and Sign out buttons. |
+
+Files: `staff/src/App.tsx`, `staff/src/styles.css`. Nothing else in `staff/` changed.
+
+## P5: rebuild the staff bundle and review the change
+
+**Owner:** Muhtasim (the staff app and the bundle), Shahriar (merge and deploy). **Priority:** medium; the change is not live until this is done.
+
+1. **Review.** The staff app is Muhtasim's; this change was made by Abdullah at the owner's request. Please read the diff of `staff/src/App.tsx` (the shell only).
+2. **Rebuild the bundle.** The API serves the copy in `backend/app/staff_site`, which is a committed build. Run `make staff-bundle`, commit `backend/app/staff_site`, and deploy. Abdullah did not run it, because it rewrites files under `backend/`.
+3. **Content-Security-Policy.** The change adds no inline style and no new script, font or image, so `STAFF_HEADERS` in `backend/app/staff_site.py` needs no change. It uses the `inert` attribute (supported by current Chrome, Edge, Firefox and Safari).
+4. **Check with a real sign-in.** The frontend check used a stand-in API with a made-up session, so it could not open real tasks. Please confirm the queue, a lease countdown and a decision still work with the menu open and closed.
+
+**Done when:** `/staff` on the deployed API shows the hamburger button and the side menu.
+
+## T5: tests for update 5
+
+Run on the deployed `/staff` after P5, signed in as staff.
+
+| No. | Steps | Expected |
+|---|---|---|
+| T5.1 | Sign in as a superadmin on a laptop. | A side menu on the left with ten sections; Queue is highlighted; the top bar reads "Moderation dashboard · Queue". No row of section buttons in the top bar. |
+| T5.2 | Sign in as a moderator. | Eight sections: no Staff and no Notifications. |
+| T5.3 | Choose each section in turn. | The screen changes, the chosen section is highlighted, the top bar shows its name, and the menu stays open. |
+| T5.4 | Press the hamburger button. | The menu hides and the page uses the full width. Press again: it returns. |
+| T5.5 | Claim a task, then open and close the menu, then decide the task. | The claim, the countdown and the decision are not affected. |
+| T5.6 | Phone or a window under 960 px wide. | The menu is closed at first. The button opens it over the page with a dark backdrop. |
+| T5.7 | Narrow: choose a section. Then open the menu and press outside it. Then open it and press Escape. | Each closes the menu. After a choice, the chosen section is shown. |
+| T5.8 | Narrow, keyboard only: open the menu and press Tab repeatedly. | Focus starts on the current section and stays inside the menu; the page behind cannot be reached. After closing, focus is on the hamburger button. |
+| T5.9 | Switch to Bangla. | The menu shows the Bangla section names; the button's label is Bangla for a screen reader. |
+| T5.10 | Both widths. | Nothing scrolls sideways. |
+
+**Checked by the frontend (11 Nov 2026):** T5.1, T5.3, T5.4, T5.6, T5.7, the focus part of T5.8 and T5.10, in Chrome with a stand-in API (a made-up superadmin session and empty lists). **Not checked:** T5.2, T5.5, T5.9, Tab staying inside the menu, a real phone.

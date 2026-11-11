@@ -471,6 +471,19 @@ Not changed: the `/reviews/receipt` page and its route; the existing status and 
 
 Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. **Not checked in a browser:** all three changes are for a signed-in member, and no test account was used.
 
+## 5r. Phase 1 update 5: side menu with a hamburger button in the staff dashboard (11 November 2026)
+
+Fifth requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). This is in the separate staff app (`staff/`), which Muhtasim owns; only its shell and stylesheet were changed. Section 5b says the staff app was not changed; that was true on 4 November and this is the first frontend change to it.
+
+| Item | Files |
+|---|---|
+| Hamburger button in the top bar (`aria-expanded`, `aria-controls`, label "Open menu" / "Close menu", 44 px) | `staff/src/App.tsx` |
+| Side menu with the role-filtered sections; the current one has `aria-current="page"`; the top bar shows its name | `staff/src/App.tsx` |
+| From 960 px: the menu starts open beside the page and the button collapses it. Below 960 px: it starts closed and opens over the page with a backdrop; it closes on a choice, Escape or a press on the backdrop; focus moves into the menu and back to the button; the page behind is `inert` | `staff/src/App.tsx` |
+| Styles as classes only (the staff site's Content-Security-Policy allows no inline styles); the slide-in is skipped under reduced motion | `staff/src/styles.css` |
+
+Evidence (11 Nov 2026): `tsc -b` clean, 46 staff tests pass, `vite build` clean. Chrome with a local stand-in for the API that returns a made-up signed-in session and empty lists (no real account, no real data): at 1536 px the menu was open with ten sections for a superadmin, choosing Inbox changed the screen and the top bar and kept the menu open, and the button closed it; at 390 px (in a frame) the menu started closed, opened as an overlay with focus on the current section, and closed on Escape, on the backdrop and on a choice, each time returning focus to the button; no sideways scrolling at either width. **Not checked:** with a real staff sign-in and real data, the moderator role (fewer sections), Bangla, a real phone, a screen reader. **Not done:** the bundle served at `/staff` was not rebuilt (P5).
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
