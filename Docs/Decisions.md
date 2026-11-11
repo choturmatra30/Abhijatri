@@ -422,3 +422,16 @@ Answers `Handoff-Backend.md` Q1. Amends the 2026-10-19 row "Guest scope secret s
 | "Best rated first" on the destination list | Two steps, on the device: destinations with a Community Rating first, by `score`; the rest by Guest Feedback average, then its review count; ties keep the name order. No combined number is made or shown. | Owner request (11 Nov 2026) for sorting to find the best. Review.md 6.2 forbids merging the two ratings; an order with two steps keeps them separate. |
 | Map links | Map points open in Google Maps (`https://www.google.com/maps/search/?api=1&query=lat,lng`), in a new tab. Nothing is loaded from Google inside the app. | Owner request. A plain link sends no data until the user presses it and needs no API key. |
 | Places inside a destination | Not built. The guide types are used for the type filter until the backend has places (`Handoff-Phase1-Updates.md` P1). | No place entity or place rating exists in the schema or API. |
+
+## 2026-11-11 (Phase 1 update 2: the overall rating is calculated)
+Amends the 2026-10-20 rows "Rating calculation" and "Category ratings in the form". Review.md amendment A6.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Overall rating in the form | Not asked. It is calculated from the seven category ratings and shown read-only under them. | Owner request (11 Nov 2026): the overall rating is calculated from the parameters and their ratings. |
+| Category ratings | All seven are required; "Not applicable" is removed. | Owner decision (11 Nov 2026): all seven are given. The overall rating then means the same thing for every review. |
+| Formula | Mean of the seven, rounded to the nearest whole number (`overallFromCategories`). A mean of seven whole numbers never ends in exactly .5, so no tie rule is needed. | The API stores `overall_rating` as a whole number from 1 to 5. |
+| Community Rating and Guest Feedback | Unchanged: still built from the overall rating of each counted review (Review.md 6). | Owner decision: the Bayesian average counts the overall rating. No server change is needed for the totals. |
+| Where it is calculated | In the web client for now; the client sends the result as `overall_rating`. The server should calculate and enforce it (`Handoff-Phase1-Updates.md` P2). | Works with today's API. Until P2, a request made outside the web client can still send any overall rating. |
+| Editing a review | The ratings may be left alone. If the author changes them, all seven are needed and the overall rating is sent again, calculated from them. | An older review can have fewer than seven; forcing a change on every text edit would block simple corrections. |
+| Older reviews and drafts | A review submitted before this keeps the overall rating its author gave. A draft saved before this is asked for the missing category ratings when it is opened; its stored overall rating is ignored. | No stored review is rewritten by the client. |

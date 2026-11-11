@@ -94,6 +94,18 @@ export function cleanCategoryRatings(ratings: CategoryRatings): CategoryRatings 
   return cleaned;
 }
 
+/**
+ * The overall rating of a review, calculated from its seven category ratings (owner decision
+ * 11 Nov 2026, Review.md amendment A6): the mean, rounded to the nearest whole star, because the
+ * API stores a whole number from 1 to 5. `null` until all seven are rated. A mean of seven whole
+ * numbers never ends in exactly .5, so the rounding has no tie to break.
+ */
+export function overallFromCategories(ratings: CategoryRatings): number | null {
+  const values = Object.values(cleanCategoryRatings(ratings)) as number[];
+  if (values.length !== REVIEW_CATEGORIES.length) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
 /** Builds the POST /reviews/guest body (API.md 5.2) from the form state. Pure, for tests. */
 export function buildGuestReviewPayload(
   draft: GuestReviewDraft,

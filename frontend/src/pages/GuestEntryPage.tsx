@@ -258,9 +258,9 @@ const ReviewGuide: React.FC = () => {
         <li className="flex gap-3">
           <Star size={18} className="shrink-0 mt-0.5 fill-amber-400 text-amber-400" aria-hidden="true" />
           <span>
-            <strong>{t('সার্বিক রেটিং (আবশ্যক)', 'Overall rating (required)')}</strong>
+            <strong>{t('সার্বিক রেটিং', 'Overall rating')}</strong>
             {': '}
-            {t('১ থেকে ৫ তারকা।', '1 to 5 stars.')}
+            {t('আলাদা করে দিতে হয় না; নিচের সাতটি বিষয়ের রেটিং থেকে হিসাব করা হয়।', 'not asked separately; it is calculated from the seven category ratings below.')}
           </span>
         </li>
         <li className="flex gap-3">
@@ -277,7 +277,7 @@ const ReviewGuide: React.FC = () => {
       </ul>
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-bold text-on-surface dark:text-on-dark">
-          {t('বিষয়ভিত্তিক রেটিং (ঐচ্ছিক, ১–৫)', 'Ratings by category (optional, 1–5)')}
+          {t('বিষয়ভিত্তিক রেটিং (সবগুলো আবশ্যক, ১–৫)', 'Ratings by category (all required, 1–5)')}
         </h3>
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {categories.map((category) => (

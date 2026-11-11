@@ -109,8 +109,8 @@ Each review contains:
 - Destination.
 - Original language: Bangla, English, or Banglish/mixed.
 - Display name snapshot for a Guest, or `author_user_id` for a Member.
-- Overall rating from 1 to 5.
-- Category ratings selected from cleanliness, accessibility, hospitality, food, transport, safety perception, and value. Each category is optional (not applicable) or an integer from 1 to 5; the overall rating stays the single required score (amendment A2).
+- Overall rating from 1 to 5. Since amendment A6 the reviewer does not enter it: it is the mean of the seven category ratings, rounded to the nearest whole number.
+- Category ratings selected from cleanliness, accessibility, hospitality, food, transport, safety perception, and value. Each category is optional (not applicable) or an integer from 1 to 5; the overall rating stays the single required score (amendment A2). **Changed by amendment A6 (11 Nov 2026): all seven categories are required in the form, and the overall rating is calculated from them.**
 - Traveller type: solo, student, couple, family, or group.
 - Comfort tier: economy, standard, or premium.
 - Visit month in `YYYY-MM` form.
@@ -505,6 +505,7 @@ Approved by Shahriar Islam (scope owner) on 20 October 2026, requested by the fr
 | A2 | The review form is the seven section 3.1 category ratings (each optional, 1 to 5) plus the required overall rating and a free-text note (the body), for Guests and Members. No other question set is used. The request field is `category_ratings` (`Docs/api/API.md` 5.2). | 3.1 |
 | A3 | ~~Verified Member status stays a manually approved verification record (section 2.3). No NID, birth-registration number or national verification API is used; section 12.4 still excludes real NID verification.~~ **Superseded by A5 (6 Nov 2026).** | 2.3 |
 | A5 (owner, 6 Nov 2026) | Verified Member status is still a manually approved verification record, now from an ID document photo, a live selfie and a verified phone (`Features/Verified user sign-up form.md`). Only the document's last 4 digits and a keyed hash are kept. An Election Commission NID check is added later. | 2.3, 12.4 |
+| A6 (frontend owner, 11 Nov 2026; scope-owner approval and backend change pending) | The review form no longer asks for an overall rating. All seven category ratings are required ("Not applicable" is removed), and the overall rating is their mean, rounded to the nearest whole number from 1 to 5. Community Rating and Guest Feedback are still built from the overall rating, so section 6 is unchanged. Built in the web client only (`Docs/Frontend-Implemented.md` 5o); the server still accepts an overall rating sent with fewer categories until `Docs/Handoff-Phase1-Updates.md` P2 is done. Reviews submitted before this keep the overall rating their author gave. Replaces "each optional" and "required overall rating" in A2. | 3.1 |
 
 ### 13.1 Proposed amendment (not approved; nothing is built from it)
 

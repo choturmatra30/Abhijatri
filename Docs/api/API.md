@@ -619,7 +619,7 @@ This route returns the review form and the rating rules, so the client renders t
 - **Guest Feedback** is the mean overall rating of published Guest reviews.
 - **Community Rating** is the Bayesian `score` over eligible Verified Member reviews (5.12). It is shown only from five reviews.
 - **Category averages** are computed per audience and never merged.
-- The overall rating is never derived from the category ratings.
+- The overall rating is never derived from the category ratings **by the server**. Since 11 Nov 2026 the web client does not ask for it: it requires all seven category ratings and sends their mean, rounded to a whole number, as `overall_rating` (Review.md amendment A6, Decisions 2026-11-11). The contract above is unchanged until the server enforces this (`Docs/Handoff-Phase1-Updates.md` P2).
 
 ### 5.16 Operations API: `/ops/*` (System Monitoring Dashboard)
 

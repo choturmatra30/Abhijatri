@@ -7,7 +7,7 @@
 | No. | Update requested | Frontend | Needs backend | Needs testing |
 |---|---|---|---|---|
 | 1 | Places inside a destination by type (restaurant, resort, ...), with name and Google Maps link; sorting to find the best | **Part done (11 Nov 2026):** type filter and search on the guide, Google Maps links, "Best rated first" on the destination list | **Yes: [P1](#p1-places-inside-a-destination)** | [T1](#t1-tests-for-update-1) |
-| 2 | Remove the overall rating; calculate it from the parameter ratings | Not started | To be listed | To be listed |
+| 2 | Remove the overall rating; calculate it from the parameter ratings | **Done in the web client (11 Nov 2026)** | **Yes: [P2](#p2-the-server-calculates-the-overall-rating)** | [T2](#t2-tests-for-update-2) |
 | 3 | "Exit" instead of "Sign out" for a guest | Not started | To be listed | To be listed |
 | 4 | No search by review ID and receipt; "My reviews" with keyword search; remove the 20-character limit | Not started | To be listed | To be listed |
 | 5 | Hamburger side menu for the moderation queue | Not started | To be listed | To be listed |
@@ -73,3 +73,57 @@ Run on the deployed site after this work is merged. Bangla and English each once
 | T1.10 | Phone, 360 px wide. | The search and sort controls stack; the type buttons wrap; no sideways scrolling. |
 
 **Checked by the frontend (11 Nov 2026):** T1.1, T1.2, T1.4, T1.6 and T1.7 in Chrome at desktop width, in Bangla, with the live data read through a read-only local proxy. **Not checked:** T1.8 to T1.10 (offline, keyboard with a screen reader, phone width).
+
+---
+
+## Update 2: what the frontend does now
+
+Owner decisions (11 Nov 2026): the form does not ask for an overall rating; all seven category ratings are required; the overall rating is calculated from them; the Bayesian Community Rating and Guest Feedback still count the overall rating. Recorded in `Decisions.md` (2026-11-11) and as Review.md amendment A6, which still needs Shahriar's approval as scope owner.
+
+| Part | Behaviour |
+|---|---|
+| Write a review | Seven category ratings, each 1 to 5, all required. No "Not applicable". No overall input. Under the list the form shows "Overall rating (calculated)": the stars, the whole number and the average to one decimal. |
+| Formula | Mean of the seven ratings, rounded to the nearest whole number. Example: 5,5,5,5,4,4,4 gives 32 / 7 = 4.57, so 5. A mean of seven whole numbers never ends in exactly .5. |
+| What is sent | The same request as before (API.md 5.2): `overall_rating` holds the calculated number and `category_ratings` holds all seven. |
+| Edit a review | Ratings may be left alone. If the author changes any, all seven are required, and `overall_rating` is sent together with `category_ratings`. |
+| Display | Unchanged everywhere. Older reviews keep the overall rating their author gave. |
+| Saved drafts | A draft saved before this opens with its category ratings; the form asks for the missing ones. Its stored overall rating is ignored. |
+
+## P2: the server calculates the overall rating
+
+**Owner:** Muhtasim. **Priority:** medium. The web client works without it, but the rule is not enforced: a request made outside the web client can send any `overall_rating` with any number of categories.
+
+1. **Calculate on the server.** On `POST /reviews/guest`, the Member create route and `PATCH` (API.md 5.2, 5.5): require all seven keys in `category_ratings` and set `overall_rating` to their mean, rounded to the nearest whole number. Please use the same formula as `overallFromCategories` in `frontend/src/api/reviews.ts`, so the number shown in the form is the number stored.
+2. **Decide what happens to a sent `overall_rating`.** Proposal: keep accepting the field for now and refuse it only when it differs from the calculated value (`422`, field `overall_rating`). Deployed clients and saved offline drafts keep working, and the field can be removed later.
+3. **`PATCH`:** `category_ratings: {}` (clear all) and a partial set should be refused once all seven are required. A `PATCH` that sends `overall_rating` alone should be refused.
+4. **`GET /review-parameters` (API.md 5.15):** mark the categories as required and the overall rating as calculated, and update the `rating_rules` text, so the client and the server state the same rule. `backend/app/review_parameters.py` is the single source.
+5. **Existing reviews.** They keep their stored overall rating (decision above). Please confirm that nothing recalculates them, including the nightly rating reconciliation (Review.md 6.3).
+6. **Question: whole number or decimal?** Rounding loses detail (4.43 and 3.57 both become 4). If the Community Rating should use the exact mean, `overall_rating` would need a decimal column and the totals would change. The owner's decision is to keep the whole number; this is only a note in case the team wants more precision later.
+7. **Documents to update after the change:** API.md 5.2, 5.5 and 5.15 (the line "The overall rating is never derived from the category ratings" already carries a note), `openapi-v1.json`, Review.md 3.1.
+
+**Done when:** a request with six categories is refused; a request with seven stores the calculated overall rating whatever the client sent (or refuses a different one); the parity test for the review parameters passes.
+
+## T2: tests for update 2
+
+Run on the deployed site after this work is merged. Create test reviews only on a test destination or withdraw them afterwards.
+
+| No. | Steps | Expected |
+|---|---|---|
+| T2.1 | Open Write a review. | Seven categories with five stars each. No overall rating to choose. No "Not applicable". |
+| T2.2 | Rate three categories. | The line under the list says "3 of 7 rated; it appears when all are rated". |
+| T2.3 | Fill everything else and press Submit with ratings missing. | Not sent. The message "Rate each of the seven categories from 1 to 5 stars" shows under the list, and focus goes to the first unrated category. |
+| T2.4 | Rate 5,5,5,5,4,4,4. | "5 out of 5 (average 4.6)". |
+| T2.5 | Change one 5 to 4 (5,5,5,4,4,4,4). | "4 out of 5 (average 4.4)". |
+| T2.6 | Submit a review rated 3 in all seven. Check it with its receipt, and as a moderator. | Overall rating 3; all seven category ratings stored. |
+| T2.7 | After it is published: the destination's Guest Feedback (or Community Rating for a Verified Member). | The average moves by the calculated overall rating, as for any review. |
+| T2.8 | Member: My reviews, open a pending review, Edit, change only the title, Save. | Saved. The ratings and the overall rating are unchanged. |
+| T2.9 | Same form: change one category rating on a review that has all seven. | Saved. The overall rating is the new calculated value. |
+| T2.10 | Edit a review written before this update that has fewer than seven category ratings; change one rating and Save. | Not saved until all seven are rated; the message says so. |
+| T2.11 | Guest: edit with a receipt, touch one rating only. | Same rule as T2.10. |
+| T2.12 | Offline: write a review with all seven ratings, go online, submit it from Saved drafts. | Sent once, with the calculated overall rating. |
+| T2.13 | Keyboard only, and with a screen reader. | Every star can be reached and chosen. The calculated overall rating is read out when it changes. |
+| T2.14 | Phone, 360 px wide. | Stars are easy to press (44 px) and nothing scrolls sideways. |
+
+**Checked by the frontend (11 Nov 2026):** T2.1, T2.2, T2.4, T2.5 and the message of T2.3, in Chrome at desktop width, in Bangla. **Not checked:** every test that submits or edits a review (T2.6 to T2.12), the focus move of T2.3, T2.13 and T2.14.
+
+**Existing test documents to update (Irfan):** `R08-Rating-Test-Cases.docx` and any case that enters an overall rating by hand or submits a review with fewer than seven categories.

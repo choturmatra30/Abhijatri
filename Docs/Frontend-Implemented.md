@@ -430,6 +430,22 @@ First of five requested Phase 1 updates (`Handoff-Phase1-Updates.md`). Requested
 
 Evidence (11 Nov 2026): 237 tests pass (10 new in `utils/destinationSort.test.ts`). Types and build clean. Chrome, desktop width, Bangla, live data read through a read-only local proxy (no write could reach the server): "Best rated first" moved Cox's Bazar (Guest Feedback 3.0) to the top and kept the others in name order; the Food button showed one entry; a non-matching search showed "Nothing in the guide matches"; the header link was `google.com/maps/search/?api=1&query=21.4272,92.0058`; no console errors. **Not checked:** phone width, offline, screen reader (tests T1.8 to T1.10).
 
+## 5o. Phase 1 update 2: the overall rating is calculated from the category ratings (11 November 2026)
+
+Second requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11; Review.md amendment A6). This replaces the form rules of sections 3b and 3c: the overall rating is no longer an input and the seven category ratings are no longer optional.
+
+| Item | Files |
+|---|---|
+| `overallFromCategories`: mean of the seven ratings, rounded to a whole number; `null` until all seven are rated | `api/reviews.ts` |
+| Category ratings: all required, "Not applicable" removed, 44 px targets, the calculated overall rating shown read-only with the average (announced as a status), error on the first unrated category | `components/reviews/CategoryRatings.tsx` |
+| Write a review: the overall input is removed; the value sent as `overall_rating` and stored on the draft is the calculated one; submit is refused until all seven are rated | `components/reviews/GuestReviewForm.tsx` |
+| Edit a review (Member and Guest): the overall input is removed; ratings may be left alone; if changed, all seven are required and `overall_rating` is sent with `category_ratings` | `components/reviews/ReviewEditForm.tsx` |
+| Guest welcome page text: the overall rating is calculated; categories are all required | `pages/GuestEntryPage.tsx` |
+
+Not changed: how a review's overall rating is shown (review cards, My reviews, moderation, receipt status) and the destination's Community Rating and Guest Feedback. Reviews submitted earlier keep the overall rating their author gave.
+
+Evidence (11 Nov 2026): 241 tests pass (4 new in `api/reviews.test.ts`). Types and build clean. Chrome, desktop width, Bangla, the Write page with live data through a read-only local proxy (no write could reach the server): no overall input and no "Not applicable" button; seven rating groups; submit with ratings missing showed the error and marked the unrated groups; ratings 5,5,5,5,4,4,4 showed "5 out of 5 (average 4.6)", and lowering one to 4 showed "4 out of 5 (average 4.4)". **Not checked in a browser:** a real submission and its request body, the two edit forms (they need a test review), phone width, screen reader. Limit: the server does not enforce the rule yet (P2).
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

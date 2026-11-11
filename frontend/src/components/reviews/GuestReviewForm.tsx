@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CloudOff, HardDrive, Send, ShieldCheck, Star, Trash2 } from 'lucide-react';
+import { CloudOff, HardDrive, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
 import { ApiError } from '../../api/client';
@@ -10,6 +10,7 @@ import {
   CATEGORY_RATINGS_ENABLED,
   detectReviewLanguage,
   generateReceipt,
+  overallFromCategories,
   uploadReviewMedia,
 } from '../../api/reviews';
 import { sendDraft } from '../../offline/submitDraft';
@@ -31,7 +32,6 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 /** Must match the API's expected Turnstile action (backend app/turnstile.py). */
 const TURNSTILE_ACTION = 'guest-review';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
-import { formatNumber } from '../../utils/format';
 
 export interface SubmittedReview extends GuestReviewCreated {
   receipt: string;
@@ -93,8 +93,9 @@ export const GuestReviewForm: React.FC<{
   const [travellerType, setTravellerType] = useState<TravellerType>('SOLO');
   const [comfortTier, setComfortTier] = useState<ComfortTier>('STANDARD');
   const [visitMonth, setVisitMonth] = useState(maxMonth);
-  const [rating, setRating] = useState(0);
   const [categoryRatings, setCategoryRatings] = useState<Ratings>({});
+  // Not asked any more: calculated from the seven category ratings; 0 until all are rated.
+  const rating = overallFromCategories(categoryRatings) ?? 0;
   const [photos, setPhotos] = useState<ReviewPhoto[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -127,7 +128,6 @@ export const GuestReviewForm: React.FC<{
       setTravellerType(f.traveller_type);
       setComfortTier(f.comfort_tier);
       setVisitMonth(f.visit_month);
-      setRating(f.overall_rating);
       setCategoryRatings(f.category_ratings);
       setTitle(f.title);
       setBody(f.body);
@@ -161,7 +161,6 @@ export const GuestReviewForm: React.FC<{
   function clearForm() {
     setTitle('');
     setBody('');
-    setRating(0);
     setCategoryRatings({});
     setPhotos([]);
     setChosenLanguage(null);
@@ -211,7 +210,8 @@ export const GuestReviewForm: React.FC<{
         `প্রদর্শন নাম ১ থেকে ${nameMax} অক্ষরের হতে হবে।`,
         `Display name must be 1 to ${nameMax} characters.`,
       );
-    if (rating < 1) errors.overall_rating = t('১ থেকে ৫ তারকা দিন।', 'Give a rating from 1 to 5 stars.');
+    if (rating < 1)
+      errors.category_ratings = t('সাতটি বিষয়ের প্রতিটিতে ১ থেকে ৫ তারকা দিন।', 'Rate each of the seven categories from 1 to 5 stars.');
     if (!/^\d{4}-\d{2}$/.test(visitMonth) || visitMonth > maxMonth)
       errors.visit_month = t('ভ্রমণের মাস ভবিষ্যতের হতে পারবে না।', 'The visit month cannot be in the future.');
     if (length(title) < titleMin || length(title) > titleMax)
@@ -459,33 +459,13 @@ export const GuestReviewForm: React.FC<{
         </div>
       </div>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className={labelClass}>{t('সার্বিক রেটিং', 'Overall rating')}</legend>
-        <div className="flex items-center gap-1" role="radiogroup" aria-describedby={describedBy('overall_rating')}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              role="radio"
-              aria-checked={rating === star}
-              aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
-              onClick={() => setRating(star)}
-              className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full"
-            >
-              <Star
-                size={26}
-                aria-hidden="true"
-                className={star <= rating ? 'fill-amber-400 text-amber-400' : 'text-surface-muted dark:text-on-dark-muted'}
-              />
-            </button>
-          ))}
-        </div>
-        {errorFor('overall_rating')}
-      </fieldset>
-
       <CategoryRatings
         value={categoryRatings}
-        onChange={setCategoryRatings}
+        onChange={(next) => {
+          setCategoryRatings(next);
+          setFieldErrors(({ category_ratings: _c, overall_rating: _o, ...rest }) => rest);
+        }}
+        error={fieldErrors.category_ratings ?? fieldErrors.overall_rating}
         pendingServerSupport={!CATEGORY_RATINGS_ENABLED}
         categories={parameters?.categories}
       />
