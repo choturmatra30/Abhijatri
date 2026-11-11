@@ -1,6 +1,6 @@
 # Implemented status
 
-Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 9 November 2026 (R15 part 2 frontend; 7 November: R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
+Claims here are limited to what is in the repository and evidenced by a test, migration check, or CI run. Last updated 11 November 2026 (Phase 1 update 1 frontend; 9 November: R15 part 2 frontend; 7 November: R12, R13 and R15 part 1 frontend; earlier: R01/R03/R09 frontend integration, 19 October 2026).
 
 | Area | Status | Evidence |
 |---|---|---|
@@ -69,6 +69,7 @@ Full account: [`Docs/Frontend-Implemented.md`](Frontend-Implemented.md). Evidenc
 | R13: offline destination packs: download with SHA-256 check, read offline (detail, lists, review snapshot), Offline packs page, delete, reconnect updates, storage status | Implemented and verified (7 Nov 2026); phone tests (guideline group P) pending | `Docs/Frontend-Implemented.md` section 5k |
 | R15 part 1: review drafts saved on the device (autosave, restore, one per destination, delete), form usable offline | Implemented (7 Nov 2026), live | `Docs/Frontend-Implemented.md` section 5l |
 | R15 part 2: saved drafts sent after reconnect with a stored `Idempotency-Key` and no duplicates, receipt kept until confirmed or 7 days, drafts list, export, reconnect banner, sign-out warning, guest scope write-through | Implemented on `abd` (9 Nov 2026), not deployed; phone tests pending | `Docs/Frontend-Implemented.md` section 5m; `frontend/src/offline/submitDraft.test.ts` |
+| Phase 1 update 1: destination guide by type with search, Google Maps links, "Best rated first" on the destination list | Implemented on `abd` (11 Nov 2026), not deployed. Separate places (restaurant, resort) with their own map point and rating are **not built**: needs the backend (`Handoff-Phase1-Updates.md` P1) | `Docs/Frontend-Implemented.md` section 5n; `frontend/src/utils/destinationSort.test.ts` |
 | Interactive destination selector with licensed, self-hosted, credited Commons photos on the landing page | Implemented (4 Nov 2026) | `Docs/Frontend-Implemented.md` section 5c; `Docs/Image-Credits.md` |
 | shadcn/ui on Tailwind 4 with a new stone and green theme; shared buttons, inputs and toggles migrated | Implemented, partial migration (4 Nov 2026) | `Docs/Frontend-Implemented.md` section 5d |
 | Landing page with guest and sign-in paths; sign-in screen shown but disabled until R04 | Implemented (20 Oct 2026) | `Docs/Frontend-Implemented.md` section 3a |

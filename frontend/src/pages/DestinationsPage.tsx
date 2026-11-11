@@ -1,26 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, MapPin, Search } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpDown, MapPin, Search } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
 import { EmptyState, ErrorState, LoadingState, OfflineEmptyState, OfflineSavedNotice } from '../components/common/StatusViews';
 import { RatingSummary } from '../components/destination/RatingSummary';
+import { sortDestinations, type DestinationSort } from '../utils/destinationSort';
 import { formatNumber, pick } from '../utils/format';
 
 export const DestinationsPage: React.FC = () => {
   const { language, t } = useLanguage();
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<DestinationSort>('name');
   const { data: catalog, error, loading, reload } = useDestinationCatalog();
   const data = catalog?.items ?? null;
   const savedOnly = catalog?.saved ?? false;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    if (!data || !needle) return data ?? [];
-    return data.filter((d) =>
-      [d.name_bn, d.name_en, d.region_bn, d.region_en].some((v) => v?.toLocaleLowerCase().includes(needle)),
-    );
-  }, [data, query]);
+    const found =
+      !data || !needle
+        ? (data ?? [])
+        : data.filter((d) => [d.name_bn, d.name_en, d.region_bn, d.region_en].some((v) => v?.toLocaleLowerCase().includes(needle)));
+    return sortDestinations(found, sort);
+  }, [data, query, sort]);
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -37,18 +40,41 @@ export const DestinationsPage: React.FC = () => {
           </p>
         </div>
 
-        <label className="relative w-full md:w-72">
-          <span className="sr-only">{t('গন্তব্য খুঁজুন', 'Filter destinations')}</span>
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} aria-hidden="true" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('নাম বা এলাকা দিয়ে খুঁজুন', 'Filter by name or region')}
-            className="w-full pl-10 pr-4 min-h-[44px] rounded-full bg-surface-sage/50 dark:bg-dark-surface-1 border border-surface-muted/40 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark"
-          />
-        </label>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <label className="relative w-full sm:w-72">
+            <span className="sr-only">{t('গন্তব্য খুঁজুন', 'Filter destinations')}</span>
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('নাম বা এলাকা দিয়ে খুঁজুন', 'Filter by name or region')}
+              className="w-full pl-10 pr-4 min-h-[44px] rounded-full bg-surface-sage/50 dark:bg-dark-surface-1 border border-surface-muted/40 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark"
+            />
+          </label>
+          <label className="relative w-full sm:w-52">
+            <span className="sr-only">{t('সাজানোর ক্রম', 'Sort order')}</span>
+            <ArrowUpDown className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" size={16} aria-hidden="true" />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as DestinationSort)}
+              className="w-full pl-10 pr-4 min-h-[44px] rounded-full bg-surface-sage/50 dark:bg-dark-surface-1 border border-surface-muted/40 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark"
+            >
+              <option value="name">{t('নাম অনুযায়ী', 'By name')}</option>
+              <option value="best">{t('সেরা রেটিং আগে', 'Best rated first')}</option>
+            </select>
+          </label>
+        </div>
       </div>
+
+      {sort === 'best' && !loading && !error && visible.length > 1 && (
+        <p className="text-xs text-on-surface-variant dark:text-on-dark-muted -mt-2">
+          {t(
+            'কমিউনিটি রেটিং থাকা গন্তব্য আগে; বাকিগুলো অতিথি মতামত অনুযায়ী। দুটি রেটিং কখনো মেশানো হয় না।',
+            'Destinations with a Community Rating come first; the rest follow by Guest Feedback. The two ratings are never combined.',
+          )}
+        </p>
+      )}
 
       {loading && <LoadingState label={t('গন্তব্যের তালিকা লোড হচ্ছে…', 'Loading destinations…')} />}
       {!loading && error !== null && <ErrorState error={error} onRetry={reload} />}

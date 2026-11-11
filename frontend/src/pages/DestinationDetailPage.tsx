@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
-  Compass,
   ExternalLink,
   MapPin,
   Phone,
@@ -19,20 +18,12 @@ import { AdvisoryCard } from '../components/destination/AdvisoryCard';
 import { ProvenanceNote } from '../components/destination/ProvenanceNote';
 import { RatingSummary } from '../components/destination/RatingSummary';
 import { CategoryAverages } from '../components/destination/CategoryAverages';
+import { GuideSections } from '../components/destination/GuideSections';
 import { ReviewFeedSection } from '../components/reviews/ReviewFeedSection';
 import { PackBanner } from '../components/offline/PackBanner';
 import { PackDownloadButton } from '../components/offline/PackDownloadButton';
-import type { GuideCategory, GuideItem } from '../types';
+import { googleMapsUrl } from '../utils/destinationSort';
 import { formatCalendarDate, formatNumber, pick } from '../utils/format';
-
-const CATEGORY_ORDER: GuideCategory[] = ['ATTRACTION', 'TRANSPORT', 'ACCOMMODATION', 'FOOD', 'LOCAL_PRACTICE'];
-const CATEGORY_LABEL: Record<GuideCategory, [string, string]> = {
-  ATTRACTION: ['দর্শনীয় স্থান', 'Attractions'],
-  TRANSPORT: ['যাতায়াত', 'Getting there'],
-  ACCOMMODATION: ['থাকার ব্যবস্থা', 'Accommodation'],
-  FOOD: ['খাবার', 'Food'],
-  LOCAL_PRACTICE: ['স্থানীয় রীতি ও আচরণ', 'Local practice'],
-};
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,11 +86,6 @@ export const DestinationDetailPage: React.FC = () => {
     );
   }
 
-  const groups = CATEGORY_ORDER.map((category) => ({
-    category,
-    items: destination.guide_items.filter((item: GuideItem) => item.category === category),
-  })).filter((group) => group.items.length > 0);
-  const hasCoordinates = destination.latitude !== null && destination.longitude !== null;
 
   return (
     <div className="flex flex-col gap-8 pb-12 max-w-5xl mx-auto">
@@ -111,14 +97,14 @@ export const DestinationDetailPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-on-surface-variant dark:text-on-dark-muted">
           <MapPin size={14} className="text-forest-primary dark:text-neon-lime" aria-hidden="true" />
           <span>{pick(language, destination.region_bn, destination.region_en)}</span>
-          {hasCoordinates && (
+          {destination.latitude !== null && destination.longitude !== null && (
             <a
-              href={`https://www.openstreetmap.org/?mlat=${destination.latitude}&mlon=${destination.longitude}#map=11/${destination.latitude}/${destination.longitude}`}
+              href={googleMapsUrl(destination.latitude, destination.longitude)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 underline underline-offset-2 font-en"
+              className="inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 underline underline-offset-2"
             >
-              {destination.latitude?.toFixed(4)}, {destination.longitude?.toFixed(4)}
+              {t('গুগল ম্যাপে দেখুন', 'Open in Google Maps')}
               <ExternalLink size={11} aria-hidden="true" />
             </a>
           )}
@@ -183,21 +169,7 @@ export const DestinationDetailPage: React.FC = () => {
             </section>
           )}
 
-          {groups.map((group) => (
-            <section key={group.category} className="tonal-card p-6 flex flex-col gap-4">
-              <h2 className="flex items-center gap-2 text-base font-bold font-title text-forest-primary dark:text-neon-lime">
-                <Compass size={18} aria-hidden="true" />
-                {t(...CATEGORY_LABEL[group.category])}
-              </h2>
-              {group.items.map((item) => (
-                <article key={item.id} className="flex flex-col gap-1.5 pb-4 border-b last:border-b-0 last:pb-0 border-surface-muted/30 dark:border-dark-surface-2">
-                  <h3 className="text-sm font-bold font-title text-on-surface dark:text-on-dark">{pick(language, item.title_bn, item.title_en)}</h3>
-                  <p className="text-sm font-body leading-relaxed text-on-surface-variant dark:text-on-dark-muted">{pick(language, item.body_bn, item.body_en)}</p>
-                  <ProvenanceNote provenance={item.provenance} />
-                </article>
-              ))}
-            </section>
-          ))}
+          <GuideSections items={destination.guide_items} />
         </div>
 
         <aside className="flex flex-col gap-6">
@@ -232,6 +204,18 @@ export const DestinationDetailPage: React.FC = () => {
                       <Phone size={14} aria-hidden="true" />
                       {contact.phone}
                     </a>
+                    {contact.latitude !== null && contact.longitude !== null && (
+                      <a
+                        href={googleMapsUrl(contact.latitude, contact.longitude)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="self-start inline-flex items-center gap-1 min-h-[44px] text-xs font-semibold underline underline-offset-2 text-forest-primary dark:text-neon-lime"
+                      >
+                        <MapPin size={13} aria-hidden="true" />
+                        {t('গুগল ম্যাপে দেখুন', 'Open in Google Maps')}
+                        <ExternalLink size={11} aria-hidden="true" />
+                      </a>
+                    )}
                     <ProvenanceNote provenance={contact.provenance} />
                   </li>
                 ))}

@@ -414,3 +414,11 @@ Answers `Handoff-Backend.md` Q1. Amends the 2026-10-19 row "Guest scope secret s
 | Scope on a draft | Each unsent draft stores its own copy of the scope secret when it is created and always sends that copy (guideline 6.2, test D10). | Sending an old draft under a new scope after "Start as a new guest" would look like a new review and could duplicate it after a lost response. |
 | Receipt custody | The receipt of an **unsent** draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5). After acknowledgement it is deleted on the user's confirmation or after 7 days (guideline 6.5). | The draft cannot be sent later without its receipt; PF 13.5, PF 18.1 and guideline 6.5 already allow this. Replaces "the receipt is never stored" in the 2026-10-19 row. |
 | Server | No API change. The server never stores the scope secret or a receipt in plain form (keyed digests only, PF 13.2, 13.4). | Storage location is a client concern. |
+
+## 2026-11-11 (Phase 1 update 1: "Best rated" order and map links)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| "Best rated first" on the destination list | Two steps, on the device: destinations with a Community Rating first, by `score`; the rest by Guest Feedback average, then its review count; ties keep the name order. No combined number is made or shown. | Owner request (11 Nov 2026) for sorting to find the best. Review.md 6.2 forbids merging the two ratings; an order with two steps keeps them separate. |
+| Map links | Map points open in Google Maps (`https://www.google.com/maps/search/?api=1&query=lat,lng`), in a new tab. Nothing is loaded from Google inside the app. | Owner request. A plain link sends no data until the user presses it and needs no API key. |
+| Places inside a destination | Not built. The guide types are used for the type filter until the backend has places (`Handoff-Phase1-Updates.md` P1). | No place entity or place rating exists in the schema or API. |

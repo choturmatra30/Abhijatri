@@ -418,6 +418,18 @@ Evidence (9 Nov 2026): 227 tests pass (34 new in `offline/submitDraft.test.ts`: 
 
 Found and fixed during the check: a draft written offline (sign-in unknown) was not counted by the banner or sidebar until the form was opened; the wait time showed a date without the time.
 
+## 5n. Phase 1 update 1: guide by type, search, Google Maps link, best-rated order (11 November 2026)
+
+First of five requested Phase 1 updates (`Handoff-Phase1-Updates.md`). Requested: places inside a destination by type (restaurant, resort), with name and Google Maps link, and sorting to find the best. The API has no separate places and no rating for a place, so this is the part the current data allows; the rest is backend item P1 in that file.
+
+| Item | Files |
+|---|---|
+| Guide of a destination: type buttons with counts (All and each type present), search over title and text in both languages, "nothing matches" state. Filtered on the device, so it works from a pack or a saved page | `components/destination/GuideSections.tsx`, `pages/DestinationDetailPage.tsx` |
+| Google Maps link for the destination's map point (replaces the OpenStreetMap link) and for a contact that has a map point | `pages/DestinationDetailPage.tsx`, `utils/destinationSort.ts` (`googleMapsUrl`) |
+| Destination list: sort control "By name" or "Best rated first". Community Rating first (score, highest first), then Guest Feedback average, then its count; the two ratings are never combined (Review.md 6.2) and the page says so | `pages/DestinationsPage.tsx`, `utils/destinationSort.ts` (`sortDestinations`) |
+
+Evidence (11 Nov 2026): 237 tests pass (10 new in `utils/destinationSort.test.ts`). Types and build clean. Chrome, desktop width, Bangla, live data read through a read-only local proxy (no write could reach the server): "Best rated first" moved Cox's Bazar (Guest Feedback 3.0) to the top and kept the others in name order; the Food button showed one entry; a non-matching search showed "Nothing in the guide matches"; the header link was `google.com/maps/search/?api=1&query=21.4272,92.0058`; no console errors. **Not checked:** phone width, offline, screen reader (tests T1.8 to T1.10).
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

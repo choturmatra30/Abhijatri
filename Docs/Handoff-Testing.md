@@ -215,6 +215,10 @@ Paste the snippet from `Offline-Frontend-Guideline.md` 9.6 in the Console before
 - First visit only: the service worker controls the tab after the next reload. A first-time visitor who goes offline in that same tab and opens a page not loaded yet gets a blank page (F4 in `Handoff-Backend.md`). Test offline after one reload.
 - Pack freshness runs on app start and when the device goes from offline to online, not when only the server comes back (F3 in `Handoff-Backend.md`).
 
+## Phase 1 updates (from 11 November 2026)
+
+Tests for the five requested Phase 1 updates are in `Handoff-Phase1-Updates.md` (T1: guide type filter, search, Google Maps link and "Best rated first"). Run them after that work is deployed.
+
 ## Where to report
 
 Add failures to `Frontend-Implemented.md` section 6 as a new row (next free ID), or tell Abdullah with the test number (for example "B4 fails on Samsung A12, Chrome 130") and a screenshot.
