@@ -285,7 +285,7 @@ The "System status" (`/health`) link was a development aid and is no longer in t
 | `/reviews/receipt` | `ReviewReceiptPage` | Receipt status check and withdrawal (`ReceiptStatusPanel`), removal request (`RemovalRequestForm`) |
 | `/reviews` | `ReviewsRedirect` | Redirects to `/reviews/write`, keeping the query, so older links and bookmarks still work |
 
-Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
+Since 11 Nov 2026 the second entry is "My reviews" for a signed-in member (section 5q). Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
 
 Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build clean (145 KB JS gzip). Browser at 1280 px and 390 px (mobile menu): group starts closed with no sub-links; one click shows both; "Check with receipt" opens `/reviews/receipt` and the group stays open there; `/reviews?destination=<id>` lands on `/reviews/write?destination=<id>` with that destination selected; no page errors.
 
@@ -456,6 +456,20 @@ Third requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-1
 | `/guest` welcome page: the "Sign out" link reads "Exit" | `pages/GuestEntryPage.tsx` |
 
 Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. Chrome, desktop width, Bangla: a named guest saw "Sign in" and "Exit" in the sidebar card and "Exit" on `/guest`; pressing Exit opened `/`, removed the name, kept the scope and the same guest tag, and left only "Sign in". **Not checked:** the member label (no test account used), English, phone width.
+
+## 5q. Phase 1 update 4: a member finds reviews in "My reviews", not by receipt (11 November 2026)
+
+Fourth requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). Only the member navigation is built; guest listing, keyword search, the "reported" filter and the note minimum need the backend (P4a to P4d). This amends section 5h: the second entry of the sidebar "Reviews" group now depends on who is signed in.
+
+| Item | Files |
+|---|---|
+| Sidebar "Reviews" group: a member sees "Write a review" and "My reviews" (`/account/reviews`); a guest still sees "Check with receipt". The group also opens by itself on `/account/reviews` | `components/layout/Sidebar.tsx` |
+| Write page: for a member the link under the form reads "Already reviewed? Find it in My reviews" | `pages/ReviewsPage.tsx` |
+| My reviews: a line at the end links to "Check with receipt" for a review written as a guest before the account existed (such a review belongs to its receipt, not to the account) | `pages/MyReviewsPage.tsx` |
+
+Not changed: the `/reviews/receipt` page and its route; the existing status and destination filters of My reviews (they already cover published, rejected and hidden); the note minimum of 20 (read from the server, fallback 20).
+
+Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. **Not checked in a browser:** all three changes are for a signed-in member, and no test account was used.
 
 ## 6. Defects found, reported to their owners, not fixed here
 

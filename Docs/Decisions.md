@@ -443,3 +443,14 @@ Amends the 2026-10-20 rows "Rating calculation" and "Category ratings in the for
 | Label of the guest control | For a named guest the button in the sidebar card and the link on `/guest` read **Exit** (Bangla: "বের হোন"). A member still sees "Sign out". | Owner request (11 Nov 2026). A guest has no account or server session, so "Sign out" was the wrong word. |
 | What it does | Unchanged from 2026-10-20 and 2026-10-21: it forgets the typed name and opens `/`. The guest tag, scope secret, visit dates and saved drafts stay. | Only the word changes. |
 | Who sees it | Unchanged: a guest who entered a name. A guest without a name has nothing to leave and sees only "Sign in". | Same rule as before. |
+
+## 2026-11-11 (Phase 1 update 4: finding your own reviews; note minimum)
+Owner request: a user should not have to search for a review by its review ID and receipt; "My reviews" shows their published, rejected, reported and hidden reviews with keyword search; the 20-character limit is removed.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Members | A member finds reviews in "My reviews". The sidebar shows "My reviews" instead of "Check with receipt" for a member, and the Write page links to it. | A member's reviews belong to the account, so no ID or receipt is needed. |
+| Guests | "Check with receipt" stays for guests until the server can list a guest's reviews (`Handoff-Phase1-Updates.md` P4a). It is not removed now. | A guest has no account; today the receipt is the only proof of ownership. Removing the page first would leave guests unable to check, edit, withdraw or appeal. |
+| Keyword search | Not built in the client. It waits for a server search over title and text (P4b). | Owner decision (11 Nov 2026). The list returns only titles, so a search on the device would miss words in the review text. |
+| "Reported" | Means "my reviews that other people reported". Not built: the server does not tell an author this, and it needs a privacy decision (P4c). | Owner decision (11 Nov 2026). |
+| 20-character limit | The limit meant is the review note's minimum of 20 characters. It is enforced by the server (`NOTE_MIN`), so the change is the backend's (P4d). The form already takes the limit from `GET /review-parameters` and will follow it. The new minimum is proposed as 1 (the note stays required); to be confirmed. | Owner decision (11 Nov 2026). Changing only the client would make the server refuse short notes with `422`. |

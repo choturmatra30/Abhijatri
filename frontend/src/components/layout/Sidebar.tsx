@@ -8,6 +8,7 @@ import {
   Bookmark, 
   MessageSquareText, 
   ChevronDown,
+  ListChecks,
   PenSquare,
   ReceiptText,
   Compass,
@@ -38,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts 
   const { pathname } = useLocation();
 
   // The Reviews group opens by itself whenever one of its pages is showing.
-  const inReviews = pathname.startsWith('/reviews');
+  const inReviews = pathname.startsWith('/reviews') || pathname.startsWith('/account/reviews');
   const [reviewsOpen, setReviewsOpen] = useState(inReviews);
   useEffect(() => {
     if (inReviews) setReviewsOpen(true);
@@ -98,7 +99,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts 
       icon: MessageSquareText,
       children: [
         { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare, count: unsentDrafts },
-        { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
+        // A member finds their reviews in a list; only a guest, who has no account, needs the
+        // review ID and receipt (Phase 1 update 4, Decisions 2026-11-11).
+        session.kind === 'member'
+          ? { to: '/account/reviews', labelBn: 'আমার রিভিউ', labelEn: 'My reviews', icon: ListChecks }
+          : { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
       ],
     },
   ];

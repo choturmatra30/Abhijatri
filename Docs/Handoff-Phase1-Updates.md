@@ -9,7 +9,7 @@
 | 1 | Places inside a destination by type (restaurant, resort, ...), with name and Google Maps link; sorting to find the best | **Part done (11 Nov 2026):** type filter and search on the guide, Google Maps links, "Best rated first" on the destination list | **Yes: [P1](#p1-places-inside-a-destination)** | [T1](#t1-tests-for-update-1) |
 | 2 | Remove the overall rating; calculate it from the parameter ratings | **Done in the web client (11 Nov 2026)** | **Yes: [P2](#p2-the-server-calculates-the-overall-rating)** | [T2](#t2-tests-for-update-2) |
 | 3 | "Exit" instead of "Sign out" for a guest | **Done (11 Nov 2026)** | No | [T3](#t3-tests-for-update-3) |
-| 4 | No search by review ID and receipt; "My reviews" with keyword search; remove the 20-character limit | Not started | To be listed | To be listed |
+| 4 | No search by review ID and receipt; "My reviews" with keyword search; remove the 20-character limit | **Part done (11 Nov 2026):** members are sent to "My reviews". The rest waits for the backend | **Yes: [P4a](#p4a-a-guests-own-reviews-without-the-review-id-and-receipt), [P4b](#p4b-keyword-search-in-my-reviews), [P4c](#p4c-which-of-my-reviews-were-reported), [P4d](#p4d-remove-the-20-character-minimum-of-the-review-note)** | [T4](#t4-tests-for-update-4) |
 | 5 | Hamburger side menu for the moderation queue | Not started | To be listed | To be listed |
 
 ---
@@ -148,3 +148,83 @@ A guest who entered a name used to see "Sign out" in the sidebar card and on the
 | T3.6 | Repeat T3.1 in Bangla. | The button reads "বের হোন". |
 
 **Checked by the frontend (11 Nov 2026):** T3.1 to T3.4 and T3.6 in Chrome at desktop width, in Bangla. **Not checked:** T3.5 (needs a member account) and the English label.
+
+---
+
+## Update 4: finding your own reviews
+
+Requested: a user should not search for a review by review ID and receipt; "My reviews" shows their published, rejected, reported and hidden reviews, with keyword search; remove the 20-character limit. Owner decisions (11 Nov 2026) are in `Decisions.md`.
+
+**What the frontend did now (members only):**
+
+| Part | Behaviour |
+|---|---|
+| Sidebar, "Reviews" group | A member sees "Write a review" and "My reviews". A guest still sees "Write a review" and "Check with receipt". |
+| Write a review page | For a member the link under the form goes to My reviews. |
+| My reviews | Unchanged filters: status (all statuses, including Published, Rejected and Hidden) and destination. A new line at the end links to "Check with receipt" for a review written as a guest before the account existed. |
+
+**What is not built, and why:** everything below needs the server. "Check with receipt" stays for guests until P4a is done, so no guest loses access to a review.
+
+## P4a: a guest's own reviews without the review ID and receipt
+
+**Owner:** Muhtasim (API), with a security decision by Muhtasim and Shahriar. **Blocks:** removing "Check with receipt" for guests. **Priority:** high for this update.
+
+**Problem.** A guest has no account. Today a guest proves ownership with the review ID and the receipt (API.md 5.1, 5.3). Receipts of submitted reviews are never stored on the device (PF 13.5), so the app cannot remember them for the guest.
+
+**What the frontend needs:** a way to list the reviews made from this browser, so the guest can open "My reviews" and see each review's status. Two possible designs; the backend chooses:
+
+1. **List by guest scope.** A route such as `POST /reviews/guest/mine` with `guest_scope_secret` in the JSON body (never in the URL, API.md section 1). The server matches the stored guest scope digest and returns the same summary fields as `GET /reviews/mine` (`id`, `destination_id`, `status`, `version`, `overall_rating`, `title`, `visit_month`, `created_at`, `published_at`, `appeal_deadline`), with the same `status`, `destination_id`, `after` and `limit` options.
+   - **Security question:** PF 14.1 and Platform-Foundation line "A client-generated guest scope is not a primary abuse boundary" treat the scope as a supplemental signal. Using it to read a guest's own review statuses makes it a read credential. Is that acceptable for read-only status? The scope secret lives in `localStorage` and IndexedDB (Decisions 2026-11-08).
+   - **Actions still need proof.** Edit, withdraw and appeal use the receipt today. Either they keep needing the receipt (then the guest still types it for those actions), or the scope secret is accepted for them too. Please decide; the second choice changes PF 13.
+2. **Keep receipts on the device.** Change PF 13.5 so the device may keep the receipts of submitted reviews (for example encrypted, with a clear warning and a "forget" control). The app then lists and manages the guest's reviews with no new route, using `POST /review-receipts/status` for each. This is a policy change, not an API change, and it weakens the current rule that a stolen device cannot reveal receipts.
+
+Both designs work only on the browser that wrote the review. A guest on a new device still needs the receipt or an account.
+
+**Done when:** the decision is in `Decisions.md`, the route (or the PF 13.5 change) is documented, and a guest can see the status of reviews written from this browser without typing an ID or a receipt.
+
+## P4b: keyword search in "My reviews"
+
+**Owner:** Muhtasim. **Blocks:** the search box (the owner decided not to build a search on the device). **Priority:** medium.
+
+- Add `q=` to `GET /reviews/mine` (and to the guest list of P4a): match the title and the text of the current revision, case-insensitive, Bangla and English. Proposal: 1 to 100 characters after trimming; an empty `q` means no filter.
+- Keep the existing `status`, `destination_id`, `after` and `limit`; the cursor must stay valid for a given `q`.
+- Optional and useful: include a short `body_excerpt` in each item, so the list can show where the word was found.
+
+**Done when:** `GET /reviews/mine?q=sunrise` returns only the member's reviews with that word in the title or text. The frontend then adds the search box (about one day).
+
+## P4c: which of my reviews were reported
+
+**Owner:** Muhtasim, with a privacy decision by Shahriar. **Blocks:** the "Reported" filter. **Priority:** low to medium.
+
+The author of a review is not told today that someone reported it. The request is a filter in "My reviews" for reviews that other people reported.
+
+- **Decision needed first:** should an author see that a review was reported, and when? Risks: an author can guess who reported it, or edit the review to avoid a decision. A safer rule could be to show it only after a moderator has decided the report.
+- **If yes, the frontend needs:** a field on each list item, for example `reported: true` or `open_report_count`, and a filter `reported=true` on `GET /reviews/mine`. Never the reporter's identity or the report text.
+- "Hidden" needs nothing new: it is already a status and is in the status filter.
+
+## P4d: remove the 20-character minimum of the review note
+
+**Owner:** Muhtasim. **Priority:** medium; small change.
+
+- `NOTE_MIN = 20` in `backend/app/review_parameters.py` is used by the create and edit schemas (`schemas.py`) and published by `GET /review-parameters`. Proposal: `NOTE_MIN = 1`, so the note stays required but may be short. **Please confirm the number with Abdullah before changing it.**
+- The frontend reads `note.min_length` from `/review-parameters` and needs no change while online. Its offline fallback is 20 in three files (`GuestReviewForm.tsx`, `ReviewEditForm.tsx`, `GuestEntryPage.tsx`); Abdullah changes these in the same release as the backend change. Changing them earlier would let the form send notes the server refuses.
+- Documents to update with the change: API.md 5.2 ("`body` 20 to 6000") and 5.15, `openapi-v1.json`, and the parity test of the review parameters.
+- Not included: the appeal statement's own minimum of 20 characters (API.md 5.6). Say so if that should change too.
+
+## T4: tests for update 4
+
+Run on the deployed site after this work is merged.
+
+| No. | Steps | Expected |
+|---|---|---|
+| T4.1 | As a guest, open the sidebar "Reviews" group. | "Write a review" and "Check with receipt". |
+| T4.2 | Sign in as a member; open the "Reviews" group. | "Write a review" and "My reviews". No "Check with receipt". |
+| T4.3 | Member: press "My reviews" in the group. | `/account/reviews` opens; the group stays open and "My reviews" is highlighted. |
+| T4.4 | Member: open Write a review and look under the form. | The link reads "Already reviewed? Find it in My reviews" and opens My reviews. |
+| T4.5 | Guest: the same place. | The link reads "Already reviewed? Check it with your receipt". |
+| T4.6 | Member: My reviews, status filter Published, then Rejected, then Hidden. | Only reviews with that status are listed each time. |
+| T4.7 | Member: bottom of My reviews. | A line "Wrote a review as a guest, before you had an account? Check it with its receipt"; the link opens the receipt page. |
+| T4.8 | Type `/reviews/receipt` in the address bar as a member. | The page still opens (a member may hold an older guest receipt). |
+| T4.9 | Sign out. | The group shows "Check with receipt" again. |
+
+**Checked by the frontend (11 Nov 2026):** none in a browser; all of these need a member account. Types, unit tests and build pass. **After the backend work:** tests for the guest list, the search box, the "Reported" filter and a short note will be added here.
