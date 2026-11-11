@@ -217,7 +217,7 @@ export const GuestEntryPage: React.FC = () => {
             }}
             className={textButton}
           >
-            {t('সাইন আউট', 'Sign out')}
+            {t('বের হোন', 'Exit')}
           </button>
           <button
             type="button"

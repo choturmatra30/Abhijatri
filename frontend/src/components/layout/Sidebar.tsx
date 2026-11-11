@@ -284,7 +284,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts 
               </Link>
             </div>
           )}
-          {/* A member or a named guest can sign out; an anonymous guest has nothing to sign out of. */}
+          {/* A member signs out of an account. A named guest has no account, so the same control is
+              labelled "Exit" (it forgets the name). An anonymous guest has nothing to leave. */}
           {(session.kind === 'member' || session.displayName) && (
           <button
             type="button"
@@ -292,7 +293,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts 
             className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogOut size={14} aria-hidden="true" />
-            {t('সাইন আউট', 'Sign out')}
+            {session.kind === 'member' ? t('সাইন আউট', 'Sign out') : t('বের হোন', 'Exit')}
           </button>
           )}
         </div>

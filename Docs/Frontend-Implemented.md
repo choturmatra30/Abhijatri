@@ -446,6 +446,17 @@ Not changed: how a review's overall rating is shown (review cards, My reviews, m
 
 Evidence (11 Nov 2026): 241 tests pass (4 new in `api/reviews.test.ts`). Types and build clean. Chrome, desktop width, Bangla, the Write page with live data through a read-only local proxy (no write could reach the server): no overall input and no "Not applicable" button; seven rating groups; submit with ratings missing showed the error and marked the unrated groups; ratings 5,5,5,5,4,4,4 showed "5 out of 5 (average 4.6)", and lowering one to 4 showed "4 out of 5 (average 4.4)". **Not checked in a browser:** a real submission and its request body, the two edit forms (they need a test review), phone width, screen reader. Limit: the server does not enforce the rule yet (P2).
 
+## 5p. Phase 1 update 3: a guest sees "Exit" instead of "Sign out" (11 November 2026)
+
+Third requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). Label only; the behaviour of sections 3c and 5m is unchanged.
+
+| Item | Files |
+|---|---|
+| Sidebar session card: "Exit" for a named guest, "Sign out" for a member | `components/layout/Sidebar.tsx` |
+| `/guest` welcome page: the "Sign out" link reads "Exit" | `pages/GuestEntryPage.tsx` |
+
+Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. Chrome, desktop width, Bangla: a named guest saw "Sign in" and "Exit" in the sidebar card and "Exit" on `/guest`; pressing Exit opened `/`, removed the name, kept the scope and the same guest tag, and left only "Sign in". **Not checked:** the member label (no test account used), English, phone width.
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |

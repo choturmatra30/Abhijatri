@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 1 | Places inside a destination by type (restaurant, resort, ...), with name and Google Maps link; sorting to find the best | **Part done (11 Nov 2026):** type filter and search on the guide, Google Maps links, "Best rated first" on the destination list | **Yes: [P1](#p1-places-inside-a-destination)** | [T1](#t1-tests-for-update-1) |
 | 2 | Remove the overall rating; calculate it from the parameter ratings | **Done in the web client (11 Nov 2026)** | **Yes: [P2](#p2-the-server-calculates-the-overall-rating)** | [T2](#t2-tests-for-update-2) |
-| 3 | "Exit" instead of "Sign out" for a guest | Not started | To be listed | To be listed |
+| 3 | "Exit" instead of "Sign out" for a guest | **Done (11 Nov 2026)** | No | [T3](#t3-tests-for-update-3) |
 | 4 | No search by review ID and receipt; "My reviews" with keyword search; remove the 20-character limit | Not started | To be listed | To be listed |
 | 5 | Hamburger side menu for the moderation queue | Not started | To be listed | To be listed |
 
@@ -127,3 +127,24 @@ Run on the deployed site after this work is merged. Create test reviews only on 
 **Checked by the frontend (11 Nov 2026):** T2.1, T2.2, T2.4, T2.5 and the message of T2.3, in Chrome at desktop width, in Bangla. **Not checked:** every test that submits or edits a review (T2.6 to T2.12), the focus move of T2.3, T2.13 and T2.14.
 
 **Existing test documents to update (Irfan):** `R08-Rating-Test-Cases.docx` and any case that enters an overall rating by hand or submits a review with fewer than seven categories.
+
+---
+
+## Update 3: "Exit" for a guest
+
+A guest who entered a name used to see "Sign out" in the sidebar card and on the `/guest` page. Both now read **Exit** (Bangla: "বের হোন"). A member still sees "Sign out". What the control does is unchanged: it forgets the typed name and opens the landing page; the guest tag, the visit dates and saved drafts stay.
+
+**Backend:** nothing needed. A guest has no server session; no request is sent.
+
+## T3: tests for update 3
+
+| No. | Steps | Expected |
+|---|---|---|
+| T3.1 | Open `/guest`, enter a name, continue. Look at the sidebar card. | The card says "Welcome, <name> · Guest <tag>" with the buttons "Sign in" and "Exit". No "Sign out". |
+| T3.2 | Open `/guest` again as that guest. | The links under the welcome read "Not <name>? Change name", "Exit" and "Start as a new guest". |
+| T3.3 | Press "Exit" (sidebar, then repeat from `/guest`). | The landing page opens. The sidebar card shows "Guest <tag>" with the same tag as before and only "Sign in". |
+| T3.4 | As a guest without a name. | No "Exit" and no "Sign out"; only "Sign in". |
+| T3.5 | Sign in as a member. | The button reads "Sign out" and works as before, including the question about unsent drafts. |
+| T3.6 | Repeat T3.1 in Bangla. | The button reads "বের হোন". |
+
+**Checked by the frontend (11 Nov 2026):** T3.1 to T3.4 and T3.6 in Chrome at desktop width, in Bangla. **Not checked:** T3.5 (needs a member account) and the English label.

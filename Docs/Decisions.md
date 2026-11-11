@@ -435,3 +435,11 @@ Amends the 2026-10-20 rows "Rating calculation" and "Category ratings in the for
 | Where it is calculated | In the web client for now; the client sends the result as `overall_rating`. The server should calculate and enforce it (`Handoff-Phase1-Updates.md` P2). | Works with today's API. Until P2, a request made outside the web client can still send any overall rating. |
 | Editing a review | The ratings may be left alone. If the author changes them, all seven are needed and the overall rating is sent again, calculated from them. | An older review can have fewer than seven; forcing a change on every text edit would block simple corrections. |
 | Older reviews and drafts | A review submitted before this keeps the overall rating its author gave. A draft saved before this is asked for the missing category ratings when it is opened; its stored overall rating is ignored. | No stored review is rewritten by the client. |
+
+## 2026-11-11 (Phase 1 update 3: a guest sees "Exit", not "Sign out")
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Label of the guest control | For a named guest the button in the sidebar card and the link on `/guest` read **Exit** (Bangla: "বের হোন"). A member still sees "Sign out". | Owner request (11 Nov 2026). A guest has no account or server session, so "Sign out" was the wrong word. |
+| What it does | Unchanged from 2026-10-20 and 2026-10-21: it forgets the typed name and opens `/`. The guest tag, scope secret, visit dates and saved drafts stay. | Only the word changes. |
+| Who sees it | Unchanged: a guest who entered a name. A guest without a name has nothing to leave and sees only "Sign in". | Same rule as before. |
