@@ -381,3 +381,66 @@ def test_an_overturned_appeal_writes_the_attributes(
     attributes = postgres_session.get(VerificationAttributes, _user_id(fake, "appeal@example.com"))
     assert attributes is not None and attributes.gender == "FEMALE" and attributes.birth_year == 1998, "L11"
     assert browser.get("/api/v1/verifications/mine").json()["verified_member"] is True
+
+
+# ---------------------------------------------------------------- an approval without identity details (QA 12 Nov 2026)
+
+
+def test_an_approval_without_identity_details_is_not_shown_as_verified_and_may_apply(
+    client: TestClient, postgres_session: Session, fake: support.FakeGoTrue
+) -> None:
+    """Before the fix: the badge said Verified Member, Tours said NOT_VERIFIED and a new application said ALREADY_VERIFIED."""
+    browser = member(client, postgres_session, fake, "legacy@example.com", "203.0.113.170")
+    user_id = _user_id(fake, "legacy@example.com")
+    postgres_session.add(
+        Verification(user_id=user_id, verification_type="VERIFIED_MEMBER", status="APPROVED", method="LEGACY", decided_at=datetime.now(UTC))
+    )
+    postgres_session.commit()
+    assert postgres_session.get(VerificationAttributes, user_id) is None
+
+    assert browser.get("/api/v1/auth/session").json()["verified_member"] is False, "no badge without identity details"
+    mine = browser.get("/api/v1/verifications/mine").json()
+    assert mine["verified_member"] is False and mine["verification"]["state"] == "incomplete"
+    assert browser.get("/api/v1/tours/access").json()["access"] is False
+    started = browser.post("/api/v1/verifications", json={})
+    assert started.status_code in (200, 201), started.text
+
+    # With the identity details the same approval is a full Verified Member, and a new application is refused.
+    postgres_session.add(VerificationAttributes(user_id=user_id, gender="FEMALE", birth_year=1999, is_student=False, home_district="Dhaka"))
+    postgres_session.commit()
+    assert browser.get("/api/v1/auth/session").json()["verified_member"] is True
+    assert browser.get("/api/v1/verifications/mine").json()["verification"]["state"] == "active"
+
+
+# ---------------------------------------------------------------- temporary: phone verified on "Send code" (12 Nov 2026)
+
+
+def test_phone_auto_verify_marks_the_phone_verified_when_the_code_is_requested(
+    client: TestClient, postgres_session: Session, fake: support.FakeGoTrue, sms_box: vs.RecordingSms, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setenv("PHONE_AUTO_VERIFY", "true")
+    get_settings.cache_clear()
+    browser = member(client, postgres_session, fake, "autophone@example.com", "203.0.113.171")
+    case = browser.post("/api/v1/verifications", json={}).json()
+    browser.patch(f"/api/v1/verifications/{case['id']}/steps/eligibility", json={"age_confirmed": True, "consent": True})
+    assert browser.patch(f"/api/v1/verifications/{case['id']}/steps/personal", json=vs.PERSONAL).status_code == 200
+
+    sent = browser.post(f"/api/v1/verifications/{case['id']}/phone/send-code", json={"phone": "+8801712000999"})
+    assert sent.status_code == 200, sent.text
+    assert sent.json()["verified"] is True and sent.json()["sent_to"].endswith("0999")
+    assert sms_box.sent == [], "no SMS is sent"
+    view = browser.get("/api/v1/verifications/mine").json()["case"]
+    assert view["phone"]["verified"] is True and view["phone"]["last4"] == "0999"
+    postgres_session.expire_all()
+    phone = postgres_session.scalar(select(PhoneNumber).where(PhoneNumber.user_id == _user_id(fake, "autophone@example.com")))
+    assert phone is not None and phone.verified_at is not None
+
+    # A number already verified on another account is still refused.
+    other = member(client, postgres_session, fake, "autophone2@example.com", "203.0.113.172")
+    case2 = other.post("/api/v1/verifications", json={}).json()
+    other.patch(f"/api/v1/verifications/{case2['id']}/steps/eligibility", json={"age_confirmed": True, "consent": True})
+    other.patch(f"/api/v1/verifications/{case2['id']}/steps/personal", json=vs.PERSONAL)
+    taken = other.post(f"/api/v1/verifications/{case2['id']}/phone/send-code", json={"phone": "+8801712000999"})
+    assert taken.status_code == 409 and taken.json()["error"]["code"] == "PHONE_ALREADY_LINKED"

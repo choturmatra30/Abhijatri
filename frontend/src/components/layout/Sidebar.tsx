@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ListChecks,
   PenSquare,
-  ReceiptText,
   Compass,
   LogIn,
   LogOut,
@@ -101,9 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts 
         { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare, count: unsentDrafts },
         // A member finds their reviews in a list; only a guest, who has no account, needs the
         // review ID and receipt (Phase 1 update 4, Decisions 2026-11-11).
-        session.kind === 'member'
-          ? { to: '/account/reviews', labelBn: 'আমার রিভিউ', labelEn: 'My reviews', icon: ListChecks }
-          : { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
+        { to: '/account/reviews', labelBn: 'আমার রিভিউ', labelEn: 'My reviews', icon: ListChecks },
       ],
     },
   ];

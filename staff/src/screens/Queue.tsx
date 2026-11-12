@@ -372,6 +372,17 @@ function AssignControl({ lang, item, busy, run }: { lang: Lang; item: QueueItem;
   );
 }
 
+const CATEGORY_LABELS: Record<string, [string, string]> = {
+  CLEANLINESS: ['পরিচ্ছন্নতা', 'Cleanliness'],
+  ACCESSIBILITY: ['প্রবেশযোগ্যতা', 'Accessibility'],
+  HOSPITALITY: ['আতিথেয়তা', 'Hospitality'],
+  FOOD: ['খাবার', 'Food'],
+  TRANSPORT: ['যাতায়াত', 'Transport'],
+  SAFETY_PERCEPTION: ['নিরাপত্তার অনুভূতি', 'Feeling of safety'],
+  VALUE: ['খরচের মূল্য', 'Value for money'],
+};
+const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS);
+
 function ReviewBody({ subject, lang }: { subject: ReviewSubject; lang: Lang }) {
   const t = makeT(lang);
   return (
@@ -382,9 +393,19 @@ function ReviewBody({ subject, lang }: { subject: ReviewSubject; lang: Lang }) {
         <span>
           {subject.author === 'guest' ? t('অতিথি', 'Guest') : t('সদস্য', 'Member')}
           {subject.guest_display_name ? ` · ${subject.guest_display_name}` : ''}
+          {subject.guest_tag ? ` · ${subject.guest_tag}` : ''}
           {subject.author_display_name ? ` · ${subject.author_display_name}` : ''}
         </span>
       </div>
+      {subject.category_ratings && Object.keys(subject.category_ratings).length > 0 && (
+        <ul className="small muted category-ratings" aria-label={t('বিষয়ভিত্তিক রেটিং', 'Category ratings')}>
+          {CATEGORY_ORDER.filter((code) => code in subject.category_ratings!).map((code) => (
+            <li key={code}>
+              {t(...CATEGORY_LABELS[code])}: {'★'.repeat(subject.category_ratings![code])} {subject.category_ratings![code]}
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="content-text">{subject.body}</p>
       {subject.media && subject.media.length > 0 && <MediaPreview reviewId={subject.review_id} media={subject.media} lang={lang} />}
     </div>

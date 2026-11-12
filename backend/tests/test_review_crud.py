@@ -28,6 +28,7 @@ from app.models import (
     ReviewRevision,
     ReviewStatus,
     RevisionStatus,
+    User,
 )
 from app.schemas import GuestReviewCreate
 from app.services import encode_cursor, submit_guest_review
@@ -72,7 +73,7 @@ def _body(destination: Destination, **overrides: Any) -> dict[str, Any]:
         "title": "Clouds over the hills",
         "body": "We watched the clouds roll over the hills at sunrise.",
         "overall_rating": 5,
-        "category_ratings": {"FOOD": 4, "SAFETY_PERCEPTION": 5},
+        "category_ratings": {c: 5 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")},
         "consent_version": "v1",
     }
     body.update(overrides)
@@ -142,7 +143,7 @@ def test_a_member_edits_a_pending_review_as_a_new_revision(client: TestClient, p
     nila = _member(client, postgres_session, fake, "nila@example.com", "203.0.113.10")
     review_id = _member_review(nila, destination)
 
-    edited = _edit(nila, review_id, 1, title="Sunrise over the clouds", overall_rating=4, category_ratings={"CLEANLINESS": 3})
+    edited = _edit(nila, review_id, 1, title="Sunrise over the clouds", category_ratings={c: 4 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")})
     assert edited.status_code == 200, edited.text
     assert edited.json() == {"review_id": review_id, "status": "PENDING", "version": 2, "revision": 2}
 
@@ -154,17 +155,21 @@ def test_a_member_edits_a_pending_review_as_a_new_revision(client: TestClient, p
     assert review.current_revision_id == revisions[1].id
     assert revisions[1].title == "Sunrise over the clouds" and revisions[1].body == revisions[0].body, "omitted fields carry over"
     ratings = {row.category: row.rating for row in postgres_session.scalars(select(ReviewCategoryRating).where(ReviewCategoryRating.revision_id == revisions[1].id))}
-    assert ratings == {ReviewCategory.CLEANLINESS: 3}, "a sent category set replaces the old one"
+    assert ratings == {c: 4 for c in ReviewCategory}, "a sent category set replaces the old one"
     old = postgres_session.scalars(select(ReviewCategoryRating).where(ReviewCategoryRating.revision_id == revisions[0].id)).all()
-    assert len(old) == 2, "the superseded revision keeps its history"
+    assert len(old) == 7, "the superseded revision keeps its history"
     assert postgres_session.scalar(select(ModerationTask).where(ModerationTask.subject_id == review.id, ModerationTask.status == "open"))
     stats = postgres_session.get(DestinationRatingStats, destination.id)
     assert stats is not None and stats.guest_rating_count == 0 and stats.community_rating_count == 0, "nothing is counted before publication"
 
-    cleared = _edit(nila, review_id, 2, category_ratings={})
-    assert cleared.status_code == 200
+    # All seven are required once ratings are sent (Decisions 2026-11-11): clearing or a partial set is refused.
+    assert _edit(nila, review_id, 2, category_ratings={}).status_code == 422
+    assert _edit(nila, review_id, 2, category_ratings={"FOOD": 4}).status_code == 422
+    assert _edit(nila, review_id, 2, overall_rating=2).status_code == 422, "overall alone is refused"
+    assert _edit(nila, review_id, 2, category_ratings={c: 4 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")}, overall_rating=2).status_code == 422, "a wrong overall is refused"
+    assert _edit(nila, review_id, 2, category_ratings={c: 4 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")}, overall_rating=4).status_code == 200
     postgres_session.expire_all()
-    assert not postgres_session.scalars(select(ReviewCategoryRating).where(ReviewCategoryRating.revision_id == postgres_session.get(Review, review.id).current_revision_id)).all()
+    assert postgres_session.get(Review, review.id).overall_rating == 4
 
 
 def test_edit_validation_and_credentials(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue) -> None:
@@ -445,3 +450,116 @@ def test_a_late_guest_appeal_is_refused(client: TestClient, postgres_session: Se
     assert late.status_code == 409 and late.json()["error"]["code"] == "APPEAL_WINDOW_CLOSED"
     status = guest.post(f"{API}/review-receipts/status", json={"review_id": str(review.id), "receipt_secret": receipt}).json()
     assert status["appeal_deadline"] is not None and datetime.fromisoformat(status["appeal_deadline"]) < datetime.now(UTC)
+
+
+# ============ My reviews: keyword search and the reported filter (Phase 1 update 4, P4b/P4c) ============
+
+
+def test_my_reviews_keyword_search_and_short_note(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue) -> None:
+    destination = _destination(postgres_session)
+    nila = _member(client, postgres_session, fake, "nila-q@example.com", "203.0.113.60")
+    omar = _member(client, postgres_session, fake, "omar-q@example.com", "203.0.113.61")
+    sunrise = _member_review(nila, destination, title="Sunrise at the ridge", body="Clouds below us.", visit_month=_month(0))
+    bangla = _member_review(nila, destination, title="সাজেকের ভোর", body="মেঘের উপর দাঁড়িয়ে আছি", visit_month=_month(1))
+    short = _member_review(nila, destination, title="Quick note", body="Ok", visit_month=_month(2))  # 2 characters: the 20-character minimum is gone
+    _member_review(omar, destination, title="Sunrise too", body="Somebody else's words")
+
+    def ids(**params: Any) -> list[str]:
+        response = nila.get(f"{API}/reviews/mine", params=params)
+        assert response.status_code == 200, response.text
+        return [item["id"] for item in response.json()["items"]]
+
+    assert ids(q="sunrise") == [sunrise], "title match, case-insensitive, only my own reviews"
+    assert ids(q="SUNRISE") == [sunrise]
+    assert ids(q="clouds") == [sunrise], "text match"
+    assert ids(q="ভোর") == [bangla], "Bangla keyword"
+    assert ids(q="  sunrise  ") == [sunrise], "the keyword is trimmed"
+    assert ids(q="") != [] and len(ids(q="")) == 3, "an empty keyword means no filter"
+    assert ids(q="nothing-matches-this") == []
+    assert ids(q="%") == [], "LIKE wildcards are literal"
+    assert ids(q="_") == []
+    assert ids(q="ok", status="PENDING") == [short], "q works together with the status filter"
+    assert ids(q="sunrise", status="REJECTED") == []
+    assert nila.get(f"{API}/reviews/mine", params={"q": "x" * 101}).status_code == 422
+    # the keyword and the cursor work together
+    page = nila.get(f"{API}/reviews/mine", params={"q": "o", "limit": 1}).json()
+    assert len(page["items"]) == 1 and page["next_cursor"]
+    second = nila.get(f"{API}/reviews/mine", params={"q": "o", "limit": 1, "after": page["next_cursor"]}).json()
+    assert second["items"][0]["id"] != page["items"][0]["id"]
+
+
+def test_my_reviews_reported_filter_only_after_a_moderator_decided(
+    client: TestClient, postgres_session: Session, fake: support.FakeGoTrue
+) -> None:
+    from app.models import Report
+
+    destination = _destination(postgres_session)
+    nila = _member(client, postgres_session, fake, "nila-r@example.com", "203.0.113.62")
+    reporter = _member(client, postgres_session, fake, "rep-r@example.com", "203.0.113.63")
+    flagged = _member_review(nila, destination, visit_month=_month(0))
+    open_one = _member_review(nila, destination, visit_month=_month(1))
+    plain = _member_review(nila, destination, visit_month=_month(2))
+    reporter_id = postgres_session.scalar(select(User.id).where(User.email == "rep-r@example.com"))
+    for review_id, state in ((flagged, "actioned"), (open_one, "open")):
+        postgres_session.add(Report(review_id=uuid.UUID(review_id), reporter_user_id=reporter_id, reason_code="spam", state=state))
+    postgres_session.commit()
+
+    everything = nila.get(f"{API}/reviews/mine").json()["items"]
+    by_id = {item["id"]: item for item in everything}
+    assert by_id[flagged]["reported"] is True
+    assert by_id[open_one]["reported"] is False, "an undecided report is not shown to the author"
+    assert by_id[plain]["reported"] is False
+    only = nila.get(f"{API}/reviews/mine", params={"reported": "true"}).json()["items"]
+    assert [item["id"] for item in only] == [flagged]
+    rest = nila.get(f"{API}/reviews/mine", params={"reported": "false"}).json()["items"]
+    assert {item["id"] for item in rest} == {open_one, plain}
+    assert "reporter" not in str(everything) and "spam" not in str(everything), "never the reporter or the reason"
+    assert reporter.get(f"{API}/reviews/mine").json()["items"] == [], "the reporter sees nothing of it"
+
+
+def test_server_calculates_the_overall_rating_for_members(client: TestClient, postgres_session: Session, fake: support.FakeGoTrue) -> None:
+    destination = _destination(postgres_session)
+    nila = _member(client, postgres_session, fake, "nila-o@example.com", "203.0.113.64")
+    seven = ("CLEANLINESS", "ACCESSIBILITY", "HOSPITALITY", "FOOD", "TRANSPORT", "SAFETY_PERCEPTION", "VALUE")
+    mixed = dict(zip(seven, (5, 5, 5, 5, 4, 4, 4), strict=True))  # 32 / 7 = 4.57 -> 5
+    no_overall = _body(destination, category_ratings=mixed)
+    del no_overall["overall_rating"]
+    created = nila.post(f"{API}/reviews/member", json=no_overall)
+    assert created.status_code == 201, created.text
+    assert nila.get(f"{API}/reviews/{created.json()['review_id']}").json()["overall_rating"] == 5
+    six = nila.post(f"{API}/reviews/member", json=_body(destination, category_ratings={k: 5 for k in seven[:6]}, visit_month=_month(1)))
+    assert six.status_code == 422 and any(e["field"].startswith("category_ratings") or e["field"] == "__root__" or e["field"] for e in six.json()["error"]["field_errors"])
+    wrong = nila.post(f"{API}/reviews/member", json=_body(destination, category_ratings=mixed, overall_rating=2, visit_month=_month(1)))
+    assert wrong.status_code == 422
+    none = _body(destination, visit_month=_month(1))
+    del none["category_ratings"]
+    assert nila.post(f"{API}/reviews/member", json=none).status_code == 422
+
+
+def test_guest_lists_own_reviews_by_scope_secret_without_id_or_receipt(
+    client: TestClient, postgres_session: Session
+) -> None:
+    destination = _destination(postgres_session)
+    mine = _guest_review(postgres_session, destination, new_receipt(), secret="m" * 43)
+    other = _guest_review(postgres_session, destination, new_receipt(), secret="o" * 43)
+    anonymous = _anonymous(client, "203.0.113.70")
+
+    listing = anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "m" * 43})
+    assert listing.status_code == 200, listing.text
+    assert listing.headers["cache-control"] == "no-store"
+    assert [item["id"] for item in listing.json()["items"]] == [str(mine.id)]
+    assert listing.json()["items"][0]["status"] == "PENDING" and listing.json()["items"][0]["reported"] is False
+    assert str(other.id) not in listing.text, "another browser's review is never listed"
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "z" * 43}).json()["items"] == []
+
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "m" * 43, "q": "clouds"}).json()["items"]
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "m" * 43, "q": "volcano"}).json()["items"] == []
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "m" * 43, "status": "REJECTED"}).json()["items"] == []
+    # bad input
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={}).status_code == 422
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "short"}).status_code == 422
+    assert anonymous.post(f"{API}/reviews/guest/mine", json={"guest_scope_secret": "m" * 43, "extra": 1}).status_code == 422
+    assert anonymous.get(f"{API}/reviews/guest/mine").status_code in (404, 405, 422), "the secret is never accepted in a URL"
+    # a member's review is never reachable by a guest secret
+    nila_body = {"guest_scope_secret": "m" * 43}
+    assert all(item["id"] != "x" for item in anonymous.post(f"{API}/reviews/guest/mine", json=nila_body).json()["items"])

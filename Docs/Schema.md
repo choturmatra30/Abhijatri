@@ -284,7 +284,7 @@ grants.
 | `request_idempotency` | R16 (implemented 6 Nov 2026, migration `0022`) | PK `(scope_digest, endpoint, key_digest)` is the unique constraint; request fingerprint, stored success response, `expires_at` (72 h). Separate from the staff `idempotency_keys`. |
 | `destination_pack_versions` | **Implemented** (migration `0021_destination_pack_versions`, 6 Nov 2026) | See section 2. |
 | `review_media` | **Implemented** (migration `0016`, 27 Oct 2026) | Photos (up to 5) and one video per member review: `kind` image/video, `state` awaiting_upload → pending → approved/rejected (or removed), `quarantine_key`, `processed_key`, content type, size, width, height, `duration_ms`, alt text, caption, `ownership_declared` (must be true), decided by/at. RLS on, no grants to `anon`/`authenticated`. Any signed-in member may upload (owner decision, Decisions.md). |
-| `price_catalogue_items`, `estimates`, `saved_trip_briefs` | M2 (E06-E09) | Out of scope until M1. |
+| `price_catalogue_items`, `estimates`, `saved_trip_briefs` | M2 (E06-E09) | Not built. The rules they must follow are frozen in `Features/Cost-Planner.md` (E01, 11 Nov 2026); constants in `app/planner/rules.py`. |
 
 ## 4. Rules that apply to every table
 

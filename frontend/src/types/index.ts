@@ -305,6 +305,8 @@ export interface ReviewSummary {
   created_at: string;
   published_at: string | null;
   appeal_deadline: string | null;
+  /** True once someone reported it and a moderator decided the report (never who or why). */
+  reported?: boolean;
 }
 
 export interface MyReviews {

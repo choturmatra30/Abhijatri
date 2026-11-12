@@ -1,0 +1,1095 @@
+{
+ "rules_version": "planner-rules-1.0.0",
+ "note": "Illustrative prices only; not researched catalogue data. Expected values were derived by hand (Cost-Planner.md 13).",
+ "examples": [
+  {
+   "id": "EX01",
+   "title": "Four students, Cox's Bazar, Thu-Sat, standard tier (proposal case, meals seasoned)",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-12",
+    "days": 3,
+    "nights": 2,
+    "party": 4,
+    "meals_per_day": 3,
+    "vehicle_days": 3
+   },
+   "records": [
+    {
+     "id": "bus",
+     "item": "bus",
+     "unit": "per_person",
+     "low": 2000,
+     "expected": 2400,
+     "high": 3000,
+     "source_type": "verified_operator",
+     "verified_on": "2026-10-20",
+     "reports": 3
+    },
+    {
+     "id": "room",
+     "item": "room",
+     "unit": "per_room",
+     "low": 2200,
+     "expected": 3000,
+     "high": 4000,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 2
+    },
+    {
+     "id": "meal",
+     "item": "meals",
+     "unit": "per_meal",
+     "low": 180,
+     "expected": 250,
+     "high": 350,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 2
+    },
+    {
+     "id": "jeep",
+     "item": "vehicle",
+     "unit": "per_vehicle",
+     "low": 900,
+     "expected": 1200,
+     "high": 1600,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 1,
+     "capacity": 4
+    },
+    {
+     "id": "park",
+     "item": "entry",
+     "unit": "per_entry",
+     "low": 50,
+     "expected": 50,
+     "high": 50,
+     "source_type": "official",
+     "verified_on": "2026-06-01",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "27758",
+     "expected": "36560",
+     "high": "48540"
+    },
+    "per_person": {
+     "low": "6939.5",
+     "expected": "9140",
+     "high": "12135"
+    },
+    "display_total": {
+     "low": "27760",
+     "expected": "36560",
+     "high": "48540"
+    },
+    "display_per_person": {
+     "low": "6940",
+     "expected": "9140",
+     "high": "12140"
+    },
+    "shared_expected": "16860",
+    "individual_expected": "19700",
+    "overall_confidence": "0.7898",
+    "label": "Medium",
+    "lines": [
+     {
+      "item": "bus",
+      "id": "bus",
+      "q": 4,
+      "sigma": "1.00",
+      "low": "8000",
+      "expected": "9600",
+      "high": "12000"
+     },
+     {
+      "item": "room",
+      "id": "room",
+      "q": 2,
+      "sigma": "2.15",
+      "low": "9460",
+      "expected": "12900",
+      "high": "17200"
+     },
+     {
+      "item": "meals",
+      "id": "meal",
+      "q": 4,
+      "sigma": "9.90",
+      "low": "7128",
+      "expected": "9900",
+      "high": "13860"
+     },
+     {
+      "item": "vehicle",
+      "id": "jeep",
+      "q": 1,
+      "sigma": "3.30",
+      "low": "2970",
+      "expected": "3960",
+      "high": "5280"
+     },
+     {
+      "item": "entry",
+      "id": "park",
+      "q": 4,
+      "sigma": "1.00",
+      "low": "200",
+      "expected": "200",
+      "high": "200"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX02",
+   "title": "Odd party of five, capacity two gives three rooms",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 2,
+    "nights": 1,
+    "party": 5,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "room",
+     "item": "room",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1500,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 2
+    },
+    {
+     "id": "bus",
+     "item": "bus",
+     "unit": "per_person",
+     "low": 500,
+     "expected": 600,
+     "high": 700,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "5500",
+     "expected": "6600",
+     "high": "8000"
+    },
+    "per_person": {
+     "low": "1100",
+     "expected": "1320",
+     "high": "1600"
+    },
+    "display_total": {
+     "low": "5500",
+     "expected": "6600",
+     "high": "8000"
+    },
+    "display_per_person": {
+     "low": "1100",
+     "expected": "1320",
+     "high": "1600"
+    },
+    "shared_expected": "3600",
+    "individual_expected": "3000",
+    "overall_confidence": "0.8221",
+    "label": "High",
+    "lines": [
+     {
+      "item": "room",
+      "id": "room",
+      "q": 3,
+      "sigma": "1.00",
+      "low": "3000",
+      "expected": "3600",
+      "high": "4500"
+     },
+     {
+      "item": "bus",
+      "id": "bus",
+      "q": 5,
+      "sigma": "1.00",
+      "low": "2500",
+      "expected": "3000",
+      "high": "3500"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX03",
+   "title": "Party of one, one day, zero nights, capacity one",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 1,
+    "nights": 0,
+    "party": 1,
+    "meals_per_day": 3
+   },
+   "records": [
+    {
+     "id": "jeep",
+     "item": "vehicle",
+     "unit": "per_vehicle",
+     "low": 800,
+     "expected": 1000,
+     "high": 1200,
+     "source_type": "verified_operator",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 1
+    },
+    {
+     "id": "meal",
+     "item": "meals",
+     "unit": "per_meal",
+     "low": 100,
+     "expected": 150,
+     "high": 200,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3
+    },
+    {
+     "id": "room",
+     "item": "room",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1000,
+     "high": 1000,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 2
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "1100",
+     "expected": "1450",
+     "high": "1800"
+    },
+    "per_person": {
+     "low": "1100",
+     "expected": "1450",
+     "high": "1800"
+    },
+    "display_total": {
+     "low": "1100",
+     "expected": "1450",
+     "high": "1800"
+    },
+    "display_per_person": {
+     "low": "1100",
+     "expected": "1450",
+     "high": "1800"
+    },
+    "shared_expected": "1000",
+    "individual_expected": "450",
+    "overall_confidence": "0.8600",
+    "label": "High",
+    "lines": [
+     {
+      "item": "vehicle",
+      "id": "jeep",
+      "q": 1,
+      "sigma": "1.00",
+      "low": "800",
+      "expected": "1000",
+      "high": "1200"
+     },
+     {
+      "item": "meals",
+      "id": "meal",
+      "q": 1,
+      "sigma": "3.00",
+      "low": "300",
+      "expected": "450",
+      "high": "600"
+     },
+     {
+      "item": "room",
+      "id": "room",
+      "q": 1,
+      "sigma": "0.00",
+      "low": "0",
+      "expected": "0",
+      "high": "0"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX04",
+   "title": "Per-group: seven people, capacity six, day basis and trip basis",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 2,
+    "nights": 1,
+    "party": 7,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "guide",
+     "item": "guide",
+     "unit": "per_group",
+     "low": 1500,
+     "expected": 2000,
+     "high": 2500,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 6,
+     "basis": "day"
+    },
+    {
+     "id": "permit",
+     "item": "permit",
+     "unit": "per_group",
+     "low": 300,
+     "expected": 300,
+     "high": 300,
+     "source_type": "official",
+     "verified_on": "2026-06-01",
+     "reports": 3,
+     "capacity": 6,
+     "basis": "trip"
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "6600",
+     "expected": "8600",
+     "high": "10600"
+    },
+    "per_person": {
+     "low": "942.857142857142857142857143",
+     "expected": "1228.571428571428571428571429",
+     "high": "1514.285714285714285714285714"
+    },
+    "display_total": {
+     "low": "6600",
+     "expected": "8600",
+     "high": "10600"
+    },
+    "display_per_person": {
+     "low": "940",
+     "expected": "1230",
+     "high": "1510"
+    },
+    "shared_expected": "8600",
+    "individual_expected": "0",
+    "overall_confidence": "0.8233",
+    "label": "High",
+    "lines": [
+     {
+      "item": "guide",
+      "id": "guide",
+      "q": 2,
+      "sigma": "2.00",
+      "low": "6000",
+      "expected": "8000",
+      "high": "10000"
+     },
+     {
+      "item": "permit",
+      "id": "permit",
+      "q": 2,
+      "sigma": "1",
+      "low": "600",
+      "expected": "600",
+      "high": "600"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX05",
+   "title": "Per day/night and per trip units",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 3,
+    "nights": 2,
+    "party": 3,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "svc",
+     "item": "service",
+     "unit": "per_day_night",
+     "low": 200,
+     "expected": 250,
+     "high": 300,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "basis": "night"
+    },
+    {
+     "id": "camp",
+     "item": "camp",
+     "unit": "per_day_night",
+     "low": 100,
+     "expected": 100,
+     "high": 100,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "basis": "day"
+    },
+    {
+     "id": "xfer",
+     "item": "transfer",
+     "unit": "per_trip",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1500,
+     "source_type": "verified_operator",
+     "verified_on": "2026-10-20",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "1700",
+     "expected": "2000",
+     "high": "2400"
+    },
+    "per_person": {
+     "low": "566.666666666666666666666667",
+     "expected": "666.666666666666666666666667",
+     "high": "800"
+    },
+    "display_total": {
+     "low": "1700",
+     "expected": "2000",
+     "high": "2400"
+    },
+    "display_per_person": {
+     "low": "570",
+     "expected": "670",
+     "high": "800"
+    },
+    "shared_expected": "2000",
+    "individual_expected": "0",
+    "overall_confidence": "0.8670",
+    "label": "High",
+    "lines": [
+     {
+      "item": "service",
+      "id": "svc",
+      "q": 1,
+      "sigma": "2.00",
+      "low": "400",
+      "expected": "500",
+      "high": "600"
+     },
+     {
+      "item": "camp",
+      "id": "camp",
+      "q": 1,
+      "sigma": "3.00",
+      "low": "300",
+      "expected": "300",
+      "high": "300"
+     },
+     {
+      "item": "transfer",
+      "id": "xfer",
+      "q": 1,
+      "sigma": "1",
+      "low": "1000",
+      "expected": "1200",
+      "high": "1500"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX06",
+   "title": "Holiday and peak bands: the highest factor wins, never stacked",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-12",
+    "days": 2,
+    "nights": 2,
+    "party": 2,
+    "meals_per_day": 0,
+    "bands": {
+     "2026-11-12": [
+      "public_holiday"
+     ],
+     "2026-11-13": [
+      "peak"
+     ]
+    }
+   },
+   "records": [
+    {
+     "id": "room",
+     "item": "room",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1400,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 2
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "2550",
+     "expected": "3060",
+     "high": "3570"
+    },
+    "per_person": {
+     "low": "1275",
+     "expected": "1530",
+     "high": "1785"
+    },
+    "display_total": {
+     "low": "2550",
+     "expected": "3060",
+     "high": "3570"
+    },
+    "display_per_person": {
+     "low": "1280",
+     "expected": "1530",
+     "high": "1790"
+    },
+    "shared_expected": "3060",
+    "individual_expected": "0",
+    "overall_confidence": "0.8267",
+    "label": "High",
+    "lines": [
+     {
+      "item": "room",
+      "id": "room",
+      "q": 1,
+      "sigma": "2.55",
+      "low": "2550",
+      "expected": "3060",
+      "high": "3570"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX07",
+   "title": "Stale record: still used, freshness 0.5, visible warning",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 1,
+    "nights": 0,
+    "party": 2,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "bus",
+     "item": "bus",
+     "unit": "per_person",
+     "low": 600,
+     "expected": 700,
+     "high": 800,
+     "source_type": "community_report",
+     "verified_on": "2026-06-01",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "1200",
+     "expected": "1400",
+     "high": "1600"
+    },
+    "per_person": {
+     "low": "600",
+     "expected": "700",
+     "high": "800"
+    },
+    "display_total": {
+     "low": "1200",
+     "expected": "1400",
+     "high": "1600"
+    },
+    "display_per_person": {
+     "low": "600",
+     "expected": "700",
+     "high": "800"
+    },
+    "shared_expected": "0",
+    "individual_expected": "1400",
+    "overall_confidence": "0.7064",
+    "label": "Medium",
+    "lines": [
+     {
+      "item": "bus",
+      "id": "bus",
+      "q": 2,
+      "sigma": "1",
+      "low": "1200",
+      "expected": "1400",
+      "high": "1600"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": [
+     "stale:bus"
+    ]
+   }
+  },
+  {
+   "id": "EX08",
+   "title": "Expired record excluded and listed; missing item makes the estimate incomplete (High capped to Medium)",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 1,
+    "nights": 0,
+    "party": 2,
+    "meals_per_day": 0
+   },
+   "requested": [
+    "bus",
+    "hotel",
+    "guide"
+   ],
+   "records": [
+    {
+     "id": "bus",
+     "item": "bus",
+     "unit": "per_person",
+     "low": 1000,
+     "expected": 1100,
+     "high": 1200,
+     "source_type": "verified_operator",
+     "verified_on": "2026-10-20",
+     "reports": 3
+    },
+    {
+     "id": "hotel-old",
+     "item": "hotel",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1400,
+     "source_type": "community_report",
+     "verified_on": "2026-10-20",
+     "reports": 3,
+     "capacity": 2,
+     "valid_until": "2026-11-01"
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "2000",
+     "expected": "2200",
+     "high": "2400"
+    },
+    "per_person": {
+     "low": "1000",
+     "expected": "1100",
+     "high": "1200"
+    },
+    "display_total": {
+     "low": "2000",
+     "expected": "2200",
+     "high": "2400"
+    },
+    "display_per_person": {
+     "low": "1000",
+     "expected": "1100",
+     "high": "1200"
+    },
+    "shared_expected": "0",
+    "individual_expected": "2200",
+    "overall_confidence": "0.9118",
+    "label": "Medium",
+    "lines": [
+     {
+      "item": "bus",
+      "id": "bus",
+      "q": 2,
+      "sigma": "1",
+      "low": "2000",
+      "expected": "2200",
+      "high": "2400"
+     }
+    ],
+    "expired": [
+     "hotel-old"
+    ],
+    "no_data": [
+     "guide",
+     "hotel"
+    ],
+    "warnings": [
+     "incomplete"
+    ]
+   }
+  },
+  {
+   "id": "EX09",
+   "title": "Official charge ignores season factors; low = expected = high gives agreement 1",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-12",
+    "days": 2,
+    "nights": 1,
+    "party": 3,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "ferry",
+     "item": "ferry",
+     "unit": "per_vehicle",
+     "low": 500,
+     "expected": 500,
+     "high": 500,
+     "source_type": "official",
+     "verified_on": "2026-06-01",
+     "reports": 3,
+     "capacity": 4
+    },
+    {
+     "id": "park",
+     "item": "entry",
+     "unit": "per_entry",
+     "low": 50,
+     "expected": 50,
+     "high": 50,
+     "source_type": "official",
+     "verified_on": "2026-06-01",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "1150",
+     "expected": "1150",
+     "high": "1150"
+    },
+    "per_person": {
+     "low": "383.333333333333333333333333",
+     "expected": "383.333333333333333333333333",
+     "high": "383.333333333333333333333333"
+    },
+    "display_total": {
+     "low": "1150",
+     "expected": "1150",
+     "high": "1150"
+    },
+    "display_per_person": {
+     "low": "380",
+     "expected": "380",
+     "high": "380"
+    },
+    "shared_expected": "1000",
+    "individual_expected": "150",
+    "overall_confidence": "1.0000",
+    "label": "High",
+    "lines": [
+     {
+      "item": "ferry",
+      "id": "ferry",
+      "q": 1,
+      "sigma": "2",
+      "low": "1000",
+      "expected": "1000",
+      "high": "1000"
+     },
+     {
+      "item": "entry",
+      "id": "park",
+      "q": 3,
+      "sigma": "1",
+      "low": "150",
+      "expected": "150",
+      "high": "150"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX10",
+   "title": "Record choice: fresh before stale, then authority, newest, then id",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 2,
+    "nights": 1,
+    "party": 2,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "B",
+     "item": "hotel",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1400,
+     "source_type": "community_report",
+     "verified_on": "2026-10-30",
+     "reports": 3,
+     "capacity": 2
+    },
+    {
+     "id": "A",
+     "item": "hotel",
+     "unit": "per_room",
+     "low": 1000,
+     "expected": 1200,
+     "high": 1400,
+     "source_type": "community_report",
+     "verified_on": "2026-10-30",
+     "reports": 3,
+     "capacity": 2
+    },
+    {
+     "id": "C",
+     "item": "hotel",
+     "unit": "per_room",
+     "low": 800,
+     "expected": 900,
+     "high": 1000,
+     "source_type": "community_report",
+     "verified_on": "2026-05-01",
+     "reports": 3,
+     "capacity": 2
+    },
+    {
+     "id": "D",
+     "item": "hotel",
+     "unit": "per_room",
+     "low": 700,
+     "expected": 800,
+     "high": 900,
+     "source_type": "verified_operator",
+     "verified_on": "2026-05-01",
+     "reports": 3,
+     "capacity": 2
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "1000",
+     "expected": "1200",
+     "high": "1400"
+    },
+    "per_person": {
+     "low": "500",
+     "expected": "600",
+     "high": "700"
+    },
+    "display_total": {
+     "low": "1000",
+     "expected": "1200",
+     "high": "1400"
+    },
+    "display_per_person": {
+     "low": "500",
+     "expected": "600",
+     "high": "700"
+    },
+    "shared_expected": "1200",
+    "individual_expected": "0",
+    "overall_confidence": "0.8267",
+    "label": "High",
+    "lines": [
+     {
+      "item": "hotel",
+      "id": "A",
+      "q": 1,
+      "sigma": "1.00",
+      "low": "1000",
+      "expected": "1200",
+      "high": "1400"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  },
+  {
+   "id": "EX11",
+   "title": "Low confidence: stale, no corroboration, wide range",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 1,
+    "nights": 0,
+    "party": 4,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "bus",
+     "item": "bus",
+     "unit": "per_person",
+     "low": 500,
+     "expected": 1000,
+     "high": 2000,
+     "source_type": "community_report",
+     "verified_on": "2026-05-01",
+     "reports": 0
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "2000",
+     "expected": "4000",
+     "high": "8000"
+    },
+    "per_person": {
+     "low": "500",
+     "expected": "1000",
+     "high": "2000"
+    },
+    "display_total": {
+     "low": "2000",
+     "expected": "4000",
+     "high": "8000"
+    },
+    "display_per_person": {
+     "low": "500",
+     "expected": "1000",
+     "high": "2000"
+    },
+    "shared_expected": "0",
+    "individual_expected": "4000",
+    "overall_confidence": "0.3850",
+    "label": "Low",
+    "lines": [
+     {
+      "item": "bus",
+      "id": "bus",
+      "q": 4,
+      "sigma": "1",
+      "low": "2000",
+      "expected": "4000",
+      "high": "8000"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": [
+     "low_confidence",
+     "stale:bus"
+    ]
+   }
+  },
+  {
+   "id": "EX12",
+   "title": "Rounding: a per-person half rounds up (15 -> 20)",
+   "as_of": "2026-11-10",
+   "trip": {
+    "start": "2026-11-15",
+    "days": 1,
+    "nights": 0,
+    "party": 2,
+    "meals_per_day": 0
+   },
+   "records": [
+    {
+     "id": "park",
+     "item": "entry",
+     "unit": "per_entry",
+     "low": 15,
+     "expected": 15,
+     "high": 15,
+     "source_type": "official",
+     "verified_on": "2026-06-01",
+     "reports": 3
+    }
+   ],
+   "expect": {
+    "total": {
+     "low": "30",
+     "expected": "30",
+     "high": "30"
+    },
+    "per_person": {
+     "low": "15",
+     "expected": "15",
+     "high": "15"
+    },
+    "display_total": {
+     "low": "30",
+     "expected": "30",
+     "high": "30"
+    },
+    "display_per_person": {
+     "low": "20",
+     "expected": "20",
+     "high": "20"
+    },
+    "shared_expected": "0",
+    "individual_expected": "30",
+    "overall_confidence": "1.0000",
+    "label": "High",
+    "lines": [
+     {
+      "item": "entry",
+      "id": "park",
+      "q": 2,
+      "sigma": "1",
+      "low": "30",
+      "expected": "30",
+      "high": "30"
+     }
+    ],
+    "expired": [],
+    "no_data": [],
+    "warnings": []
+   }
+  }
+ ]
+}

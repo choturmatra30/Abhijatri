@@ -14,7 +14,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app import abuse, visits
-from app.admin.cases import is_verified_member
 from app.auth import breach, csrf, mail, validation
 from app.auth.gotrue import GoTrueClient, GoTrueError, GoTrueUnavailable, TokenPair, get_gotrue
 from app.auth.sessions import (
@@ -37,6 +36,7 @@ from app.models import User
 from app.notify import events
 from app.redis_client import RedisDep
 from app.turnstile import ACTION_AUTH_REGISTER, ACTION_AUTH_RESET, TurnstileDep
+from app.verification.service import fully_verified
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,8 @@ def _session_payload(principal: Principal, factors: list[dict[str, Any]], sessio
             "email_verified": principal.user.email_verified_at is not None,
         },
         "role": principal.role,
-        "verified_member": is_verified_member(session, principal.user.id),
+        # The same rule as Tours: an approval plus the identity details (fully_verified).
+        "verified_member": fully_verified(session, principal.user.id),
         "aal": principal.claims.aal,
         "mfa_factors": [{"id": f.get("id"), "type": f.get("factor_type")} for f in verified],
         "auth_time": principal.claims.auth_time.isoformat(),

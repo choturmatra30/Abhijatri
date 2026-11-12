@@ -188,6 +188,10 @@ class Settings(BaseSettings):
     # SMS one-time codes (sign-up form 3, 12). "mailpit" delivers to the local inbox (development only);
     # "none" refuses phone verification with 503 until a real gateway is configured.
     sms_provider: str = Field(default="none", pattern="^(none|mailpit)$")
+    # TEMPORARY (12 Nov 2026, until a real SMS gateway exists): "Send code" marks the phone verified at once,
+    # sends no SMS and records `verification.phone_verified` with `auto: true`. Duplicate and banned numbers are
+    # still refused. Set PHONE_AUTO_VERIFY=false when SMS works (Decisions 2026-11-12).
+    phone_auto_verify: bool = True
     # Verification application limits (sign-up form 3, 10.3, 10.4).
     verification_drafts_per_day: int = Field(default=3, ge=1)
     verification_submissions_per_day: int = Field(default=1, ge=1)

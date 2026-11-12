@@ -157,6 +157,7 @@ def _payload(destination_id: uuid.UUID, **overrides: Any) -> dict[str, Any]:
         "title": "Lovely beach",
         "body": "A long enough review body for the validation rules.",
         "overall_rating": 5,
+        "category_ratings": {c: 5 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")},
         "consent_version": "v1",
     }
     body.update(overrides)

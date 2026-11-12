@@ -280,6 +280,10 @@ export async function uploadReviewMedia(reviewId: string, item: MediaUpload): Pr
 export interface MyReviewsQuery {
   status?: ReviewStatus | '';
   destinationId?: string;
+  /** Keyword over the title and text (P4b). */
+  q?: string;
+  /** `true`: only reviews with a decided report (P4c). */
+  reported?: boolean;
   after?: string | null;
   limit?: number;
 }
@@ -289,6 +293,8 @@ export function myReviewsQuery(query: MyReviewsQuery): string {
   const params = new URLSearchParams();
   if (query.status) params.set('status', query.status);
   if (query.destinationId) params.set('destination_id', query.destinationId);
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  if (query.reported) params.set('reported', 'true');
   if (query.after) params.set('after', query.after);
   if (query.limit) params.set('limit', String(query.limit));
   const text = params.toString();
@@ -298,6 +304,21 @@ export function myReviewsQuery(query: MyReviewsQuery): string {
 /** The signed-in member's own reviews, newest first, with an opaque cursor (never built or parsed here). */
 export const getMyReviews = (query: MyReviewsQuery = {}) =>
   call<MyReviews>(`/api/v1/reviews/mine${myReviewsQuery(query)}`, { method: 'GET' });
+
+/** A guest's own reviews, found by this browser's scope secret (API.md 5.5a, P4a). The secret goes in the body. */
+export const getGuestReviews = (query: MyReviewsQuery = {}) =>
+  apiRequest<MyReviews>('/api/v1/reviews/guest/mine', {
+    method: 'POST',
+    body: {
+      guest_scope_secret: getGuestScopeSecret(),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.destinationId ? { destination_id: query.destinationId } : {}),
+      ...(query.q?.trim() ? { q: query.q.trim() } : {}),
+      ...(query.reported ? { reported: true } : {}),
+      ...(query.after ? { after: query.after } : {}),
+      ...(query.limit ? { limit: query.limit } : {}),
+    },
+  });
 
 /** The author's full view of one review. 404 means "not yours or not there" and is shown as such. */
 export const getReview = (reviewId: string) => call<ReviewDetail>(`/api/v1/reviews/${encodeURIComponent(reviewId)}`, { method: 'GET' });

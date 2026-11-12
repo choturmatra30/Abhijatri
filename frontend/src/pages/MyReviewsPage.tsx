@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FilePenLine, Loader2, PenSquare, Undo2, WifiOff } from 'lucide-react';
+import { FilePenLine, Flag, Loader2, PenSquare, Search, Undo2, WifiOff } from 'lucide-react';
 import { ApiError, NETWORK_ERROR } from '../api/client';
 import { listAllDestinations } from '../api/destinations';
-import { getMyReviews, withdrawMemberReview } from '../api/reviews';
+import { getGuestReviews, getMyReviews, withdrawMemberReview } from '../api/reviews';
 import { useIdempotencyKeys } from '../hooks/useIdempotencyKeys';
 import { Notice, linkClass } from '../components/auth/AccountUi';
 import { EmptyState, LoadingState, describeError, AccountNeedsConnection } from '../components/common/StatusViews';
@@ -14,7 +14,6 @@ import { useSession } from '../context/SessionContext';
 import type { DestinationSummary, ReviewStatus, ReviewSummary } from '../types';
 import { formatCalendarDate, formatTimestamp, pick } from '../utils/format';
 import { canEdit, canWithdraw } from '../utils/reviewAuthor';
-import { SignInLink } from '../components/common/SignInLink';
 
 const PAGE_SIZE = 20;
 const STATUSES = Object.keys(STATUS_LABEL) as ReviewStatus[];
@@ -28,6 +27,13 @@ export const MyReviewsPage: React.FC = () => {
   const [params, setParams] = useSearchParams();
   const statusFilter = (STATUSES.includes(params.get('status') as ReviewStatus) ? params.get('status') : '') as ReviewStatus | '';
   const destinationFilter = params.get('destination') ?? '';
+  const keyword = params.get('q') ?? '';
+  const reportedOnly = params.get('reported') === 'true';
+  const isGuest = session.kind === 'guest';
+  const [draftKeyword, setDraftKeyword] = useState(keyword);
+  // The box follows the address: "Clear filters", Back and Forward all show the keyword in use.
+  useEffect(() => setDraftKeyword(keyword), [keyword]);
+  const fetchPage = isGuest ? getGuestReviews : getMyReviews;
 
   const [items, setItems] = useState<ReviewSummary[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -56,20 +62,19 @@ export const MyReviewsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (session.kind !== 'member') return;
     const controller = new AbortController();
     listAllDestinations(controller.signal).then(setDestinations).catch(() => undefined);
     return () => controller.abort();
-  }, [session.kind]);
+  }, []);
 
   // A new filter starts again from the newest page: the old cursor belongs to the old listing.
   useEffect(() => {
-    if (session.kind !== 'member') return;
+    if (sessionStatus !== 'ready') return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     setCursor(null);
-    getMyReviews({ status: statusFilter, destinationId: destinationFilter, limit: PAGE_SIZE })
+    fetchPage({ status: statusFilter, destinationId: destinationFilter, q: keyword, reported: reportedOnly, limit: PAGE_SIZE })
       .then((page) => {
         if (cancelled) return;
         setItems(page.items);
@@ -84,14 +89,14 @@ export const MyReviewsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [session.kind, statusFilter, destinationFilter, attempt]);
+  }, [sessionStatus, isGuest, statusFilter, destinationFilter, keyword, reportedOnly, attempt]);
 
   const loadMore = useCallback(async () => {
     if (!cursor) return;
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const page = await getMyReviews({ status: statusFilter, destinationId: destinationFilter, after: cursor, limit: PAGE_SIZE });
+      const page = await fetchPage({ status: statusFilter, destinationId: destinationFilter, q: keyword, reported: reportedOnly, after: cursor, limit: PAGE_SIZE });
       const fresh = page.items.filter((item) => !items.some((have) => have.id === item.id));
       setItems((prev) => [...prev, ...fresh]);
       setCursor(page.next_cursor);
@@ -102,9 +107,9 @@ export const MyReviewsPage: React.FC = () => {
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, statusFilter, destinationFilter, items, t]);
+  }, [cursor, statusFilter, destinationFilter, keyword, reportedOnly, fetchPage, items, t]);
 
-  const setFilter = (key: 'status' | 'destination', value: string) => {
+  const setFilter = (key: 'status' | 'destination' | 'q' | 'reported', value: string) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
@@ -137,15 +142,6 @@ export const MyReviewsPage: React.FC = () => {
 
   if (sessionStatus === 'loading') return <LoadingState />;
   if (status === 'unreachable') return <AccountNeedsConnection onRetry={() => void refresh()} />;
-  if (session.kind !== 'member') {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-10">
-        <Notice tone="info">
-          {t('আপনার রিভিউ দেখতে সাইন ইন করুন।', 'Sign in to see your reviews.')} <SignInLink className={linkClass}>{t('সাইন ইন', 'Sign in')}</SignInLink>
-        </Notice>
-      </div>
-    );
-  }
 
   const offlineFailure = error instanceof ApiError && error.code === NETWORK_ERROR;
 
@@ -159,7 +155,7 @@ export const MyReviewsPage: React.FC = () => {
         </Link>
       </div>
 
-      <form role="search" aria-label={t('রিভিউ ফিল্টার', 'Review filters')} className="flex flex-wrap gap-3" onSubmit={(e) => e.preventDefault()}>
+      <form role="search" aria-label={t('রিভিউ ফিল্টার', 'Review filters')} className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); setFilter('q', draftKeyword.trim()); }}>
         <div className="flex flex-col gap-1">
           <label htmlFor="my-status" className="text-xs font-bold text-on-surface-variant dark:text-on-dark-muted">{t('অবস্থা', 'Status')}</label>
           <select id="my-status" value={statusFilter} onChange={(e) => setFilter('status', e.target.value)} className="min-h-[44px] px-3 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 text-sm">
@@ -174,8 +170,29 @@ export const MyReviewsPage: React.FC = () => {
             {destinations.map((d) => (<option key={d.id} value={d.id}>{pick(language, d.name_bn, d.name_en)}</option>))}
           </select>
         </div>
-        {(statusFilter || destinationFilter) && (
-          <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className="self-end min-h-[44px] px-4 text-xs font-bold underline">
+        <div className="flex flex-col gap-1 grow basis-48">
+          <label htmlFor="my-keyword" className="text-xs font-bold text-on-surface-variant dark:text-on-dark-muted">{t('শব্দ দিয়ে খুঁজুন', 'Search by keyword')}</label>
+          <div className="flex gap-2">
+            <input
+              id="my-keyword"
+              type="search"
+              value={draftKeyword}
+              maxLength={100}
+              onChange={(e) => setDraftKeyword(e.target.value)}
+              placeholder={t('শিরোনাম বা লেখা', 'Title or text')}
+              className="min-h-[44px] grow min-w-0 px-3 rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 text-sm"
+            />
+            <button type="button" onClick={() => setFilter('q', draftKeyword.trim())} className="min-h-[44px] inline-flex items-center gap-1.5 px-4 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold">
+              <Search size={14} aria-hidden="true" />{t('খুঁজুন', 'Search')}
+            </button>
+          </div>
+        </div>
+        <label className="self-end min-h-[44px] inline-flex items-center gap-2 text-xs font-bold">
+          <input type="checkbox" checked={reportedOnly} onChange={(e) => setFilter('reported', e.target.checked ? 'true' : '')} className="size-4" />
+          {t('রিপোর্ট করা (মডারেটর সিদ্ধান্ত নিয়েছেন)', 'Reported (a moderator decided)')}
+        </label>
+        {(statusFilter || destinationFilter || keyword || reportedOnly) && (
+          <button type="button" onClick={() => { setDraftKeyword(''); setParams(new URLSearchParams(), { replace: true }); }} className="self-end min-h-[44px] px-4 text-xs font-bold underline">
             {t('ফিল্টার মুছুন', 'Clear filters')}
           </button>
         )}
@@ -198,10 +215,10 @@ export const MyReviewsPage: React.FC = () => {
       )}
       {!loading && !error && items.length === 0 && (
         <EmptyState
-          variant={statusFilter || destinationFilter ? 'no-results' : 'empty'}
-          title={statusFilter || destinationFilter ? t('এই ফিল্টারে কোনো রিভিউ নেই', 'No reviews match these filters') : t('আপনি এখনও কোনো রিভিউ লেখেননি', 'You have not written a review yet')}
+          variant={statusFilter || destinationFilter || keyword || reportedOnly ? 'no-results' : 'empty'}
+          title={statusFilter || destinationFilter || keyword || reportedOnly ? t('এই ফিল্টারে কোনো রিভিউ নেই', 'No reviews match these filters') : t('আপনি এখনও কোনো রিভিউ লেখেননি', 'You have not written a review yet')}
           action={
-            statusFilter || destinationFilter ? (
+            statusFilter || destinationFilter || keyword || reportedOnly ? (
               <button type="button" onClick={() => setParams(new URLSearchParams(), { replace: true })} className={`${linkClass} min-h-[44px]`}>
                 {t('ফিল্টার মুছুন', 'Clear filters')}
               </button>
@@ -218,7 +235,10 @@ export const MyReviewsPage: React.FC = () => {
             <li key={review.id} className="tonal-card p-4 flex flex-col gap-2" data-review-id={review.id}>
               <div className="flex flex-wrap items-center gap-2 justify-between">
                 <p className="text-sm font-bold font-title">{destinationName(review.destination_id)} · <span className="font-en font-normal">{formatCalendarDate(review.visit_month, language)}</span></p>
-                <StatusChip status={review.status} />
+                <span className="inline-flex items-center gap-2">
+                  {review.reported && <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-900"><Flag size={12} aria-hidden="true" />{t('রিপোর্ট হয়েছিল', 'Was reported')}</span>}
+                  <StatusChip status={review.status} />
+                </span>
               </div>
               <p className="text-base font-semibold">{review.title}</p>
               <p className="text-xs text-on-surface-variant dark:text-on-dark-muted font-en" aria-label={t(`${review.overall_rating} তারকা`, `${review.overall_rating} out of 5`)}>{'★'.repeat(review.overall_rating)}{'☆'.repeat(5 - review.overall_rating)} · {formatTimestamp(review.created_at, language)}</p>
@@ -226,16 +246,20 @@ export const MyReviewsPage: React.FC = () => {
                 <p className="text-xs">{t('আপিলের শেষ সময়', 'Appeal deadline')}: {formatTimestamp(review.appeal_deadline, language)}</p>
               )}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Link to={`/account/reviews/${review.id}`} className="min-h-[44px] inline-flex items-center px-4 rounded-full border text-xs font-bold">{t('দেখুন', 'View')}</Link>
-                {canEdit(review.status) && (
+                {isGuest ? (
+                  <Link to="/reviews/receipt" className="min-h-[44px] inline-flex items-center px-4 rounded-full border text-xs font-bold">{t('রিসিপ্ট দিয়ে পরিচালনা করুন', 'Manage with receipt')}</Link>
+                ) : (
+                  <Link to={`/account/reviews/${review.id}`} className="min-h-[44px] inline-flex items-center px-4 rounded-full border text-xs font-bold">{t('দেখুন', 'View')}</Link>
+                )}
+                {!isGuest && canEdit(review.status) && (
                   <Link to={`/account/reviews/${review.id}/edit`} className="min-h-[44px] inline-flex items-center gap-1.5 px-4 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-xs font-bold">
                     <FilePenLine size={14} aria-hidden="true" />{t('সম্পাদনা', 'Edit')}
                   </Link>
                 )}
-                {review.status === 'REJECTED' && (
+                {!isGuest && review.status === 'REJECTED' && (
                   <Link to="/account/appeals" className="min-h-[44px] inline-flex items-center px-4 rounded-full border text-xs font-bold">{t('আপিল', 'Appeal')}</Link>
                 )}
-                {canWithdraw(review.status) &&
+                {!isGuest && canWithdraw(review.status) &&
                   (confirming === review.id ? (
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-xs">{t('প্রত্যাহার করলে রিভিউটি সরে যাবে। নিশ্চিত?', 'Withdrawing removes the review. Are you sure?')}</span>
@@ -262,6 +286,8 @@ export const MyReviewsPage: React.FC = () => {
       ) : (
         <p className="text-center text-xs text-on-surface-variant dark:text-on-dark-muted">{t('এটাই আপনার সব রিভিউ।', 'That is all your reviews.')}</p>
       ))}
+      {!isGuest && (
+      <>
       {/* A review written as a guest belongs to its receipt, not to the account, so it is not in this list. */}
       <p className="text-center text-xs text-on-surface-variant dark:text-on-dark-muted">
         {t('অ্যাকাউন্ট খোলার আগে অতিথি হিসেবে রিভিউ দিয়েছিলেন? ', 'Wrote a review as a guest, before you had an account? ')}
@@ -269,6 +295,9 @@ export const MyReviewsPage: React.FC = () => {
           {t('রিসিপ্ট দিয়ে দেখুন', 'Check it with its receipt')}
         </Link>
       </p>
+      </>
+      )}
+      {isGuest && <p className="text-center text-xs text-on-surface-variant dark:text-on-dark-muted">{t('এই তালিকা শুধু এই ব্রাউজারে লেখা রিভিউ দেখায়। সম্পাদনা, প্রত্যাহার বা আপিলের জন্য রিসিপ্ট লাগবে।', 'This list shows reviews written from this browser. Editing, withdrawing or appealing needs the receipt.')}</p>}
       <div className="sr-only" role="status" aria-live="polite">{announce}</div>
     </div>
   );

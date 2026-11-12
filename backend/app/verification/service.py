@@ -184,6 +184,13 @@ def active_verification(session: Session, user_id: uuid.UUID) -> Verification | 
     )
 
 
+def fully_verified(session: Session, user_id: uuid.UUID) -> bool:
+    """A Verified Member as the member sees it: an active approval AND the identity details from an approved
+    application (birth year, gender, ...). An approval without them (an older or hand-made record) is not
+    enough for Tours, so it must not show the badge or block a new application either (QA 12 Nov 2026)."""
+    return active_verification(session, user_id) is not None and session.get(VerificationAttributes, user_id) is not None
+
+
 def last_verification(session: Session, user_id: uuid.UUID) -> Verification | None:
     return session.scalar(
         select(Verification)
@@ -283,8 +290,8 @@ def open_case(session: Session, principal: Principal, *, purpose: str = "initial
     if active_ban(session, user_id=user.id):
         raise ApiError("VERIFICATION_BANNED")
     verified = active_verification(session, user.id)
-    if purpose == "initial" and verified is not None:
-        raise ApiError("ALREADY_VERIFIED")
+    if purpose == "initial" and verified is not None and session.get(VerificationAttributes, user.id) is not None:
+        raise ApiError("ALREADY_VERIFIED")  # an approval without identity details may apply (fully_verified)
     if purpose in ("renewal", "student_update"):
         previous = last_verification(session, user.id)
         if previous is None or previous.revoked_at is not None:
@@ -597,20 +604,28 @@ def send_phone_code(session: Session, principal: Principal, case_id: uuid.UUID, 
     if _phone_taken(session, principal.user.id, _candidates(PHONE_LABEL, e164)):
         audit.record(session, actor=principal, action="verification.duplicate_blocked", target_type="verification_case", target_id=case.id, metadata={"what": "phone"})
         raise ApiError("PHONE_ALREADY_LINKED")  # VF-03
+    settings = get_settings()
+    if settings.phone_auto_verify:
+        # TEMPORARY: no SMS gateway yet, so the number counts as verified when the code is requested.
+        _mark_phone_verified(session, principal, case, e164, auto=True)
+        return {"sent_to": f"•••• {e164[-4:]}", "expires_in": 0, "resend_after": 0, "verified": True}
     row, code = _issue_code(session, principal, case, channel="sms", purpose="phone", target=e164, target_hash=phone_hash(e164))
     get_sms().send(e164, f"Abhijatri: your code is {code}. It is valid for 5 minutes. / অভিযাত্রী কোড {code} (৫ মিনিট)।")
     audit.record(session, actor=principal, action="verification.phone_code_sent", target_type="verification_case", target_id=case.id, metadata={"last4": e164[-4:]})
-    settings = get_settings()
-    return {"sent_to": f"•••• {e164[-4:]}", "expires_in": settings.otp_ttl_seconds, "resend_after": settings.otp_resend_seconds}
+    return {"sent_to": f"•••• {e164[-4:]}", "expires_in": settings.otp_ttl_seconds, "resend_after": settings.otp_resend_seconds, "verified": False}
 
 
 def verify_phone_code(session: Session, principal: Principal, case_id: uuid.UUID, code: str) -> VerificationCase:
     case = _own_case(session, principal, case_id)
     _editable(case, "phone")
     _, e164 = _check_code(session, principal, case, "phone", code)
-    hashed = phone_hash(e164)
     if _phone_taken(session, principal.user.id, _candidates(PHONE_LABEL, e164)):
         raise ApiError("PHONE_ALREADY_LINKED")
+    return _mark_phone_verified(session, principal, case, e164)
+
+
+def _mark_phone_verified(session: Session, principal: Principal, case: VerificationCase, e164: str, *, auto: bool = False) -> VerificationCase:
+    hashed = phone_hash(e164)
     row = session.scalar(select(PhoneNumber).where(PhoneNumber.user_id == principal.user.id, PhoneNumber.phone_hash == hashed))
     now = _now()
     if row is None:
@@ -623,7 +638,8 @@ def verify_phone_code(session: Session, principal: Principal, case_id: uuid.UUID
     except IntegrityError as error:
         raise ApiError("PHONE_ALREADY_LINKED") from error
     case.phone_id, case.updated_at = row.id, now
-    audit.record(session, actor=principal, action="verification.phone_verified", target_type="verification_case", target_id=case.id, metadata={"last4": row.last4})
+    metadata: dict[str, Any] = {"last4": row.last4, **({"auto": True} if auto else {})}
+    audit.record(session, actor=principal, action="verification.phone_verified", target_type="verification_case", target_id=case.id, metadata=metadata)
     return case
 
 
@@ -1042,6 +1058,8 @@ def mine(session: Session, principal: Principal) -> dict[str, Any]:
             state = "renewal_due"
         else:
             state = "active"
+        if state in ("active", "renewal_due") and attributes is None:
+            state = "incomplete"  # approved record without the application's identity details: apply again
     ban = active_ban(session, user_id=user_id)
     contact = session.get(EmergencyContactDefault, user_id)
     emergency = None

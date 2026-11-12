@@ -165,3 +165,5 @@ button.menu-button { width: 44px; min-height: 44px; padding: 0; display: inline-
   .sidemenu.overlay { animation: menu-in 160ms ease-out; }
   @keyframes menu-in { from { transform: translateX(-16px); opacity: 0; } }
 }
+
+.category-ratings { list-style: none; padding: 0; margin: 6px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 12px; }

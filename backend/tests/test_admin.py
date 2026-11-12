@@ -104,6 +104,7 @@ def _pending_review(session: Session, title: str = "Lovely beach", destination: 
             "title": title,
             "body": "A long enough review body for the validation rules.",
             "overall_rating": 5,
+            "category_ratings": {c: 5 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")},
             "consent_version": "v1",
         }
     )
@@ -281,6 +282,9 @@ def test_new_reviews_are_queued_and_the_queue_shows_content_without_leaking_leas
     items = one.get(f"{BASE}/queue").json()["items"]
     assert [i["subject_id"] for i in items] == [str(review.id)]
     assert items[0]["subject"]["title"] == "Lovely beach" and items[0]["claimable"] is True
+    # The moderator sees the seven ratings the overall is calculated from, and the guest tag (QA 12 Nov 2026).
+    assert items[0]["subject"]["category_ratings"] == {c: 5 for c in ("CLEANLINESS", "ACCESSIBILITY", "HOSPITALITY", "FOOD", "TRANSPORT", "SAFETY_PERCEPTION", "VALUE")}
+    assert items[0]["subject"]["guest_tag"]
     task = _task_for(postgres_session, review)
     mine = _claim(one, task)
     assert mine["lease_token"], "the holder is given the token"

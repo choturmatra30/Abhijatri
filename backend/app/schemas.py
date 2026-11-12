@@ -49,17 +49,23 @@ class ReviewContent(StrictRequestModel):
     title: str = Field(min_length=rp.TITLE_MIN, max_length=rp.TITLE_MAX)
     # The reviewer's free-text note: always required (Review.md 3.1, A2).
     body: str = Field(min_length=rp.NOTE_MIN, max_length=rp.NOTE_MAX)
-    overall_rating: int = Field(ge=rp.RATING_MIN, le=rp.RATING_MAX)
-    # Review.md 3.1, amendment A2: each category optional; a missing key means not applicable.
-    category_ratings: dict[ReviewCategory, CategoryScore] | None = Field(default=None, max_length=7)
+    # Review.md A6 (2026-11-11): the overall rating is calculated from the seven category ratings. A client
+    # may still send it; it is refused when it differs from the calculated value, and filled in when omitted.
+    overall_rating: int | None = Field(default=None, ge=rp.RATING_MIN, le=rp.RATING_MAX)
+    # All seven categories are required; "not applicable" no longer exists.
+    category_ratings: dict[ReviewCategory, CategoryScore] = Field(max_length=7)
     consent_version: str = Field(min_length=1, max_length=40)
 
-    @field_validator("category_ratings")
-    @classmethod
-    def empty_ratings_are_absent(
-        cls, value: dict[ReviewCategory, int] | None
-    ) -> dict[ReviewCategory, int] | None:
-        return value or None
+    @model_validator(mode="after")
+    def overall_is_calculated(self) -> "ReviewContent":
+        missing = [c.value for c in ReviewCategory if c not in self.category_ratings]
+        if missing:
+            raise ValueError("all seven category ratings are required; missing: " + ", ".join(missing))
+        calculated = rp.overall_from_categories(self.category_ratings)
+        if self.overall_rating is not None and self.overall_rating != calculated:
+            raise ValueError(f"overall_rating must equal the calculated value {calculated} (mean of the seven categories)")
+        self.overall_rating = calculated
+        return self
 
     @field_validator("visit_month")
     @classmethod
@@ -170,6 +176,18 @@ class ReviewEdit(StrictRequestModel):
             raise ValueError("at least one field to change is required")
         if any(value is None for key, value in content.items() if key != "category_ratings"):
             raise ValueError("a field cannot be set to null; omit it to keep its value")
+        if "category_ratings" in content:
+            ratings = content["category_ratings"] or {}
+            missing = [c.value for c in ReviewCategory if c not in ratings]
+            if missing:
+                raise ValueError("all seven category ratings are required; missing: " + ", ".join(missing))
+            calculated = rp.overall_from_categories(ratings)
+            if self.overall_rating is not None and self.overall_rating != calculated:
+                raise ValueError(f"overall_rating must equal the calculated value {calculated}")
+            self.overall_rating = calculated
+            self.__pydantic_fields_set__.add("overall_rating")
+        elif "overall_rating" in content:
+            raise ValueError("overall_rating is calculated; send all seven category_ratings instead")
         return self
 
 
@@ -219,6 +237,22 @@ class ReviewSummary(BaseModel):
     created_at: datetime
     published_at: datetime | None
     appeal_deadline: datetime | None
+    # True once someone reported this review and a moderator has decided the report. Never the
+    # reporter or the report text (Decisions 2026-11-11, P4c).
+    reported: bool = False
+
+
+class GuestMineRequest(StrictRequestModel):
+    """A Guest lists the reviews written from this browser: the scope secret is the read credential for
+    status only. Edit, withdraw and appeal still need the receipt (Decisions 2026-11-12, P4a)."""
+
+    guest_scope_secret: str = Field(min_length=43, max_length=200, repr=False)
+    status: ReviewStatus | None = None
+    destination_id: uuid.UUID | None = None
+    q: str | None = Field(default=None, max_length=100)
+    reported: bool | None = None
+    after: str | None = Field(default=None, max_length=200)
+    limit: int = Field(default=20, ge=1, le=50)
 
 
 class MyReviews(BaseModel):
@@ -373,6 +407,7 @@ class ChoiceOption(BaseModel):
 
 
 class RatingRules(BaseModel):
+    overall_rating: str
     guest_feedback: str
     community_rating: str
     community_prior_mean: float

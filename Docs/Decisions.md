@@ -462,3 +462,22 @@ Owner request: a user should not have to search for a review by its review ID an
 | Section navigation of the staff dashboard | A side menu behind a hamburger button replaces the row of ten section buttons in the top bar. Open beside the page from 960 px; an overlay below that. | Owner request (11 Nov 2026). Ten buttons wrapped onto two or three lines and pushed the work queue down. |
 | What did not change | The sections, their order, who sees them (role), every screen, and every API call. The type filters inside a screen stay as buttons. | Navigation only. |
 | Who changed it | Abdullah, in `staff/src/App.tsx` and `staff/src/styles.css`. The staff app is otherwise Muhtasim's. The bundle the API serves at `/staff` was not rebuilt. | The owner asked for it as a frontend update. Rebuilding writes into `backend/`, so it is left to the backend owner (`Handoff-Phase1-Updates.md` P5). |
+
+## 2026-11-12 (Phase 1 backend: P2, P4a to P4d, P5)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Overall rating (P2) | The server calculates it: mean of the seven required category ratings, rounded to the nearest whole number. A sent `overall_rating` is accepted only if it equals that value (`422` otherwise), so deployed clients and saved drafts keep working. Fewer than seven categories, `{}` and a lone `overall_rating` on edit are refused. Stored reviews are never recalculated. | Enforces the 2026-11-11 rule outside the web client. |
+| Note minimum (P4d) | `NOTE_MIN` is 1: the note stays required but may be short. The appeal statement keeps its own minimum of 20. | Owner request: remove the 20-character limit. |
+| Keyword search (P4b) | `q` on `GET /reviews/mine`: title or text of the current revision, case-insensitive, 1 to 100 characters after trimming. | Owner request. Done on the server because the list does not carry the text. |
+| Reported (P4c) | An author sees `reported` only after a moderator decided the report (`actioned` or `dismissed`), never the reporter or the reason. Filter `reported=true`. | Avoids tipping off the author while a report is open, and avoids guessing the reporter. |
+| Guest list (P4a) | Design 1: `POST /reviews/guest/mine` with the guest scope secret in the body is a **read credential for status only**. Edit, withdraw and appeal keep needing the receipt. Receipts are still never stored on the device (PF 13.5). | Lets a guest see their reviews without typing an ID or receipt, with the smallest change to the security model. A 43-character random secret is not guessable. **Needs Shahriar's sign-off** as security scope owner. |
+| Places (P1) | Not built. It needs a decision on rating places and a new schema. | See `Handoff-Phase1-Updates.md` P1. |
+| Staff bundle (P5) | `backend/app/staff_site` rebuilt with the hamburger side menu. | Makes update 5 live once deployed. |
+
+## 2026-11-12 (Verification: phone step and the Verified Member badge)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Phone step without SMS | **Temporary:** with `PHONE_AUTO_VERIFY=true` (the default) "Send code" marks the phone verified at once; no SMS is sent and the audit entry `verification.phone_verified` carries `auto: true`. A number verified on another account or banned is still refused. Set it to `false` once a real SMS gateway works; the code-entry flow is unchanged and tested. | Owner request: applicants were stuck at the phone step because no SMS gateway is configured (`SMS_PROVIDER=none` refuses with 503). |
+| Verified Member badge | The badge (`/auth/session` `verified_member`) and `/verifications/mine` count a member as verified only with an active approval **and** the identity details of an approved application (`verification_attributes`), the same rule as Tours. An approval without them shows state `incomplete` and the member may apply again. | Owner report: the sidebar showed "Verified Member ✓" while Tours said "not verified" and a new application was refused as `ALREADY_VERIFIED`. The Community Rating rule (`eligibility.py`) is unchanged for now. |

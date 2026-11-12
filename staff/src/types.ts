@@ -42,6 +42,9 @@ export interface ReviewSubject {
   body: string;
   author: 'member' | 'guest';
   guest_display_name: string | null;
+  guest_tag?: string | null;
+  /** The category ratings the overall rating is calculated from (seven since 12 Nov 2026). */
+  category_ratings?: Record<string, number>;
   author_display_name?: string | null;
   /** Checked photos and video waiting for this decision (API.md 5.20). */
   media?: ReviewMedia[];

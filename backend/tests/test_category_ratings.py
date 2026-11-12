@@ -35,6 +35,7 @@ from app.services import (
 )
 
 CATEGORIES = {"CLEANLINESS": 3, "FOOD": 4, "SAFETY_PERCEPTION": 5}
+SEVEN = {c.value: 4 for c in ReviewCategory}
 
 
 def _fields(**overrides: Any) -> dict[str, Any]:
@@ -60,26 +61,50 @@ def _fields(**overrides: Any) -> dict[str, Any]:
 # ---- schema (no database) ----
 
 
-def test_category_ratings_are_optional() -> None:
-    assert GuestReviewCreate(**_fields()).category_ratings is None
+def test_category_ratings_are_required() -> None:
+    with pytest.raises(ValidationError):
+        GuestReviewCreate(**_fields())
+
+
+@pytest.mark.parametrize("ratings", [{}, CATEGORIES, {c.value: 5 for c in list(ReviewCategory)[:6]}])
+def test_fewer_than_seven_categories_are_refused(ratings: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError, match="all seven"):
+        GuestReviewCreate(**_fields(category_ratings=ratings))
 
 
 def test_valid_category_ratings_are_kept_as_enum_keys() -> None:
-    payload = GuestReviewCreate(**_fields(category_ratings=CATEGORIES))
-    assert payload.category_ratings == {
-        ReviewCategory.CLEANLINESS: 3,
-        ReviewCategory.FOOD: 4,
-        ReviewCategory.SAFETY_PERCEPTION: 5,
-    }
+    payload = GuestReviewCreate(**_fields(category_ratings=SEVEN, overall_rating=None))
+    assert payload.category_ratings == {c: SEVEN[c.value] for c in ReviewCategory}
+
+
+@pytest.mark.parametrize(
+    ("scores", "expected"),
+    [
+        ([5, 5, 5, 5, 4, 4, 4], 5),  # 32 / 7 = 4.57
+        ([5, 5, 5, 4, 4, 4, 4], 4),  # 31 / 7 = 4.43
+        ([3, 3, 3, 3, 3, 3, 3], 3),
+        ([1, 1, 1, 1, 1, 1, 1], 1),
+        ([5, 5, 5, 5, 5, 5, 5], 5),
+        ([4, 4, 4, 4, 4, 3, 3], 4),  # 26 / 7 = 3.71
+        ([4, 4, 3, 3, 3, 3, 3], 3),  # 23 / 7 = 3.29
+        ([5, 4, 4, 4, 3, 3, 3], 4),  # 26 / 7
+        ([5, 1, 1, 1, 1, 1, 1], 2),  # 11 / 7 = 1.57
+    ],
+)
+def test_overall_is_the_rounded_mean_of_the_seven(scores: list[int], expected: int) -> None:
+    ratings = {c.value: score for c, score in zip(ReviewCategory, scores, strict=True)}
+    assert GuestReviewCreate(**_fields(category_ratings=ratings, overall_rating=None)).overall_rating == expected
+
+
+def test_a_sent_overall_that_differs_from_the_calculated_one_is_refused() -> None:
+    with pytest.raises(ValidationError, match="calculated"):
+        GuestReviewCreate(**_fields(category_ratings=SEVEN, overall_rating=1))
+    assert GuestReviewCreate(**_fields(category_ratings=SEVEN, overall_rating=4)).overall_rating == 4
 
 
 def test_all_seven_categories_are_accepted() -> None:
     every = {category.value: 5 for category in ReviewCategory}
-    assert len(GuestReviewCreate(**_fields(category_ratings=every)).category_ratings or {}) == 7
-
-
-def test_empty_category_ratings_mean_none() -> None:
-    assert GuestReviewCreate(**_fields(category_ratings={})).category_ratings is None
+    assert len(GuestReviewCreate(**_fields(category_ratings=every, overall_rating=None)).category_ratings or {}) == 7
 
 
 @pytest.mark.parametrize(
@@ -103,6 +128,18 @@ def test_unknown_category_is_a_field_error_over_http() -> None:
 
 
 # ---- PostgreSQL ----
+
+
+def _legacy(**overrides: Any) -> GuestReviewCreate:
+    """A review written before 2026-11-11, with fewer than seven categories (validation skipped on purpose).
+
+    Such reviews still exist and still feed the per-category averages, so those paths keep their tests.
+    """
+    fields = _fields(**overrides)
+    ratings = fields.get("category_ratings")
+    if ratings is not None:
+        fields["category_ratings"] = {ReviewCategory(name): score for name, score in ratings.items()}
+    return GuestReviewCreate.model_construct(**fields)
 
 
 def _seed(session) -> tuple[Destination, User]:
@@ -143,7 +180,7 @@ def test_category_rows_follow_every_rating_transition(postgres_session) -> None:
     destination, moderator = _seed(postgres_session)
     created = submit_guest_review(
         postgres_session,
-        GuestReviewCreate(**_fields(destination_id=destination.id, category_ratings=CATEGORIES)),
+        _legacy(destination_id=destination.id, category_ratings=CATEGORIES),
     )
     postgres_session.commit()
     review = created.review
@@ -178,7 +215,7 @@ def test_rejected_review_never_counts_categories(postgres_session) -> None:
     destination, moderator = _seed(postgres_session)
     created = submit_guest_review(
         postgres_session,
-        GuestReviewCreate(**_fields(destination_id=destination.id, category_ratings=CATEGORIES)),
+        _legacy(destination_id=destination.id, category_ratings=CATEGORIES),
     )
     postgres_session.commit()
     _decide(postgres_session, created.review, moderator, ModerationDecision.REJECT)
@@ -191,7 +228,7 @@ def test_api_returns_category_ratings_and_averages(postgres_session) -> None:
     for ratings in (CATEGORIES, {"FOOD": 2}, None):
         created = submit_guest_review(
             postgres_session,
-            GuestReviewCreate(**_fields(destination_id=destination.id, category_ratings=ratings)),
+            _legacy(destination_id=destination.id, category_ratings=ratings),
         )
         postgres_session.commit()
         _decide(postgres_session, created.review, moderator, ModerationDecision.PUBLISH)
@@ -228,7 +265,7 @@ def test_moderation_queue_shows_the_full_review(postgres_session) -> None:
     destination, moderator = _seed(postgres_session)
     created = submit_guest_review(
         postgres_session,
-        GuestReviewCreate(**_fields(destination_id=destination.id, category_ratings=CATEGORIES)),
+        _legacy(destination_id=destination.id, category_ratings=CATEGORIES),
     )
     postgres_session.commit()
 

@@ -217,6 +217,7 @@ def _review_body(destination: Destination, **overrides: Any) -> dict[str, Any]:
         "title": "Clouds over the hills",
         "body": "We watched the clouds roll over the hills at sunrise.",
         "overall_rating": 5,
+        "category_ratings": {c: 5 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")},
         "consent_version": "v1",
     }
     body.update(overrides)

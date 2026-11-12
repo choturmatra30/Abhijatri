@@ -93,6 +93,8 @@ export function VerificationForm({ lang, role, item, subject, lease, busy, run }
   const t = makeT(lang);
   const [note, setNote] = useState('');
   const [details, setDetails] = useState<VerificationDetails | null>(null);
+  const [detailsError, setDetailsError] = useState(false);
+  const [detailsAttempt, setDetailsAttempt] = useState(0);
   const [checks, setChecks] = useState<string[]>([]);
   const [clarificationSteps, setClarificationSteps] = useState<string[]>([]);
   const [rejectReason, setRejectReason] = useState('details-mismatch');
@@ -102,16 +104,27 @@ export function VerificationForm({ lang, role, item, subject, lease, busy, run }
   const [student, setStudent] = useState(false);
   const [studentUntil, setStudentUntil] = useState('');
   useEffect(() => {
+    setDetailsError(false);
     void getVerificationDetails(subject.case_id).then((value) => {
       setDetails(value);
       setGender(value.personal.gender || '');
       setBirthYear(value.personal.date_of_birth?.slice(0, 4) || '');
       setStudent(Boolean(value.student));
       setStudentUntil(value.student?.max_student_until || '');
-    }).catch(() => setDetails(null));
-  }, [subject.case_id]);
+    }).catch(() => { setDetails(null); setDetailsError(true); }); // shown with a Retry, never silently
+  }, [subject.case_id, detailsAttempt]);
   const moves = verificationMoves(subject.state, role);
   if (moves.length === 0) return <Notice tone="info">{t('এই অবস্থায় আপনার জন্য কোনো পদক্ষেপ নেই।', 'No action for your role in this state.')}</Notice>;
+  const missingChecks = details ? details.required_checks.length - checks.length : 0;
+  const approveBlocker = !details
+    ? detailsError
+      ? t('যাচাইয়ের তথ্য লোড হয়নি, তাই অনুমোদন বন্ধ। নিচে "আবার চেষ্টা করুন" চাপুন।', 'The case details did not load, so Approve is off. Press Retry below.')
+      : t('যাচাইয়ের তথ্য লোড হচ্ছে…', 'Loading the case details…')
+    : missingChecks > 0
+      ? t(`অনুমোদনের আগে চেকলিস্টের আরও ${missingChecks}টি ঘর টিক দিন।`, `Tick ${missingChecks} more checklist item${missingChecks === 1 ? '' : 's'} to approve.`)
+      : !gender || !birthYear
+        ? t('অনুমোদনের আগে লিঙ্গ ও জন্মসাল দিন।', 'Set gender and birth year to approve.')
+        : '';
   const go = (to: VerificationMove) =>
     run(async () => {
       const result = await transitionVerification(subject.case_id, {
@@ -135,8 +148,10 @@ export function VerificationForm({ lang, role, item, subject, lease, busy, run }
       <label>{t('প্রত্যাখ্যানের কারণ', 'Rejection reason')}<select value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}><option value="document-not-genuine">Document not genuine</option><option value="details-mismatch">Details mismatch</option><option value="face-mismatch">Face mismatch</option><option value="under-18">Under 18</option><option value="duplicate-account">Duplicate account</option><option value="fake-document">Fake document</option><option value="use-new-form">Use new form</option><option value="other">Other</option></select></label>
       <label>{t('ব্যাখ্যা চাওয়ার কারণ', 'Clarification reason')}<select value={clarifyReason} onChange={(e) => setClarifyReason(e.target.value)}><option value="blurry-photo">Blurry photo</option><option value="glare">Glare</option><option value="missing-back">Missing back</option><option value="selfie-code-not-visible">Selfie code/gesture not visible</option><option value="details-check">Check details</option><option value="other">Other</option></select></label>
       <fieldset className="stack inset"><legend>{t('পুনরায় করার ধাপ', 'Steps to redo')}</legend>{['personal', 'phone', 'document', 'student', 'selfie'].map((step) => <label className="row" key={step}><input type="checkbox" checked={clarificationSteps.includes(step)} onChange={(e) => setClarificationSteps(e.target.checked ? [...clarificationSteps, step] : clarificationSteps.filter((value) => value !== step))} />{step}</label>)}</fieldset>
+      {!details && detailsError && <div className="row" role="alert"><span className="error">{t('যাচাইয়ের তথ্য লোড করা যায়নি।', 'Could not load the case details.')}</span><button type="button" className="ghost" onClick={() => setDetailsAttempt((n) => n + 1)}>{t('আবার চেষ্টা করুন', 'Retry')}</button></div>}
       {details && <fieldset className="stack inset"><legend>{t('অনুমোদনের চেকলিস্ট ও বৈশিষ্ট্য', 'Approval checklist & attributes')}</legend>{details.required_checks.map((check) => <label className="row" key={check}><input type="checkbox" checked={checks.includes(check)} onChange={(e) => setChecks(e.target.checked ? [...checks, check] : checks.filter((value) => value !== check))} />{check}</label>)}<div className="row wrap"><label>Gender<select value={gender} onChange={(e) => setGender(e.target.value)}><option value="">Choose</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="THIRD">Third gender</option></select></label><label>Birth year<input type="number" min="1900" max={new Date().getFullYear() - 18} value={birthYear} onChange={(e) => setBirthYear(e.target.value)} /></label><label className="row"><input type="checkbox" checked={student} onChange={(e) => setStudent(e.target.checked)} />Student</label>{student && <label>Student until<input type="date" value={studentUntil} onChange={(e) => setStudentUntil(e.target.value)} /></label>}</div></fieldset>}
       <div className="row">
+        {moves.includes('approved') && approveBlocker && <p className="small muted approve-hint" role="note">{approveBlocker}</p>}
         {moves.map((to) => (
           <button key={to} type="button" className={to === 'approved' ? 'primary' : 'ghost'} disabled={busy || (to === 'needs_clarification' && (note.trim().length < 3 || clarificationSteps.length === 0)) || (to === 'approved' && (!details || checks.length !== details.required_checks.length || !gender || !birthYear))} onClick={() => void go(to)}>
             {t(...MOVE_TEXT[to])}

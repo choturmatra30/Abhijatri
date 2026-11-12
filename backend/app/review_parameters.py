@@ -7,13 +7,13 @@
 
 from app.models import ComfortTier, ReviewCategory, ReviewLanguage, TravellerType
 
-PARAMETERS_VERSION = "2026-10-20"
+PARAMETERS_VERSION = "2026-11-11"
 
 RATING_MIN = 1
 RATING_MAX = 5
 DISPLAY_NAME_MAX = 80
 TITLE_MIN, TITLE_MAX = 3, 160
-NOTE_MIN, NOTE_MAX = 20, 6000
+NOTE_MIN, NOTE_MAX = 1, 6000  # 2026-11-11 (P4d): the note stays required but may be short
 
 # Review.md 6.1 and 6.4: fixed semester prior and the Top Rated threshold.
 COMMUNITY_PRIOR_MEAN = 3.5
@@ -78,6 +78,16 @@ LANGUAGE_LABELS: dict[ReviewLanguage, Pair] = {
     ReviewLanguage.EN: ("ইংরেজি", "English"),
     ReviewLanguage.MIXED: ("বাংলা-ইংরেজি মিশ্র", "Mixed Bangla and English"),
 }
+
+
+def overall_from_categories(ratings: "dict[ReviewCategory, int]") -> int:
+    """The overall rating: mean of the seven category ratings, rounded to the nearest whole number.
+
+    Same formula as ``overallFromCategories`` in the web client. A mean of seven whole numbers never
+    ends in exactly .5, so there is no tie to break (Decisions 2026-11-11, Review.md A6).
+    """
+    count = len(ratings)
+    return (2 * sum(ratings.values()) + count) // (2 * count)
 
 
 def community_score(rating_sum: int, rating_count: int) -> float | None:

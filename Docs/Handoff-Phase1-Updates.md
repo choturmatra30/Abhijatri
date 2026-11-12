@@ -2,6 +2,7 @@
 
 **From:** Abdullah (frontend). **Started:** 11 November 2026.
 **For:** Muhtasim (backend), Irfan (testing), Shahriar (content, merges).
+**Update, 12 November 2026 (backend):** P2, P4a, P4b, P4c, P4d and P5 are built and tested (`Decisions.md` 2026-11-12; API.md 5.2, 5.5, 5.5a, 5.15). The web client now has the keyword search, the Reported filter and a guest "My reviews"; the note fallback is 1. **Still open:** P1 (places). All manual test cases are in `QA-Phase1-Manual-Test-Cases.md`.
 **What this is:** five updates were requested for the Phase 1 (M1) frontend. This file lists, for each one, what the frontend did, what it needs from the backend, and what to test. It is updated as each update is done. Evidence for the frontend work: `Frontend-Implemented.md` section 5n. Other open items stay in `Handoff-Backend.md` and `Handoff-Testing.md`.
 
 | No. | Update requested | Frontend | Needs backend | Needs testing |
