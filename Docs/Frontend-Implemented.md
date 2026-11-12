@@ -15,9 +15,9 @@
 | F03 | Bilingual information architecture and component plan | 12 to 14 Oct | **Plan written 20 Oct, awaiting approval:** `Docs/UI-Architecture.md` (language rules, sitemap, flows, component map, fonts, audit). Follow-ups U1 to U6 listed there. |
 | R03 | Bilingual destination list and detail screens | 15 to 22 Oct | **Implemented** against the R02 API, with loading, error and empty states (section 2). |
 | R05 | Account, verification and session screens | 18 to 23 Oct | **Implemented 27 Oct** with R04: `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, server-backed session, `/account/verification`, `/account/appeals`, `/account/notifications` (28 Oct). See `Docs/R04-R05-Checklist.md`. |
-| R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | Not started. No manifest, service worker or IndexedDB yet. |
+| R12 | Installable PWA shell, cached public destination views | 19 to 25 Oct | **Implemented and live** (section 5i); real-phone run pending. |
 | R09 | Review form, list, filters, author controls | 20 to 27 Oct | **Guest and member paths implemented**; members add photos and one video (27 Oct). Filters not started. |
-| R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | Not started. |
+| R13, R15 | Offline pack, offline drafts | 23 to 31 Oct | **R13 and R15 part 1 live** (sections 5k, 5l); **R15 part 2 built 9 Nov, not deployed** (section 5m); phone tests pending. |
 
 ## 2. R03: Destination list and detail screens
 
@@ -285,7 +285,7 @@ The "System status" (`/health`) link was a development aid and is no longer in t
 | `/reviews/receipt` | `ReviewReceiptPage` | Receipt status check and withdrawal (`ReceiptStatusPanel`), removal request (`RemovalRequestForm`) |
 | `/reviews` | `ReviewsRedirect` | Redirects to `/reviews/write`, keeping the query, so older links and bookmarks still work |
 
-Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
+Since 11 Nov 2026 the second entry is "My reviews" for a signed-in member (section 5q). Sidebar: "Reviews" is a disclosure button (`aria-expanded`, `aria-controls`) that shows the two pages beneath it; it opens by itself while either page is showing. Each page links to the other. Every "Write a review" link (overview, my reviews, guest entry, saved trips, a destination's review feed) now points at `/reviews/write`. All in `pages/ReviewsPage.tsx`, `components/layout/Sidebar.tsx`, `App.tsx`.
 
 Evidence (6 Nov 2026): `tsc -b` clean, 123 tests pass, build clean (145 KB JS gzip). Browser at 1280 px and 390 px (mobile menu): group starts closed with no sub-links; one click shows both; "Check with receipt" opens `/reviews/receipt` and the group stays open there; `/reviews?destination=<id>` lands on `/reviews/write?destination=<id>` with that destination selected; no page errors.
 
@@ -393,6 +393,97 @@ Evidence (7 Nov 2026): 185 tests pass (11 new: visibility rules, newest draft pe
 
 Found and fixed during the check: an offline draft was hidden from the same guest back online; switching destination moved an existing draft; a sign-in change could clear the form; a destination change could drop the last half second of typing.
 
+## 5m. R15 part 2: sending saved drafts after reconnect, receipt custody, export (9 November 2026)
+
+`Offline-Frontend-Guideline.md` tasks 10 and 11, plus the guest scope write-through of 4.3 (Decisions 2026-11-08). Built on `abd`; **not deployed yet**.
+
+| Item | Files |
+|---|---|
+| Draft record gains the guest scope copy, a stored `Idempotency-Key` with the SHA-256 of the request it was sent with, the state (`DRAFT`, `SUBMITTING`, `NEEDS_ATTENTION`, `ACKNOWLEDGED`), the last error, `Retry-After` and the acknowledgement. Drafts saved by part 1 are filled in on read | `offline/draftStore.ts` |
+| Sending one stored draft and the guideline 6.4 answer table (`classifyFailure`) | `offline/submitDraft.ts` |
+| Form sends the stored draft (saved first), honours `Retry-After`, shows the last attempt's answer | `components/reviews/GuestReviewForm.tsx`, `hooks/useReviewDraft.ts`, `components/reviews/draftText.ts` |
+| "Saved drafts on this device" list: Open, Delete, Clear all (each asks first), Export, draft-loss warning when persistence was refused | `components/reviews/SavedDrafts.tsx`, `pages/ReviewsPage.tsx`, `hooks/useDrafts.ts` |
+| Receipt kept until "Done" or 7 days, shown again if the tab closed before "Done"; trap-2 note ("the first version was received") | `components/reviews/ReceiptPanel.tsx` |
+| App-wide banner when the connection returns and a count on "Write a review" | `components/offline/PendingDraftsBanner.tsx`, `components/layout/AppLayout.tsx`, `Sidebar.tsx` |
+| Sign-out with unsent member drafts: keep or delete (guideline 6.7 default) | `components/reviews/useGuardedSignOut.tsx`, `SignOutDraftsDialog.tsx`, `Sidebar.tsx`, `pages/GuestEntryPage.tsx` |
+| Guest scope secret written through to IndexedDB `meta`; restored from it when `localStorage` lost it | `offline/guestScope.ts`, `api/reviews.ts`, `main.tsx` |
+| Start-up: a draft left `SUBMITTING` goes back to `DRAFT`; receipts acknowledged over 7 days ago are deleted | `maintainDrafts` in `offline/draftStore.ts` |
+| `Retry-After` read into `ApiError.retryAfterSeconds`; date and time display | `api/client.ts`, `utils/format.ts` |
+
+**Owner decisions (9 Nov 2026).** A draft is sent from the review form, opened from the saved-drafts list (not a separate pending list), so guideline state `READY` is `DRAFT` here; nothing is sent by itself. The reconnect notice is an app-wide banner plus a count in the sidebar. Every acknowledged review keeps its receipt on the device until the user confirms saving it, or 7 days. Export only, no import.
+
+**Behaviour.** The key is reused while the request is unchanged and renewed when it changes; the draft id, receipt and scope copy never change, so a retry after a lost response is recovered by the server and never makes a second review. An edit after a lost response is sent with a new key; the server keeps the first version and the receipt screen says so, with a link to edit (receipt page for guests, My reviews for members). `IDEMPOTENCY_KEY_REUSED` renews the key and keeps the identity; `DRAFT_ALREADY_SUBMITTED` keeps the text under a new identity and removes the spent one. `429` keeps the draft, says when it can be sent, and blocks Send until then. Deleting the draft that is open in the form clears the form. The export never contains the guest scope secret, the key or any acknowledged receipt; an unsent draft's receipt only when the user ticks it.
+
+Evidence (9 Nov 2026): 227 tests pass (34 new in `offline/submitDraft.test.ts`: the answer table, D7, D9, D10, D11, D14, D17, D20, D22, scope write-through and restore). Types and build clean; first-visit JavaScript 126.8 KB gzip (122.5 before; budget 200). Built app in Chromium (Playwright) against the live API for reads, with **every review POST answered by the test, so no review was created**: lost response then retry used the same draft id, receipt and key and showed "This review was already submitted"; the receipt stayed in IndexedDB, came back after a reload, and was deleted on Done; the IndexedDB scope copy equals `localStorage`; a draft written offline showed no banner while offline, then the banner "You have 1 unsent review draft" and sidebar count 1 after reconnect, no request sent by itself, no banner on the Write page; `429` with `Retry-After: 3600` kept the draft, said "can be sent after 9 Nov 2026, 20:52", and a second Submit sent nothing; Bangla text and digits in the list; Export without receipts, scope or key; Delete from the list cleared the open form; no horizontal overflow at 390 px. **Not run in a browser:** the member sign-out dialog (no test account used; covered by unit tests), D8 and D21 on a real phone.
+
+Found and fixed during the check: a draft written offline (sign-in unknown) was not counted by the banner or sidebar until the form was opened; the wait time showed a date without the time.
+
+## 5n. Phase 1 update 1: guide by type, search, Google Maps link, best-rated order (11 November 2026)
+
+First of five requested Phase 1 updates (`Handoff-Phase1-Updates.md`). Requested: places inside a destination by type (restaurant, resort), with name and Google Maps link, and sorting to find the best. The API has no separate places and no rating for a place, so this is the part the current data allows; the rest is backend item P1 in that file.
+
+| Item | Files |
+|---|---|
+| Guide of a destination: type buttons with counts (All and each type present), search over title and text in both languages, "nothing matches" state. Filtered on the device, so it works from a pack or a saved page | `components/destination/GuideSections.tsx`, `pages/DestinationDetailPage.tsx` |
+| Google Maps link for the destination's map point (replaces the OpenStreetMap link) and for a contact that has a map point | `pages/DestinationDetailPage.tsx`, `utils/destinationSort.ts` (`googleMapsUrl`) |
+| Destination list: sort control "By name" or "Best rated first". Community Rating first (score, highest first), then Guest Feedback average, then its count; the two ratings are never combined (Review.md 6.2) and the page says so | `pages/DestinationsPage.tsx`, `utils/destinationSort.ts` (`sortDestinations`) |
+
+Evidence (11 Nov 2026): 237 tests pass (10 new in `utils/destinationSort.test.ts`). Types and build clean. Chrome, desktop width, Bangla, live data read through a read-only local proxy (no write could reach the server): "Best rated first" moved Cox's Bazar (Guest Feedback 3.0) to the top and kept the others in name order; the Food button showed one entry; a non-matching search showed "Nothing in the guide matches"; the header link was `google.com/maps/search/?api=1&query=21.4272,92.0058`; no console errors. **Not checked:** phone width, offline, screen reader (tests T1.8 to T1.10).
+
+## 5o. Phase 1 update 2: the overall rating is calculated from the category ratings (11 November 2026)
+
+Second requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11; Review.md amendment A6). This replaces the form rules of sections 3b and 3c: the overall rating is no longer an input and the seven category ratings are no longer optional.
+
+| Item | Files |
+|---|---|
+| `overallFromCategories`: mean of the seven ratings, rounded to a whole number; `null` until all seven are rated | `api/reviews.ts` |
+| Category ratings: all required, "Not applicable" removed, 44 px targets, the calculated overall rating shown read-only with the average (announced as a status), error on the first unrated category | `components/reviews/CategoryRatings.tsx` |
+| Write a review: the overall input is removed; the value sent as `overall_rating` and stored on the draft is the calculated one; submit is refused until all seven are rated | `components/reviews/GuestReviewForm.tsx` |
+| Edit a review (Member and Guest): the overall input is removed; ratings may be left alone; if changed, all seven are required and `overall_rating` is sent with `category_ratings` | `components/reviews/ReviewEditForm.tsx` |
+| Guest welcome page text: the overall rating is calculated; categories are all required | `pages/GuestEntryPage.tsx` |
+
+Not changed: how a review's overall rating is shown (review cards, My reviews, moderation, receipt status) and the destination's Community Rating and Guest Feedback. Reviews submitted earlier keep the overall rating their author gave.
+
+Evidence (11 Nov 2026): 241 tests pass (4 new in `api/reviews.test.ts`). Types and build clean. Chrome, desktop width, Bangla, the Write page with live data through a read-only local proxy (no write could reach the server): no overall input and no "Not applicable" button; seven rating groups; submit with ratings missing showed the error and marked the unrated groups; ratings 5,5,5,5,4,4,4 showed "5 out of 5 (average 4.6)", and lowering one to 4 showed "4 out of 5 (average 4.4)". **Not checked in a browser:** a real submission and its request body, the two edit forms (they need a test review), phone width, screen reader. Limit: the server does not enforce the rule yet (P2).
+
+## 5p. Phase 1 update 3: a guest sees "Exit" instead of "Sign out" (11 November 2026)
+
+Third requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). Label only; the behaviour of sections 3c and 5m is unchanged.
+
+| Item | Files |
+|---|---|
+| Sidebar session card: "Exit" for a named guest, "Sign out" for a member | `components/layout/Sidebar.tsx` |
+| `/guest` welcome page: the "Sign out" link reads "Exit" | `pages/GuestEntryPage.tsx` |
+
+Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. Chrome, desktop width, Bangla: a named guest saw "Sign in" and "Exit" in the sidebar card and "Exit" on `/guest`; pressing Exit opened `/`, removed the name, kept the scope and the same guest tag, and left only "Sign in". **Not checked:** the member label (no test account used), English, phone width.
+
+## 5q. Phase 1 update 4: a member finds reviews in "My reviews", not by receipt (11 November 2026)
+
+Fourth requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). Only the member navigation is built; guest listing, keyword search, the "reported" filter and the note minimum need the backend (P4a to P4d). This amends section 5h: the second entry of the sidebar "Reviews" group now depends on who is signed in.
+
+| Item | Files |
+|---|---|
+| Sidebar "Reviews" group: a member sees "Write a review" and "My reviews" (`/account/reviews`); a guest still sees "Check with receipt". The group also opens by itself on `/account/reviews` | `components/layout/Sidebar.tsx` |
+| Write page: for a member the link under the form reads "Already reviewed? Find it in My reviews" | `pages/ReviewsPage.tsx` |
+| My reviews: a line at the end links to "Check with receipt" for a review written as a guest before the account existed (such a review belongs to its receipt, not to the account) | `pages/MyReviewsPage.tsx` |
+
+Not changed: the `/reviews/receipt` page and its route; the existing status and destination filters of My reviews (they already cover published, rejected and hidden); the note minimum of 20 (read from the server, fallback 20).
+
+Evidence (11 Nov 2026): types clean, 241 tests pass, build clean. **Not checked in a browser:** all three changes are for a signed-in member, and no test account was used.
+
+## 5r. Phase 1 update 5: side menu with a hamburger button in the staff dashboard (11 November 2026)
+
+Fifth requested Phase 1 update (`Handoff-Phase1-Updates.md`; Decisions 2026-11-11). This is in the separate staff app (`staff/`), which Muhtasim owns; only its shell and stylesheet were changed. Section 5b says the staff app was not changed; that was true on 4 November and this is the first frontend change to it.
+
+| Item | Files |
+|---|---|
+| Hamburger button in the top bar (`aria-expanded`, `aria-controls`, label "Open menu" / "Close menu", 44 px) | `staff/src/App.tsx` |
+| Side menu with the role-filtered sections; the current one has `aria-current="page"`; the top bar shows its name | `staff/src/App.tsx` |
+| From 960 px: the menu starts open beside the page and the button collapses it. Below 960 px: it starts closed and opens over the page with a backdrop; it closes on a choice, Escape or a press on the backdrop; focus moves into the menu and back to the button; the page behind is `inert` | `staff/src/App.tsx` |
+| Styles as classes only (the staff site's Content-Security-Policy allows no inline styles); the slide-in is skipped under reduced motion | `staff/src/styles.css` |
+
+Evidence (11 Nov 2026): `tsc -b` clean, 46 staff tests pass, `vite build` clean. Chrome with a local stand-in for the API that returns a made-up signed-in session and empty lists (no real account, no real data): at 1536 px the menu was open with ten sections for a superadmin, choosing Inbox changed the screen and the top bar and kept the menu open, and the button closed it; at 390 px (in a frame) the menu started closed, opened as an overlay with focus on the current section, and closed on Escape, on the backdrop and on a choice, each time returning focus to the button; no sideways scrolling at either width. **Not checked:** with a real staff sign-in and real data, the moderator role (fewer sections), Bangla, a real phone, a screen reader. **Not done:** the bundle served at `/staff` was not rebuilt (P5).
+
 ## 6. Defects found, reported to their owners, not fixed here
 
 | # | Finding | Owner | Detail |
@@ -427,7 +518,7 @@ All runs were local against an embedded PostgreSQL 16 server (the project target
 | Item | Task |
 |---|---|
 | Cloudflare Turnstile widget. Production requires `turnstile_token`; local development has it disabled. | R09 follow-up. Needs the site key and the CSP entry in PF 16.3. |
-| Guest scope secret in IndexedDB. It is in `localStorage` until the draft store exists. | R15 |
+| Guest scope secret with IndexedDB as the reader. `localStorage` stays the reader for M1; IndexedDB holds a write-through copy (section 5m, Decisions 2026-11-08). | Post-M1 |
 | Offline drafts, installable PWA, service worker, destination packs | R12, R13, R15 |
 | Member review path; working sign-in, registration and verification screens | R05, R07, R09 (after R04) |
 | Review filters, edit-pending, appeals, reports | R09, R07, R11 |

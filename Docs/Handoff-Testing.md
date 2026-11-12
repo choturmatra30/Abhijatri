@@ -164,7 +164,25 @@ For each test record: device and browser, pass or fail, a screenshot when it fai
 | H6.3 | Type a name and pick 4 stars, wait 1 second, reload offline. | "Your saved draft was restored. Draft saved on this device (date), not encrypted." with **Delete draft**; the fields are back. | Pass |
 | H6.4 | Delete draft. | Asks first; the draft is gone from IndexedDB `drafts`. | Not run |
 | H6.5 | Online, submit the restored draft. | Receipt shown once; the draft and its stored receipt leave IndexedDB. | Pass |
-| H6.6 | Queue a draft offline, reconnect. | Today: the draft stays in the form; there is no pending list and nothing sends by itself (R15 part 2 not built). | Pass (nothing auto-sent) |
+| H6.6 | Queue a draft offline, reconnect. | Nothing sends by itself. After R15 part 2 is deployed, see H9. | Pass (nothing auto-sent) |
+
+### H9. Sending saved drafts (R15 part 2): run after it is deployed
+
+Built 9 Nov 2026 on `abd`, not on the live site yet. Use a **test** review and withdraw it afterwards with its receipt. For a lost response use the Console snippet of `Offline-Frontend-Guideline.md` 9.6.
+
+| # | Steps | Expected |
+|---|---|---|
+| H9.1 (D5) | Write a draft offline, go to Overview, reconnect. | A green banner "You have 1 unsent review draft..." and a count on **Write a review**. Nothing is sent by itself (Network tab). |
+| H9.2 (D6) | Review and send, Open, security check, Submit. | Receipt shown; the draft leaves the list. |
+| H9.3 (D7) | Run the snippet, Submit, then Submit again. | First "Could not send. Your draft is safe...", then "This review was already submitted". **One** review. |
+| H9.4 (D11) | Run the snippet, Submit, change the title, Submit. | Receipt screen says the first version was received and offers "Edit it with the receipt". |
+| H9.5 (D9) | Submit and close the tab at once; reopen the Write page. | The draft is ready again (or the receipt is shown if it was received); a retry makes one review. |
+| H9.6 (D10) | With a draft unsent, **Start as a new guest**, then send it. | It is published under the **old** guest tag; one review. |
+| H9.7 | Close the receipt screen without pressing Done; reopen Write a review. | The receipt is shown again with "saving its receipt was not confirmed yet". After Done it is gone from IndexedDB `drafts`. |
+| H9.8 (D16, D17) | Delete one draft; Clear all; Export with and without "include receipts". | Each delete asks first. The file has a receipt only when ticked; never the guest scope secret or a submitted review's receipt. |
+| H9.9 (D20) | As a member with an unsent draft, Sign out. | Asked: keep or delete. Kept drafts show again only after signing in to the same account. |
+| H9.10 (D22) | Queue four guest drafts offline, reconnect, send all. | Three send; the fourth stays, says when it can be sent, and Submit sends nothing before then. |
+| H9.11 | Application, IndexedDB, `meta`. | `guest_scope_secret` equals Local Storage `abhijatri_guest_scope`. |
 
 ### H7. Retry without duplicates (R16, guideline group R)
 
@@ -193,8 +211,13 @@ Paste the snippet from `Offline-Frontend-Guideline.md` 9.6 in the Console before
 
 - Installability cannot be checked on plain `http://localhost` with automated Chrome; use HTTPS (the deployed site).
 - `navigator.storage.persisted()` may be `false`; the browser decides. R13 shows it on the Offline packs page ("Storage on this device").
-- R13 packs and R15 part 1 drafts are live (PR #55). Section H covers them. Sending queued drafts after reconnect (R15 part 2) is not built yet; Q1 is answered (Decisions 2026-11-08).
+- R13 packs and R15 part 1 drafts are live (PR #55). Section H covers them. R15 part 2 (sending saved drafts) is built on `abd` (9 Nov 2026) and not deployed; run H9 once it is live.
+- First visit only: the service worker controls the tab after the next reload. A first-time visitor who goes offline in that same tab and opens a page not loaded yet gets a blank page (F4 in `Handoff-Backend.md`). Test offline after one reload.
 - Pack freshness runs on app start and when the device goes from offline to online, not when only the server comes back (F3 in `Handoff-Backend.md`).
+
+## Phase 1 updates (from 11 November 2026)
+
+Tests for the five requested Phase 1 updates are in `Handoff-Phase1-Updates.md` (T1: guide type filter, search, Google Maps link and "Best rated first"). Run them after that work is deployed.
 
 ## Where to report
 

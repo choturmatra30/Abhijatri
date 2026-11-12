@@ -4,6 +4,7 @@
 **For:** Muhtasim (backend, R14, R16), Shahriar (Railway, Vercel, merges).
 **Updated 7 November 2026 (afternoon):** B5 withdrawn (a measurement error), DEP1 closed, R16 merged and live. **New: DEP2 (R13 not deployed), TS1 (Turnstile site key missing on Vercel), DOC1 (guideline status table out of date).** Q1 has a likely answer in Decisions.md (see Q1). Still open: B6.
 **Update, 8 November 2026 (backend):** Q1 answered (Decisions 2026-11-08), DOC1 done, DEP2 closed (PR #55 is live), R16 test group R passed (R1 to R5, local stack). TS1: the live bundle now contains a Turnstile site key; a live submission is still unconfirmed. B6: Railway moved to the transaction pooler (port 6543) on 8 Nov 2026, see the B6 row. F1 and F2 fixed the same day. A full Chrome run of the offline packs found three frontend issues, listed as [F1 to F3](#f1-to-f3-found-in-the-chrome-run-8-november-2026). Backend checks: 394 unit and 489 PostgreSQL integration tests pass, `alembic check` clean, `openapi-v1.json` current.
+**Update, 11 November 2026 (frontend):** five Phase 1 updates were requested. Their backend needs are in a separate file, `Handoff-Phase1-Updates.md` (first item: P1, places inside a destination).
 **Status:** each item says what is wrong, why it matters, what to do, and how to check it is done. Evidence and history: `Frontend-Implemented.md` section 6 (same IDs).
 
 **Update, 6 November 2026 (backend):** B5 and DEP1 are fixed and verified on the live system. R14 is merged and live (PR #37). R16 is built, tested and in PR #39, not yet merged (`Backend-Implemented.md` 5.23 to 5.25). B6 has its code change; the Railway variable change is still a deploy-owner step. B1, B2 and B3 are closed. Migration `0022` is applied to the shared database. The tables below keep the original text; the **Status** column is the current state.
@@ -22,6 +23,7 @@
 | [F1](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Expired pack: advisory badge still says "Current" | Abdullah | P12, Security 7.4 | **High** | **Fixed 8 Nov 2026**, re-tested in Chrome (`Backend-Implemented.md` 7) |
 | [F2](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Server down while `navigator.onLine` is true: the older opened-page copy wins over a newer pack | Abdullah | Guideline 10 "the pack wins" | Medium | **Fixed 8 Nov 2026**, re-tested in Chrome (`Backend-Implemented.md` 7) |
 | [F3](#f1-to-f3-found-in-the-chrome-run-8-november-2026) | Freshness runs only on an `offline` to `online` change, not when the server comes back | Abdullah | Guideline 5.3 | Low | **Open (8 Nov 2026)** |
+| [F4](#f4-first-visit-offline-blank-page-9-november-2026) | First visit: offline navigation to a page not loaded yet shows a blank page | Abdullah | R12 offline shell | Low | **Open (9 Nov 2026)** |
 
 ---
 
@@ -189,6 +191,10 @@ Run: backend on a local database (`abhijatri_local` on `127.0.0.1:54322`, all mi
 **F2 (Medium): with the server down but the device "online", the opened-page copy beats a newer pack.** `loadDestination` and `ReviewFeedSection` read the pack first only when `navigator.onLine === false`. Otherwise they call the network; the service worker answers from its 7-day opened-page cache, which is a success, so the pack is never read. Seen: the review feed showed "No published reviews yet" (old cached copy) while the pack held 3 reviews. Real airplane mode is not affected. It does affect a dead or captive Wi-Fi and a server outage. Fix idea: when both exist, show whichever is newer (`generated_at` against the cached response's `Date`), or prefer the pack whenever the answer came from the service worker cache.
 
 **F3 (Low): the freshness check runs only when `navigator.onLine` changes from false to true** (`useReconnectPackCheck`), and on app start. When the server comes back while the device stayed online, packs are not checked until the next start. Acceptable for M1; recorded in `Handoff-Testing.md` known limits.
+
+## F4: first-visit offline blank page (9 November 2026)
+
+Found while testing R15 part 2. On the **first** visit the new service worker installs but does not control the open tab until a reload (`sw.ts` has no `clientsClaim()`; `registerType: 'prompt'`). If the visitor goes offline in that same tab and opens a page whose code was not loaded yet (for example Write a review), the lazy import fails and the page is blank: there is no error screen for a failed chunk load. After one reload, or on any later visit, everything works offline. Fix ideas (frontend, Abdullah): call `clientsClaim()` on the very first install only, and show an error screen with Reload when a page chunk fails to load. Not changed yet.
 
 ## Older items still listed as open
 

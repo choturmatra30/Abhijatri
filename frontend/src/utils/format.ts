@@ -36,6 +36,18 @@ export function formatTimestamp(isoTimestamp: string, language: Language): strin
   }).format(date);
 }
 
+/** A UTC timestamp with its time of day, in the display time zone ("9 Nov 2026, 20:41"). */
+export function formatDateTime(isoTimestamp: string, language: Language): string {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(locale(language), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    hourCycle: 'h23', // 24-hour in both languages, no Latin "PM" in Bangla
+    timeZone: DISPLAY_TIME_ZONE,
+  }).format(date);
+}
+
 /** Today in the display time zone as `YYYY-MM-DD` (the guest footprint counts one visit per day). */
 export function currentDisplayDate(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {

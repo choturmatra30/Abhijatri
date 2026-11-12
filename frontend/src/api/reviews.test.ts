@@ -6,6 +6,7 @@ import {
   detectReviewLanguage,
   generateReceipt,
   isReceiptFormat,
+  overallFromCategories,
   type GuestReviewDraft,
 } from './reviews';
 
@@ -154,5 +155,35 @@ describe('the note is sent exactly as written', () => {
     const english = 'The escort left Baghaihat at half past ten.';
     expect(buildGuestReviewPayload(draft({ note: bangla, language: 'BN' }), { sendCategoryRatings: false }).body).toBe(bangla);
     expect(buildGuestReviewPayload(draft({ note: english, language: 'EN' }), { sendCategoryRatings: false }).body).toBe(english);
+  });
+});
+
+describe('overallFromCategories (Review.md amendment A6: the overall rating is calculated)', () => {
+  const all = (scores: number[]) => Object.fromEntries(REVIEW_CATEGORIES.map((category, i) => [category, scores[i]]));
+
+  it('has no value until all seven categories are rated', () => {
+    expect(overallFromCategories({})).toBeNull();
+    expect(overallFromCategories({ FOOD: 5, VALUE: 4 })).toBeNull();
+    const six = all([5, 5, 5, 5, 5, 5, 5]);
+    delete six[REVIEW_CATEGORIES[3]];
+    expect(overallFromCategories(six)).toBeNull();
+  });
+
+  it('is the mean of the seven, rounded to the nearest whole star', () => {
+    expect(overallFromCategories(all([4, 4, 4, 4, 4, 4, 4]))).toBe(4);
+    expect(overallFromCategories(all([5, 5, 5, 5, 4, 4, 4]))).toBe(5); // 32 / 7 = 4.57
+    expect(overallFromCategories(all([5, 5, 5, 4, 4, 4, 4]))).toBe(4); // 31 / 7 = 4.43
+    expect(overallFromCategories(all([1, 1, 1, 1, 2, 2, 2]))).toBe(1); // 10 / 7 = 1.43
+    expect(overallFromCategories(all([1, 2, 3, 4, 5, 3, 3]))).toBe(3);
+  });
+
+  it('stays between 1 and 5', () => {
+    expect(overallFromCategories(all([1, 1, 1, 1, 1, 1, 1]))).toBe(1);
+    expect(overallFromCategories(all([5, 5, 5, 5, 5, 5, 5]))).toBe(5);
+  });
+
+  it('does not count a value that is not a whole number from 1 to 5', () => {
+    expect(overallFromCategories(all([4, 4, 4, 4, 4, 4, 0]))).toBeNull();
+    expect(overallFromCategories(all([4, 4, 4, 4, 4, 4, 2.5]))).toBeNull();
   });
 });

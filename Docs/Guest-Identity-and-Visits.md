@@ -81,7 +81,7 @@ The tag stays in Latin letters in both languages, like the receipt, because it i
 
 ### 3.4 Sign-in, sign-out and loss
 
-- **Guest sign-out** forgets the name only (Decisions 20 Oct). The name is also forgotten after 30 days without a visit (`abhijatri_guest_name_seen_on`). The tag, the visit dates and the secret stay. This fixes the developer's complaint that everything vanished on sign-out.
+- **Guest sign-out** (labelled **Exit** in the interface since 11 Nov 2026, because a guest has no account to sign out of) forgets the name only (Decisions 20 Oct). The name is also forgotten after 30 days without a visit (`abhijatri_guest_name_seen_on`). The tag, the visit dates and the secret stay. This fixes the developer's complaint that everything vanished on sign-out.
 - **Member sign-in (R04)** sends nothing about the guest to the account. Guest reviews stay receipt-owned guest reviews. On member sign-out the browser is the same guest again with the same tag.
 - **Lost when:** storage is cleared, a new browser or device is used, or a private window is opened. By design there is no server-side recovery, because nothing is stored. A visitor who wants persistence creates an account.
 

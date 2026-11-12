@@ -2,6 +2,19 @@
 
 This log records build-time decisions without reopening the frozen Review specification.
 
+## 2026-11-09 (R15 part 2: sending saved drafts)
+
+Owner decisions (Abdullah) for `Offline-Frontend-Guideline.md` tasks 10 and 11.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Where a draft is sent | From the review form. The Write page lists "Saved drafts on this device" with Open, Delete, Clear all and Export; Open loads the draft into the form and Submit sends it. No separate pending list, so the guideline's `READY` state is `DRAFT`. | One place to send and to complete the security check; least new interface. Nothing is sent by itself (RV 7.3). |
+| Reconnect notice | An app-wide banner when the connection returns (and on the first online page of a visit), plus a count on "Write a review". Not shown on the Write page. | The traveller sees unsent drafts wherever they are. |
+| Receipt custody | Every acknowledged review keeps its receipt with its draft until the user confirms saving it ("Done"), or for 7 days; then it is deleted. Applies to all submissions, not only offline ones. | Every submission comes from a stored draft now; a closed tab must not lose the only copy of the receipt. Within Decisions 2026-11-08 and guideline 6.5. |
+| Export | Export only; no import. The file never holds the guest scope secret, the key or an acknowledged receipt; an unsent draft's receipt only after explicit confirmation. | PF 18.2 asks for export; the guideline marks import "where practical". |
+| Key rule | The `Idempotency-Key` is stored on the draft and renewed only when the SHA-256 of the request body (without the Turnstile token) changes. | Same effect as the guideline's `key_revision`, and it also covers a change that did not bump the revision. |
+| Sign-out | With unsent member drafts: ask, then keep or delete (guideline 6.7 default). | Kept drafts are visible only to the same member. |
+
 ## 2026-11-06 (R14 offline destination packs)
 
 | Decision | Choice | Reason |
@@ -401,3 +414,51 @@ Answers `Handoff-Backend.md` Q1. Amends the 2026-10-19 row "Guest scope secret s
 | Scope on a draft | Each unsent draft stores its own copy of the scope secret when it is created and always sends that copy (guideline 6.2, test D10). | Sending an old draft under a new scope after "Start as a new guest" would look like a new review and could duplicate it after a lost response. |
 | Receipt custody | The receipt of an **unsent** draft is stored with that draft until the review is acknowledged; receipts of submitted reviews are never stored (PF 13.5). After acknowledgement it is deleted on the user's confirmation or after 7 days (guideline 6.5). | The draft cannot be sent later without its receipt; PF 13.5, PF 18.1 and guideline 6.5 already allow this. Replaces "the receipt is never stored" in the 2026-10-19 row. |
 | Server | No API change. The server never stores the scope secret or a receipt in plain form (keyed digests only, PF 13.2, 13.4). | Storage location is a client concern. |
+
+## 2026-11-11 (Phase 1 update 1: "Best rated" order and map links)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| "Best rated first" on the destination list | Two steps, on the device: destinations with a Community Rating first, by `score`; the rest by Guest Feedback average, then its review count; ties keep the name order. No combined number is made or shown. | Owner request (11 Nov 2026) for sorting to find the best. Review.md 6.2 forbids merging the two ratings; an order with two steps keeps them separate. |
+| Map links | Map points open in Google Maps (`https://www.google.com/maps/search/?api=1&query=lat,lng`), in a new tab. Nothing is loaded from Google inside the app. | Owner request. A plain link sends no data until the user presses it and needs no API key. |
+| Places inside a destination | Not built. The guide types are used for the type filter until the backend has places (`Handoff-Phase1-Updates.md` P1). | No place entity or place rating exists in the schema or API. |
+
+## 2026-11-11 (Phase 1 update 2: the overall rating is calculated)
+Amends the 2026-10-20 rows "Rating calculation" and "Category ratings in the form". Review.md amendment A6.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Overall rating in the form | Not asked. It is calculated from the seven category ratings and shown read-only under them. | Owner request (11 Nov 2026): the overall rating is calculated from the parameters and their ratings. |
+| Category ratings | All seven are required; "Not applicable" is removed. | Owner decision (11 Nov 2026): all seven are given. The overall rating then means the same thing for every review. |
+| Formula | Mean of the seven, rounded to the nearest whole number (`overallFromCategories`). A mean of seven whole numbers never ends in exactly .5, so no tie rule is needed. | The API stores `overall_rating` as a whole number from 1 to 5. |
+| Community Rating and Guest Feedback | Unchanged: still built from the overall rating of each counted review (Review.md 6). | Owner decision: the Bayesian average counts the overall rating. No server change is needed for the totals. |
+| Where it is calculated | In the web client for now; the client sends the result as `overall_rating`. The server should calculate and enforce it (`Handoff-Phase1-Updates.md` P2). | Works with today's API. Until P2, a request made outside the web client can still send any overall rating. |
+| Editing a review | The ratings may be left alone. If the author changes them, all seven are needed and the overall rating is sent again, calculated from them. | An older review can have fewer than seven; forcing a change on every text edit would block simple corrections. |
+| Older reviews and drafts | A review submitted before this keeps the overall rating its author gave. A draft saved before this is asked for the missing category ratings when it is opened; its stored overall rating is ignored. | No stored review is rewritten by the client. |
+
+## 2026-11-11 (Phase 1 update 3: a guest sees "Exit", not "Sign out")
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Label of the guest control | For a named guest the button in the sidebar card and the link on `/guest` read **Exit** (Bangla: "বের হোন"). A member still sees "Sign out". | Owner request (11 Nov 2026). A guest has no account or server session, so "Sign out" was the wrong word. |
+| What it does | Unchanged from 2026-10-20 and 2026-10-21: it forgets the typed name and opens `/`. The guest tag, scope secret, visit dates and saved drafts stay. | Only the word changes. |
+| Who sees it | Unchanged: a guest who entered a name. A guest without a name has nothing to leave and sees only "Sign in". | Same rule as before. |
+
+## 2026-11-11 (Phase 1 update 4: finding your own reviews; note minimum)
+Owner request: a user should not have to search for a review by its review ID and receipt; "My reviews" shows their published, rejected, reported and hidden reviews with keyword search; the 20-character limit is removed.
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Members | A member finds reviews in "My reviews". The sidebar shows "My reviews" instead of "Check with receipt" for a member, and the Write page links to it. | A member's reviews belong to the account, so no ID or receipt is needed. |
+| Guests | "Check with receipt" stays for guests until the server can list a guest's reviews (`Handoff-Phase1-Updates.md` P4a). It is not removed now. | A guest has no account; today the receipt is the only proof of ownership. Removing the page first would leave guests unable to check, edit, withdraw or appeal. |
+| Keyword search | Not built in the client. It waits for a server search over title and text (P4b). | Owner decision (11 Nov 2026). The list returns only titles, so a search on the device would miss words in the review text. |
+| "Reported" | Means "my reviews that other people reported". Not built: the server does not tell an author this, and it needs a privacy decision (P4c). | Owner decision (11 Nov 2026). |
+| 20-character limit | The limit meant is the review note's minimum of 20 characters. It is enforced by the server (`NOTE_MIN`), so the change is the backend's (P4d). The form already takes the limit from `GET /review-parameters` and will follow it. The new minimum is proposed as 1 (the note stays required); to be confirmed. | Owner decision (11 Nov 2026). Changing only the client would make the server refuse short notes with `422`. |
+
+## 2026-11-11 (Phase 1 update 5: side menu in the staff dashboard)
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Section navigation of the staff dashboard | A side menu behind a hamburger button replaces the row of ten section buttons in the top bar. Open beside the page from 960 px; an overlay below that. | Owner request (11 Nov 2026). Ten buttons wrapped onto two or three lines and pushed the work queue down. |
+| What did not change | The sections, their order, who sees them (role), every screen, and every API call. The type filters inside a screen stay as buttons. | Navigation only. |
+| Who changed it | Abdullah, in `staff/src/App.tsx` and `staff/src/styles.css`. The staff app is otherwise Muhtasim's. The bundle the API serves at `/staff` was not rebuilt. | The owner asked for it as a frontend update. Rebuilding writes into `backend/`, so it is left to the backend owner (`Handoff-Phase1-Updates.md` P5). |
