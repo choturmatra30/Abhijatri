@@ -1,22 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CloudOff, HardDrive, Send, ShieldCheck, Star, Trash2 } from 'lucide-react';
+import { CloudOff, HardDrive, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
 import { ApiError } from '../../api/client';
 import { getReviewParameters } from '../../api/reviewParameters';
 import { useApiResource } from '../../hooks/useApiResource';
-import { useIdempotencyKeys } from '../../hooks/useIdempotencyKeys';
 import {
   CONSENT_VERSION,
   CATEGORY_RATINGS_ENABLED,
-  buildGuestReviewPayload,
   detectReviewLanguage,
   generateReceipt,
-  getGuestScopeSecret,
-  submitGuestReview,
-  submitMemberReview,
+  overallFromCategories,
   uploadReviewMedia,
 } from '../../api/reviews';
+import { sendDraft } from '../../offline/submitDraft';
+import { mustWait, sendFailureText } from './draftText';
 import type { CategoryRatings as Ratings, ComfortTier, DestinationSummary, GuestReviewCreated, ReviewLanguage, TravellerType } from '../../types';
 import { currentDisplayMonth, formatTimestamp, pick } from '../../utils/format';
 import { photoMetadataComplete } from '../../utils/reviewPhotos';
@@ -34,14 +32,25 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 /** Must match the API's expected Turnstile action (backend app/turnstile.py). */
 const TURNSTILE_ACTION = 'guest-review';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
-import { formatNumber } from '../../utils/format';
 
 export interface SubmittedReview extends GuestReviewCreated {
   receipt: string;
   destinationId: string;
+  /** The acknowledged draft that still holds the receipt on this device until the user confirms (6.5). */
+  clientDraftId?: string;
+  /** A member's review: edits are made from My reviews, not with the receipt. */
+  member?: boolean;
+  /** The server kept an earlier version; later changes on this device were not applied (guideline 6.2 trap 2). */
+  editedAfterFirstSend?: boolean;
   /** Member reviews: how many photos/videos were uploaded, and the names of any that were refused. */
   mediaUploaded?: number;
   mediaFailed?: string[];
+}
+
+/** Ask the form to open the saved draft of a destination ('' = the one without a destination). */
+export interface OpenDraftRequest {
+  destinationId: string;
+  nonce: number;
 }
 
 const newIdentity = (): DraftIdentity => ({ clientDraftId: crypto.randomUUID(), receipt: generateReceipt() });
@@ -56,7 +65,8 @@ export const GuestReviewForm: React.FC<{
   destinations: DestinationSummary[];
   initialDestinationId: string | null;
   onSubmitted: (review: SubmittedReview) => void;
-}> = ({ destinations, initialDestinationId, onSubmitted }) => {
+  openRequest?: OpenDraftRequest | null;
+}> = ({ destinations, initialDestinationId, onSubmitted, openRequest }) => {
   const { language, t } = useLanguage();
   const { session } = useSession();
   // A signed-in member posts under their account name, needs no security check and may add media.
@@ -83,18 +93,18 @@ export const GuestReviewForm: React.FC<{
   const [travellerType, setTravellerType] = useState<TravellerType>('SOLO');
   const [comfortTier, setComfortTier] = useState<ComfortTier>('STANDARD');
   const [visitMonth, setVisitMonth] = useState(maxMonth);
-  const [rating, setRating] = useState(0);
   const [categoryRatings, setCategoryRatings] = useState<Ratings>({});
+  // Not asked any more: calculated from the seven category ratings; 0 until all are rated.
+  const rating = overallFromCategories(categoryRatings) ?? 0;
   const [photos, setPhotos] = useState<ReviewPhoto[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const detectedLanguage = detectReviewLanguage(`${title} ${body}`);
   const reviewLanguage: ReviewLanguage = chosenLanguage ?? detectedLanguage ?? (language === 'en' ? 'EN' : 'BN');
   const [consent, setConsent] = useState(false);
-  // One identity per draft: every retry reuses it so the server can recover a lost response.
+  // One identity per draft: every retry reuses it so the server can recover a lost response. The
+  // Idempotency-Key (R16) is stored on the draft itself and survives a restart (offline/submitDraft.ts).
   const [identity, setIdentity] = useState<DraftIdentity>(newIdentity);
-  // Idempotency-Key (R16): kept while the request is unchanged, renewed when the draft changes.
-  const submitKeys = useIdempotencyKeys();
   const online = useOnlineStatus();
 
   // The draft is kept on this device as the reviewer types (R15 tasks 8 and 9).
@@ -118,34 +128,39 @@ export const GuestReviewForm: React.FC<{
       setTravellerType(f.traveller_type);
       setComfortTier(f.comfort_tier);
       setVisitMonth(f.visit_month);
-      setRating(f.overall_rating);
       setCategoryRatings(f.category_ratings);
       setTitle(f.title);
       setBody(f.body);
       // A tick given for an older consent text does not count for the current one.
       setConsent(f.consent && draft.consent_version === CONSENT_VERSION);
       setIdentity({ clientDraftId: draft.client_draft_id, receipt: draft.receipt });
-      submitKeys.reset();
+      setFieldErrors({});
+      setFormError(null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isMember],
   );
-  const { draftStatus, discard } = useReviewDraft({
+  const { draftStatus, discard, prepareSend, adopt, forget, settle, ready } = useReviewDraft({
     destinationId,
     fields: draftFields,
     identity,
     onRestore: restoreDraft,
     onStartFresh: () => {
-      submitKeys.reset();
       setIdentity(newIdentity());
       clearForm();
     },
   });
 
+  // "Open" in the saved-drafts list: switch to that destination; the hook restores its draft.
+  useEffect(() => {
+    if (!openRequest) return;
+    setDestinationId(openRequest.destinationId);
+    formRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }, [openRequest]);
+
   function clearForm() {
     setTitle('');
     setBody('');
-    setRating(0);
     setCategoryRatings({});
     setPhotos([]);
     setChosenLanguage(null);
@@ -154,7 +169,6 @@ export const GuestReviewForm: React.FC<{
 
   const deleteThisDraft = async () => {
     await discard();
-    submitKeys.reset();
     setIdentity(newIdentity());
     clearForm();
   };
@@ -196,7 +210,8 @@ export const GuestReviewForm: React.FC<{
         `প্রদর্শন নাম ১ থেকে ${nameMax} অক্ষরের হতে হবে।`,
         `Display name must be 1 to ${nameMax} characters.`,
       );
-    if (rating < 1) errors.overall_rating = t('১ থেকে ৫ তারকা দিন।', 'Give a rating from 1 to 5 stars.');
+    if (rating < 1)
+      errors.category_ratings = t('সাতটি বিষয়ের প্রতিটিতে ১ থেকে ৫ তারকা দিন।', 'Rate each of the seven categories from 1 to 5 stars.');
     if (!/^\d{4}-\d{2}$/.test(visitMonth) || visitMonth > maxMonth)
       errors.visit_month = t('ভ্রমণের মাস ভবিষ্যতের হতে পারবে না।', 'The visit month cannot be in the future.');
     if (length(title) < titleMin || length(title) > titleMax)
@@ -233,75 +248,81 @@ export const GuestReviewForm: React.FC<{
 
     setSubmitting(true);
     try {
-      const guestPayload = buildGuestReviewPayload({
-          destinationId,
-          clientDraftId: identity.clientDraftId,
-          receipt: identity.receipt,
-          guestScopeSecret: getGuestScopeSecret(),
-          displayName,
-          language: reviewLanguage,
-          travellerType,
-          comfortTier,
-          visitMonth,
-          title,
-          note: body,
-          overallRating: rating,
-          categoryRatings,
-        });
-      let created: GuestReviewCreated;
+      // The form is saved first; the stored draft (its own identity, guest scope copy and
+      // Idempotency-Key) is what is sent (Offline-Frontend-Guideline 6.2, 6.4).
+      const draft = await prepareSend();
+      if (!draft) return;
+      if (mustWait(draft.retry_after) && draft.last_error) {
+        // The server asked not to send again before this time (Retry-After).
+        setFormError(sendFailureText(draft.last_error, t, language, draft.retry_after));
+        setErrorFocusRequest((n) => n + 1);
+        return;
+      }
+      const outcome = await sendDraft(draft, { interfaceLanguage: language, turnstileToken: isMember ? null : turnstileToken });
+      if (outcome.kind === 'failed') {
+        adopt(outcome.draft);
+        if (outcome.action === 'identity-spent') {
+          setIdentity({ clientDraftId: outcome.draft.client_draft_id, receipt: outcome.draft.receipt });
+        }
+        const error = outcome.error;
+        if (error instanceof ApiError) {
+          if (error.fieldErrors.length > 0) {
+            const mapped: Record<string, string> = {};
+            error.fieldErrors.forEach(({ field, code }) => {
+              mapped[field] = t(...(FIELD_ERROR_LABEL[code] ?? FIELD_ERROR_LABEL.INVALID_VALUE));
+            });
+            setFieldErrors(mapped);
+          }
+          if (error.code === 'RESERVED_DISPLAY_NAME') setFieldErrors({ guest_display_name: error.message });
+          if (error.code === 'MEMBER_REVIEW_EXISTS') setFieldErrors({ visit_month: error.message });
+        }
+        setFormError(
+          outcome.draft.last_error
+            ? sendFailureText(outcome.draft.last_error, t, language, outcome.draft.retry_after)
+            : describeError(error, t),
+        );
+        setErrorFocusRequest((n) => n + 1);
+        return;
+      }
+
+      const created: GuestReviewCreated = outcome.created;
       let mediaUploaded = 0;
       const mediaFailed: string[] = [];
-      if (isMember) {
-        const { guest_scope_secret: _scope, guest_display_name: _name, ...memberPayload } = guestPayload;
-        created = await submitMemberReview(memberPayload, submitKeys.keyFor(memberPayload));
-        // The review exists now; a refused file does not undo it, it is reported on the receipt.
-        if (!created.duplicate_recovered) {
-          for (const [index, photo] of photos.entries()) {
-            setUploadProgress({ done: index, total: photos.length });
-            try {
-              await uploadReviewMedia(created.review_id, photo);
-              mediaUploaded += 1;
-            } catch (uploadError: unknown) {
-              const code = uploadError instanceof ApiError ? uploadError.fieldErrors[0]?.code : undefined;
-              const reason = code && SERVER_MEDIA_TEXT[code] ? t(...SERVER_MEDIA_TEXT[code]) : describeError(uploadError, t);
-              mediaFailed.push(`${photo.file.name}: ${reason}`);
-            }
+      // The review exists now; a refused file does not undo it, it is reported on the receipt.
+      if (outcome.draft.author.kind === 'member' && !created.duplicate_recovered) {
+        for (const [index, photo] of photos.entries()) {
+          setUploadProgress({ done: index, total: photos.length });
+          try {
+            await uploadReviewMedia(created.review_id, photo);
+            mediaUploaded += 1;
+          } catch (uploadError: unknown) {
+            const code = uploadError instanceof ApiError ? uploadError.fieldErrors[0]?.code : undefined;
+            const reason = code && SERVER_MEDIA_TEXT[code] ? t(...SERVER_MEDIA_TEXT[code]) : describeError(uploadError, t);
+            mediaFailed.push(`${photo.file.name}: ${reason}`);
           }
         }
-      } else {
-        // The single-use Turnstile token is not part of the key's request, as on the server.
-        const key = submitKeys.keyFor(guestPayload);
-        created = await submitGuestReview({ ...guestPayload, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) }, key);
       }
-      // The server has the review: the draft and its receipt leave the device (PF 13.5); the receipt is
-      // shown once on the next screen.
-      await discard();
-      onSubmitted({ ...created, receipt: identity.receipt, destinationId, mediaUploaded, mediaFailed });
-      submitKeys.reset();
+      // The server has the review. Its receipt stays with the acknowledged draft until the user confirms
+      // saving it, or for 7 days (guideline 6.5); it is shown on the next screen.
+      forget();
+      onSubmitted({
+        ...created,
+        receipt: outcome.draft.receipt,
+        destinationId: outcome.draft.destination_id,
+        clientDraftId: outcome.draft.client_draft_id,
+        member: outcome.draft.author.kind === 'member',
+        editedAfterFirstSend: outcome.editedAfterFirstSend,
+        mediaUploaded,
+        mediaFailed,
+      });
       setIdentity(newIdentity());
       clearForm();
     } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        if (error.fieldErrors.length > 0) {
-          const mapped: Record<string, string> = {};
-          error.fieldErrors.forEach(({ field, code }) => {
-            mapped[field] = t(...(FIELD_ERROR_LABEL[code] ?? FIELD_ERROR_LABEL.INVALID_VALUE));
-          });
-          setFieldErrors(mapped);
-        }
-        if (error.code === 'RESERVED_DISPLAY_NAME') {
-          setFieldErrors({ guest_display_name: error.message });
-        }
-        if (error.code === 'DRAFT_ALREADY_SUBMITTED' || error.code === 'IDEMPOTENCY_KEY_REUSED') {
-          // This draft identity is spent: drop its saved copy; the text is saved again under a new one.
-          await discard();
-          submitKeys.reset();
-          setIdentity(newIdentity());
-        }
-      }
+      // Only storage or programming errors reach here; sendDraft turns every answer into an outcome.
       setFormError(describeError(error, t));
       setErrorFocusRequest((n) => n + 1);
     } finally {
+      settle();
       setSubmitting(false);
       setUploadProgress(null);
       setTurnstileKey((n) => n + 1);
@@ -354,6 +375,14 @@ export const GuestReviewForm: React.FC<{
                 `খসড়া এই ডিভাইসে সংরক্ষিত (${formatTimestamp(draftStatus.savedAt ?? '', language)}), এনক্রিপ্ট করা নয়।`,
                 `Draft saved on this device (${formatTimestamp(draftStatus.savedAt ?? '', language)}), not encrypted.`,
               )}
+            </span>
+          )}
+          {draftStatus.lastSendError && !formError && (
+            <span className={`basis-full ${draftStatus.needsAttention ? 'text-destructive' : 'text-amber-800 dark:text-amber-300'}`}>
+              {draftStatus.needsAttention
+                ? t('শেষ চেষ্টায় কিছু বদলাতে হবে: ', 'The last attempt needs a change: ')
+                : t('শেষবার পাঠানো যায়নি: ', 'The last attempt was not sent: ')}
+              {sendFailureText(draftStatus.lastSendError, t, language, draftStatus.retryAfter)}
             </span>
           )}
           {draftStatus.savedAt && (
@@ -430,33 +459,13 @@ export const GuestReviewForm: React.FC<{
         </div>
       </div>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className={labelClass}>{t('সার্বিক রেটিং', 'Overall rating')}</legend>
-        <div className="flex items-center gap-1" role="radiogroup" aria-describedby={describedBy('overall_rating')}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              role="radio"
-              aria-checked={rating === star}
-              aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)}
-              onClick={() => setRating(star)}
-              className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full"
-            >
-              <Star
-                size={26}
-                aria-hidden="true"
-                className={star <= rating ? 'fill-amber-400 text-amber-400' : 'text-surface-muted dark:text-on-dark-muted'}
-              />
-            </button>
-          ))}
-        </div>
-        {errorFor('overall_rating')}
-      </fieldset>
-
       <CategoryRatings
         value={categoryRatings}
-        onChange={setCategoryRatings}
+        onChange={(next) => {
+          setCategoryRatings(next);
+          setFieldErrors(({ category_ratings: _c, overall_rating: _o, ...rest }) => rest);
+        }}
+        error={fieldErrors.category_ratings ?? fieldErrors.overall_rating}
         pendingServerSupport={!CATEGORY_RATINGS_ENABLED}
         categories={parameters?.categories}
       />
@@ -621,7 +630,7 @@ export const GuestReviewForm: React.FC<{
 
       <button
         type="submit"
-        disabled={submitting || !online}
+        disabled={submitting || !online || !ready}
         className="self-start inline-flex items-center gap-2 min-h-[44px] px-6 rounded-full bg-forest-primary text-white dark:bg-neon-lime dark:text-dark-bg-base text-sm font-bold font-title disabled:opacity-60"
       >
         <Send size={16} aria-hidden="true" />

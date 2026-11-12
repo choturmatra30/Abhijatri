@@ -11,6 +11,7 @@ import { CATEGORY_LABEL } from '../components/reviews/reviewLabels';
 import { formatNumber } from '../utils/format';
 import { LoadingState, SlowNetworkHint } from '../components/common/StatusViews';
 import { buttonVariants } from '@/components/ui/button';
+import { useGuardedSignOut } from '../components/reviews/useGuardedSignOut';
 
 /**
  * Guest entry (Review.md 3.2 step 1): the guest gives a name, which stays on this device for 30 days
@@ -28,6 +29,8 @@ const textButton = buttonVariants({ variant: 'link', size: 'sm', className: 'px-
 export const GuestEntryPage: React.FC = () => {
   const { t } = useLanguage();
   const { session, status, setGuestName, clearGuestName, startAsNewGuest, signOut } = useSession();
+  // A member with unsent review drafts is asked first whether to keep them (guideline 6.7).
+  const guardedSignOut = useGuardedSignOut();
   const navigate = useNavigate();
   const storedName = session.kind === 'guest' ? session.displayName : null;
   const guestTag = session.kind === 'guest' ? session.guestTag : null;
@@ -76,7 +79,7 @@ export const GuestEntryPage: React.FC = () => {
     const leaveAccount = async () => {
       setLeaving(true);
       try {
-        await signOut(); // the page then re-renders as a guest and shows the name form
+        await guardedSignOut.request(); // the page then re-renders as a guest and shows the name form
       } finally {
         setLeaving(false);
       }
@@ -114,6 +117,7 @@ export const GuestEntryPage: React.FC = () => {
           </button>
           <SlowNetworkHint active={leaving} />
         </div>
+        {guardedSignOut.dialog}
       </div>
     );
   }
@@ -213,7 +217,7 @@ export const GuestEntryPage: React.FC = () => {
             }}
             className={textButton}
           >
-            {t('সাইন আউট', 'Sign out')}
+            {t('বের হোন', 'Exit')}
           </button>
           <button
             type="button"
@@ -254,9 +258,9 @@ const ReviewGuide: React.FC = () => {
         <li className="flex gap-3">
           <Star size={18} className="shrink-0 mt-0.5 fill-amber-400 text-amber-400" aria-hidden="true" />
           <span>
-            <strong>{t('সার্বিক রেটিং (আবশ্যক)', 'Overall rating (required)')}</strong>
+            <strong>{t('সার্বিক রেটিং', 'Overall rating')}</strong>
             {': '}
-            {t('১ থেকে ৫ তারকা।', '1 to 5 stars.')}
+            {t('আলাদা করে দিতে হয় না; নিচের সাতটি বিষয়ের রেটিং থেকে হিসাব করা হয়।', 'not asked separately; it is calculated from the seven category ratings below.')}
           </span>
         </li>
         <li className="flex gap-3">
@@ -273,7 +277,7 @@ const ReviewGuide: React.FC = () => {
       </ul>
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-bold text-on-surface dark:text-on-dark">
-          {t('বিষয়ভিত্তিক রেটিং (ঐচ্ছিক, ১–৫)', 'Ratings by category (optional, 1–5)')}
+          {t('বিষয়ভিত্তিক রেটিং (সবগুলো আবশ্যক, ১–৫)', 'Ratings by category (all required, 1–5)')}
         </h3>
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {categories.map((category) => (

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Save, Star } from 'lucide-react';
+import { RefreshCw, Save } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { ApiError } from '../../api/client';
 import { getReviewParameters } from '../../api/reviewParameters';
@@ -9,8 +9,8 @@ import { currentDisplayMonth } from '../../utils/format';
 import { codePoints, diffEdit, hasChanges, type EditableValues } from '../../utils/reviewAuthor';
 import { describeError, SlowNetworkHint } from '../common/StatusViews';
 import { CategoryRatings } from './CategoryRatings';
+import { overallFromCategories } from '../../api/reviews';
 import { COMFORT_TIERS, FIELD_ERROR_LABEL, REVIEW_LANGUAGES, TRAVELLER_TYPES } from './reviewLabels';
-import { formatNumber } from '../../utils/format';
 
 const inputClass =
   'w-full px-3.5 min-h-[44px] rounded-xl bg-surface-sage/40 dark:bg-dark-surface-2 border border-surface-muted/50 dark:border-dark-surface-2 text-sm text-on-surface dark:text-on-dark aria-invalid:border-error-alert';
@@ -82,21 +82,27 @@ export const ReviewEditForm: React.FC<{
     });
   };
 
+  // The overall rating is not asked: when the category ratings are changed, all seven are needed
+  // and the overall rating is recalculated from them (Decisions 2026-11-11). Left alone, both stay.
+  const ratingsTouched = touched.has('categoryRatings');
+  const calculated = overallFromCategories(values.categoryRatings);
+
   const changes = useMemo<ReviewEditChanges>(() => {
-    if (!guest) return diffEdit(original, values);
+    if (!guest)
+      return diffEdit(original, { ...values, overallRating: ratingsTouched && calculated !== null ? calculated : original.overallRating });
     // A guest's untouched fields stay out of the request; touched ones are sent as typed.
     const only: ReviewEditChanges = {};
     const clean = (v: string) => v.trim().normalize('NFC');
     if (touched.has('title')) only.title = clean(values.title);
     if (touched.has('body')) only.body = clean(values.body);
-    if (touched.has('overallRating') && values.overallRating > 0) only.overall_rating = values.overallRating;
+    if (ratingsTouched && calculated !== null) only.overall_rating = calculated;
     if (touched.has('visitMonth')) only.visit_month = `${values.visitMonth}-01`;
     if (touched.has('language')) only.language = values.language;
     if (touched.has('travellerType')) only.traveller_type = values.travellerType;
     if (touched.has('comfortTier')) only.comfort_tier = values.comfortTier;
-    if (touched.has('categoryRatings')) only.category_ratings = Object.fromEntries(Object.entries(values.categoryRatings).filter(([, v]) => Number.isInteger(v)));
+    if (ratingsTouched) only.category_ratings = Object.fromEntries(Object.entries(values.categoryRatings).filter(([, v]) => Number.isInteger(v)));
     return only;
-  }, [guest, original, values, touched]);
+  }, [guest, original, values, touched, ratingsTouched, calculated]);
 
   const changed = hasChanges(changes);
 
@@ -108,6 +114,8 @@ export const ReviewEditForm: React.FC<{
       errors.body = t(`নোট ${noteMin} থেকে ${noteMax} অক্ষরের হতে হবে।`, `The note must be ${noteMin} to ${noteMax} characters.`);
     if ('visit_month' in changes && (!/^\d{4}-\d{2}$/.test(values.visitMonth) || values.visitMonth > maxMonth))
       errors.visit_month = t('ভ্রমণের মাস ভবিষ্যতের হতে পারবে না।', 'The visit month cannot be in the future.');
+    if ('category_ratings' in changes && calculated === null)
+      errors.category_ratings = t('রেটিং বদলাতে সাতটি বিষয়ের প্রতিটিতে ১ থেকে ৫ তারকা দিন।', 'To change the ratings, rate each of the seven categories from 1 to 5 stars.');
     return errors;
   };
 
@@ -190,18 +198,6 @@ export const ReviewEditForm: React.FC<{
         {errorFor('body')}
       </div>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className={labelClass}>{t('সার্বিক রেটিং', 'Overall rating')}</legend>
-        <div className="flex items-center gap-1" role="radiogroup" aria-describedby={describedBy('overall_rating')}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button key={star} type="button" role="radio" aria-checked={values.overallRating === star} aria-label={t(`${formatNumber(star, 'bn')} তারকা`, `${star} star${star === 1 ? '' : 's'}`)} onClick={() => set('overallRating', star)} className="p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full">
-              <Star size={26} aria-hidden="true" className={star <= values.overallRating ? 'fill-amber-400 text-amber-400' : 'text-surface-muted dark:text-on-dark-muted'} />
-            </button>
-          ))}
-        </div>
-        {errorFor('overall_rating')}
-      </fieldset>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="edit-month" className={labelClass}>{t('ভ্রমণের মাস', 'Month of visit')}</label>
@@ -228,12 +224,18 @@ export const ReviewEditForm: React.FC<{
         </div>
       </div>
 
-      <CategoryRatings value={values.categoryRatings} onChange={(next) => set('categoryRatings', next)} pendingServerSupport={false} categories={parameters?.categories} />
-      {guest && touched.has('categoryRatings') && (
-        <p className="text-xs text-on-surface-variant dark:text-on-dark-muted">
-          {t('বিষয়ভিত্তিক রেটিং বদলালে এখানে দেওয়া সবগুলো আগের সেট প্রতিস্থাপন করবে।', 'If you change category ratings, the ones set here replace the earlier set.')}
-        </p>
-      )}
+      <CategoryRatings
+        value={values.categoryRatings}
+        onChange={(next) => set('categoryRatings', next)}
+        pendingServerSupport={false}
+        categories={parameters?.categories}
+        error={fieldErrors.category_ratings ?? fieldErrors.overall_rating}
+        errorId="edit-category_ratings-error"
+        hint={t(
+          'রেটিং না বদলালে আগেরগুলোই থাকবে। বদলাতে চাইলে সাতটি বিষয়ের প্রতিটিতে রেটিং দিন; সার্বিক রেটিং এগুলো থেকে আবার হিসাব হবে।',
+          'Leave the ratings as they are to keep them. To change them, rate all seven categories; the overall rating is then calculated again from them.',
+        )}
+      />
 
       {formError && (
         <div role="alert" tabIndex={-1} className="p-3 rounded-xl bg-error-container text-sm text-red-900 dark:bg-red-950/40 dark:text-red-200 flex flex-wrap items-center gap-3">

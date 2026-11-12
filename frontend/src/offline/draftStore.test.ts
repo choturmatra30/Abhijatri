@@ -5,6 +5,7 @@ import {
   authorFor,
   canSee,
   claimPendingDrafts,
+  createDraft,
   deleteDraft,
   findDraft,
   hasContent,
@@ -29,18 +30,17 @@ const fields = (over: Partial<DraftFields> = {}): DraftFields => ({
   ...over,
 });
 
-const draft = (id: string, destination: string, author: DraftAuthor, updated = '2026-11-07T10:00:00Z', f = fields({ title: 'শিরোনাম' })): StoredDraft => ({
-  client_draft_id: id,
-  destination_id: destination,
-  author,
-  receipt: `abr1_${id}`,
-  fields: f,
-  consent_version: '2026-10-01',
-  local_revision: 1,
-  state: 'DRAFT',
-  created_at: updated,
-  updated_at: updated,
-});
+const draft = (id: string, destination: string, author: DraftAuthor, updated = '2026-11-07T10:00:00Z', f = fields({ title: 'শিরোনাম' })): StoredDraft =>
+  createDraft({
+    clientDraftId: id,
+    receipt: `abr1_${id}`,
+    destinationId: destination,
+    author,
+    fields: f,
+    consentVersion: '2026-10-01',
+    scopeSecret: author.kind === 'member' ? null : 's'.repeat(64),
+    now: updated,
+  });
 
 afterEach(async () => {
   await resetDbForTests();

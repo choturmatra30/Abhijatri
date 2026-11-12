@@ -119,6 +119,8 @@ Both Vite apps call the API with `credentials: 'include'`, send `X-CSRF-Token` o
 
 The tab list is a role-filtered array in `staff/src/App.tsx`. Hiding a tab is a convenience; the server refuses the call anyway.
 
+**Navigation (changed 11 Nov 2026, owner request):** the tabs are shown in a side menu opened and closed by a hamburger button in the top bar, not as a row of buttons. From 960 px wide the menu starts open beside the page; below that it starts closed and slides over the page, and closes on a choice, on Escape or on a press outside it. The top bar shows the name of the current section. The deployed copy changes only after `make staff-bundle` is run and `backend/app/staff_site` is committed (`Handoff-Phase1-Updates.md` P5).
+
 ### 5.3 Queue interaction rules
 
 - **Claim before deciding.** "Open" calls `claim` and stores the returned `lease_token`. The decision form is disabled without a live lease.

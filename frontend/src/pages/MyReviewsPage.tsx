@@ -262,6 +262,13 @@ export const MyReviewsPage: React.FC = () => {
       ) : (
         <p className="text-center text-xs text-on-surface-variant dark:text-on-dark-muted">{t('এটাই আপনার সব রিভিউ।', 'That is all your reviews.')}</p>
       ))}
+      {/* A review written as a guest belongs to its receipt, not to the account, so it is not in this list. */}
+      <p className="text-center text-xs text-on-surface-variant dark:text-on-dark-muted">
+        {t('অ্যাকাউন্ট খোলার আগে অতিথি হিসেবে রিভিউ দিয়েছিলেন? ', 'Wrote a review as a guest, before you had an account? ')}
+        <Link to="/reviews/receipt" className="font-semibold underline underline-offset-2 text-forest-primary dark:text-neon-lime">
+          {t('রিসিপ্ট দিয়ে দেখুন', 'Check it with its receipt')}
+        </Link>
+      </p>
       <div className="sr-only" role="status" aria-live="polite">{announce}</div>
     </div>
   );

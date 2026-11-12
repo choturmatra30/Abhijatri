@@ -24,6 +24,7 @@ import type {
 } from '../types';
 import { call } from './auth';
 import { apiRequest } from './client';
+import { GUEST_SCOPE_KEY, MIN_SCOPE_LENGTH, rememberGuestScope } from '../offline/guestScope';
 
 /** Consent text version shown with the submission notice (API.md 5.2). */
 export const CONSENT_VERSION = '2026-10-01';
@@ -93,6 +94,18 @@ export function cleanCategoryRatings(ratings: CategoryRatings): CategoryRatings 
   return cleaned;
 }
 
+/**
+ * The overall rating of a review, calculated from its seven category ratings (owner decision
+ * 11 Nov 2026, Review.md amendment A6): the mean, rounded to the nearest whole star, because the
+ * API stores a whole number from 1 to 5. `null` until all seven are rated. A mean of seven whole
+ * numbers never ends in exactly .5, so the rounding has no tie to break.
+ */
+export function overallFromCategories(ratings: CategoryRatings): number | null {
+  const values = Object.values(cleanCategoryRatings(ratings)) as number[];
+  if (values.length !== REVIEW_CATEGORIES.length) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
 /** Builds the POST /reviews/guest body (API.md 5.2) from the form state. Pure, for tests. */
 export function buildGuestReviewPayload(
   draft: GuestReviewDraft,
@@ -121,7 +134,6 @@ export function buildGuestReviewPayload(
 }
 
 const RECEIPT_PATTERN = /^abr1_[A-Za-z0-9_-]{43}$/;
-const GUEST_SCOPE_KEY = 'abhijatri_guest_scope';
 
 function base64Url(bytes: Uint8Array): string {
   let binary = '';
@@ -148,18 +160,20 @@ export function isReceiptFormat(value: string): boolean {
 
 /**
  * The guest scope secret is long-lived per device. It is the source of the guest tag
- * (Guest-Identity-and-Visits 3.1) and a supplemental abuse signal. PF 18.1 places it in IndexedDB;
- * until the offline draft store lands (R15) it is kept in localStorage. It never leaves the device
- * except in the review submission body. It is created on the first visit, so the badge exists at once.
+ * (Guest-Identity-and-Visits 3.1) and a supplemental abuse signal. `localStorage` is the synchronous
+ * reader; every new value is also written to IndexedDB `meta` (Decisions 2026-11-08, PF 18.1), and
+ * `syncGuestScope()` copies an existing one there at start. It never leaves the device except in the
+ * review submission body. It is created on the first visit, so the badge exists at once.
  */
 let inMemoryScope: string | null = null;
 
 export function getGuestScopeSecret(): string {
   try {
     const stored = localStorage.getItem(GUEST_SCOPE_KEY);
-    if (stored && stored.length >= 43) return stored;
+    if (stored && stored.length >= MIN_SCOPE_LENGTH) return stored;
     const fresh = randomBase64Url(48);
     localStorage.setItem(GUEST_SCOPE_KEY, fresh);
+    void rememberGuestScope(fresh);
     return fresh;
   } catch {
     // Storage blocked: one scope (and so one tag) for the life of this tab.
@@ -177,6 +191,7 @@ export function resetGuestScopeSecret(): string {
   } catch {
     // storage blocked: the new scope lives only in this tab
   }
+  void rememberGuestScope(fresh);
   return fresh;
 }
 

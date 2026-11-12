@@ -8,6 +8,7 @@ import {
   Bookmark, 
   MessageSquareText, 
   ChevronDown,
+  ListChecks,
   PenSquare,
   ReceiptText,
   Compass,
@@ -19,32 +20,39 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { useSession } from '../../context/SessionContext';
 import { buttonVariants } from '@/components/ui/button';
+import { formatNumber } from '../../utils/format';
+import { useGuardedSignOut } from '../reviews/useGuardedSignOut';
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  /** Unsent review drafts on this device, shown on "Write a review" (R15). */
+  unsentDrafts?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { t } = useLanguage();
-  const { session, isVerifiedMember, signOut, status } = useSession();
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, unsentDrafts = 0 }) => {
+  const { language, t } = useLanguage();
+  const { session, isVerifiedMember, status } = useSession();
+  // Warns first when a member has unsent review drafts on this device (guideline 6.7).
+  const guardedSignOut = useGuardedSignOut();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
   // The Reviews group opens by itself whenever one of its pages is showing.
-  const inReviews = pathname.startsWith('/reviews');
+  const inReviews = pathname.startsWith('/reviews') || pathname.startsWith('/account/reviews');
   const [reviewsOpen, setReviewsOpen] = useState(inReviews);
   useEffect(() => {
     if (inReviews) setReviewsOpen(true);
   }, [inReviews]);
 
   const handleSignOut = () => {
-    void signOut();
-    onClose?.();
-    navigate('/');
+    void guardedSignOut.request(() => {
+      onClose?.();
+      navigate('/');
+    });
   };
 
-  type NavChild = { to: string; labelBn: string; labelEn: string; icon: typeof Compass };
+  type NavChild = { to: string; labelBn: string; labelEn: string; icon: typeof Compass; count?: number };
   const navItems: { to: string; labelBn: string; labelEn: string; icon: typeof Compass; soon?: boolean; children?: NavChild[] }[] = [
     {
       to: '/overview',
@@ -90,8 +98,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       labelEn: 'Reviews',
       icon: MessageSquareText,
       children: [
-        { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare },
-        { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
+        { to: '/reviews/write', labelBn: 'রিভিউ লিখুন', labelEn: 'Write a review', icon: PenSquare, count: unsentDrafts },
+        // A member finds their reviews in a list; only a guest, who has no account, needs the
+        // review ID and receipt (Phase 1 update 4, Decisions 2026-11-11).
+        session.kind === 'member'
+          ? { to: '/account/reviews', labelBn: 'আমার রিভিউ', labelEn: 'My reviews', icon: ListChecks }
+          : { to: '/reviews/receipt', labelBn: 'রিসিপ্ট দিয়ে দেখুন', labelEn: 'Check with receipt', icon: ReceiptText },
       ],
     },
   ];
@@ -150,10 +162,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     >
                       <Icon size={18} aria-hidden="true" />
                       <span className="font-title text-[15px]">{t(item.labelBn, item.labelEn)}</span>
+                      {!reviewsOpen && unsentDrafts > 0 && (
+                        <span
+                          className="ml-auto min-w-6 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-[11px] font-bold text-center"
+                          aria-label={t(`${formatNumber(unsentDrafts, 'bn')}টি না পাঠানো খসড়া`, `${unsentDrafts} unsent draft${unsentDrafts === 1 ? '' : 's'}`)}
+                        >
+                          {formatNumber(unsentDrafts, language)}
+                        </span>
+                      )}
                       <ChevronDown
                         size={16}
                         aria-hidden="true"
-                        className={`ml-auto shrink-0 motion-safe:transition-transform ${reviewsOpen ? 'rotate-180' : ''}`}
+                        className={`${!reviewsOpen && unsentDrafts > 0 ? 'ml-1' : 'ml-auto'} shrink-0 motion-safe:transition-transform ${reviewsOpen ? 'rotate-180' : ''}`}
                       />
                     </button>
                     {reviewsOpen && (
@@ -175,6 +195,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                               >
                                 <ChildIcon size={16} aria-hidden="true" />
                                 <span className="font-title">{t(child.labelBn, child.labelEn)}</span>
+                                {Boolean(child.count) && (
+                                  <span
+                                    className="ml-auto min-w-6 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-[11px] font-bold text-center"
+                                    aria-label={t(`${formatNumber(child.count!, 'bn')}টি না পাঠানো খসড়া`, `${child.count} unsent draft${child.count === 1 ? '' : 's'}`)}
+                                  >
+                                    {formatNumber(child.count!, language)}
+                                  </span>
+                                )}
                               </NavLink>
                             </li>
                           );
@@ -261,7 +289,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               </Link>
             </div>
           )}
-          {/* A member or a named guest can sign out; an anonymous guest has nothing to sign out of. */}
+          {/* A member signs out of an account. A named guest has no account, so the same control is
+              labelled "Exit" (it forgets the name). An anonymous guest has nothing to leave. */}
           {(session.kind === 'member' || session.displayName) && (
           <button
             type="button"
@@ -269,11 +298,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-full' })}
           >
             <LogOut size={14} aria-hidden="true" />
-            {t('সাইন আউট', 'Sign out')}
+            {session.kind === 'member' ? t('সাইন আউট', 'Sign out') : t('বের হোন', 'Exit')}
           </button>
           )}
         </div>
       </aside>
+      {guardedSignOut.dialog}
     </>
   );
 };
