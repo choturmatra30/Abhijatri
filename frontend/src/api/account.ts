@@ -27,7 +27,7 @@ export const requestVerification = (purpose: 'initial' | 'renewal' | 'student_up
 export const saveVerificationStep = (caseId: string, step: VerificationStep, body: Record<string, unknown>) =>
   call<VerificationCaseView>(`/api/v1/verifications/${caseId}/steps/${step}`, { method: 'PATCH', body, session: true });
 export const sendVerificationPhoneCode = (caseId: string, phone: string) =>
-  call<{ sent: boolean; expires_in: number }>(`/api/v1/verifications/${caseId}/phone/send-code`, { body: { phone }, session: true });
+  call<{ sent_to: string; expires_in: number; verified?: boolean }>(`/api/v1/verifications/${caseId}/phone/send-code`, { body: { phone }, session: true });
 export const verifyVerificationPhoneCode = (caseId: string, code: string) =>
   call<VerificationCaseView>(`/api/v1/verifications/${caseId}/phone/verify`, { body: { code }, session: true });
 export const sendStudentEmailCode = (caseId: string, email: string) =>

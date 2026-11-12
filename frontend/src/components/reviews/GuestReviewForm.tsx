@@ -74,7 +74,7 @@ export const GuestReviewForm: React.FC<{
   const maxMonth = currentDisplayMonth();
   // Limits and category prompts come from the API (API.md 5.15); local values are the fallback.
   const { data: parameters } = useApiResource(() => getReviewParameters(), []);
-  const noteMin = parameters?.note.min_length ?? 20;
+  const noteMin = parameters?.note.min_length ?? 1;
   const noteMax = parameters?.note.max_length ?? 6000;
   const titleMin = parameters?.title.min_length ?? 3;
   const titleMax = parameters?.title.max_length ?? 160;

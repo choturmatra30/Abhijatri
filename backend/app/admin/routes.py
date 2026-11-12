@@ -44,6 +44,7 @@ from app.models import (
     VerificationEvidence,
 )
 from app.notify import alerts
+from app.services import revision_category_ratings
 from app.storage import StorageClient, StorageUnavailable, get_storage
 
 logger = logging.getLogger(__name__)
@@ -240,6 +241,12 @@ def _subject_summary(session: Session, task: ModerationTask) -> dict[str, Any] |
             "body": revision.body,
             "author": "member" if review.author_user_id else "guest",
             "guest_display_name": review.guest_display_name,
+            "guest_tag": review.guest_tag,
+            # The seven ratings the overall rating is calculated from (Review.md A6); older reviews may have fewer.
+            "category_ratings": {
+                category.value: rating
+                for category, rating in revision_category_ratings(session, [revision.id])[revision.id].items()
+            },
             "author_display_name": session.scalar(select(User.display_name).where(User.id == review.author_user_id)) if review.author_user_id else None,
             "media": [
                 media.describe(item)

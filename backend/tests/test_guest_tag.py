@@ -11,7 +11,7 @@ from receipts import new_receipt
 from app.db import get_session
 from app.guest_tag import DISPLAY_PATTERN, display_guest_tag, guest_tag, stored_guest_tag
 from app.main import create_app
-from app.models import Destination, DestinationStatus
+from app.models import Destination, DestinationStatus, ReviewCategory
 from app.schemas import GuestReviewCreate
 from app.services import submit_guest_review
 
@@ -63,6 +63,7 @@ def test_the_stored_tag_is_derived_from_the_scope_secret(postgres_session) -> No
         title="Lovely beach",
         body="A long enough review body for the validation rules.",
         overall_rating=5,
+        category_ratings={c: 5 for c in ReviewCategory},
         consent_version="v1",
     )
     result = submit_guest_review(postgres_session, payload)

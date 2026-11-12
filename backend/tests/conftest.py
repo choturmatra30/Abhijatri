@@ -50,6 +50,15 @@ def backdate_decisions(session: Session, when: "datetime", **where: object) -> N
         session.execute(text("ALTER TABLE moderation_actions ENABLE TRIGGER moderation_actions_no_change"))
 
 
+@pytest.fixture(autouse=True)
+def _real_phone_codes(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Tests exercise the real SMS code flow; the temporary PHONE_AUTO_VERIFY switch is tested on its own."""
+    monkeypatch.setenv("PHONE_AUTO_VERIFY", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture()
 def postgres_session() -> Generator[Session, None, None]:
     engine = create_engine(_test_database_url(), pool_pre_ping=True)

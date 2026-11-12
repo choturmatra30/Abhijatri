@@ -46,6 +46,7 @@ from app.schemas import (
     ConflictFlagRequest,
     GuestAppealCreated,
     GuestAppealRequest,
+    GuestMineRequest,
     GuestReviewCreate,
     GuestReviewCreated,
     GuestVisitRequest,
@@ -244,7 +245,7 @@ def review_parameters(request: Request, response: Response) -> ReviewParameters:
                 code=category,
                 name=_text(name),
                 prompt=_text(prompt),
-                required=False,
+                required=True,
                 min=rp.RATING_MIN,
                 max=rp.RATING_MAX,
             )
@@ -259,6 +260,10 @@ def review_parameters(request: Request, response: Response) -> ReviewParameters:
         comfort_tiers=_choices(rp.COMFORT_LABELS),
         languages=_choices(rp.LANGUAGE_LABELS),
         rating_rules=RatingRules(
+            overall_rating=(
+                "Calculated, not entered: the mean of the seven required category ratings, rounded to the "
+                "nearest whole number. A request that sends a different overall_rating is refused."
+            ),
             guest_feedback="Mean of the overall rating of published Guest reviews, shown with its count.",
             community_rating=(
                 "Bayesian (sum + m * C) / (count + m) over eligible Verified Member reviews; "
@@ -268,8 +273,8 @@ def review_parameters(request: Request, response: Response) -> ReviewParameters:
             community_prior_weight=rp.COMMUNITY_PRIOR_WEIGHT,
             community_min_reviews=rp.COMMUNITY_MIN_REVIEWS,
             category_averages=(
-                "Mean of each rated category per audience (Guest or Community), never merged; "
-                "a category is left out until it has a rating."
+                "Mean of each category per audience (Guest or Community), never merged; "
+                "a category is left out until it has a rating (older reviews may have fewer than seven)."
             ),
         ),
     )
@@ -688,14 +693,55 @@ def my_reviews(
     principal: MemberPrincipal,
     status_filter: ReviewStatus | None = Query(default=None, alias="status"),
     destination_id: uuid.UUID | None = None,
+    q: str | None = Query(default=None, max_length=200),
+    reported: bool | None = None,
     after: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
     session: Session = Depends(get_session),
 ) -> MyReviews:
-    """The signed-in member's own reviews, newest first, with an opaque cursor (Review.md 9.3)."""
+    """The signed-in member's own reviews, newest first, with an opaque cursor (Review.md 9.3).
+
+    ``q`` is a keyword search over the title and text of the current revision; ``reported=true`` keeps
+    only reviews that someone reported and a moderator has already decided (API.md 5.10).
+    """
     try:
         items, next_cursor = list_member_reviews(
-            session, principal.user.id, status=status_filter, destination_id=destination_id, after=after, limit=limit
+            session,
+            principal.user.id,
+            status=status_filter,
+            destination_id=destination_id,
+            q=q,
+            reported=reported,
+            after=after,
+            limit=limit,
+        )
+    except ReviewError as error:
+        _raise_service_error(error)
+    response.headers["Cache-Control"] = "no-store"
+    return MyReviews(items=items, next_cursor=next_cursor)
+
+
+@router.post("/reviews/guest/mine", response_model=MyReviews)
+@limiter.limit(receipt_limit)
+def guest_reviews(
+    request: Request,
+    response: Response,
+    payload: GuestMineRequest,
+    session: Session = Depends(get_session),
+) -> MyReviews:
+    """The reviews written from this browser (the Guest scope secret), newest first. Read only: it returns the
+    same summary fields as ``GET /reviews/mine``. The secret travels in the body, never the URL (API.md 5.10a)."""
+    try:
+        items, next_cursor = list_member_reviews(
+            session,
+            None,
+            guest_scope_secret=payload.guest_scope_secret,
+            status=payload.status,
+            destination_id=payload.destination_id,
+            q=payload.q,
+            reported=payload.reported,
+            after=payload.after,
+            limit=payload.limit,
         )
     except ReviewError as error:
         _raise_service_error(error)

@@ -183,7 +183,8 @@ Public responses vary by `Accept-Language` and are purged on moderation or delet
 |---|---|---|---|
 | `POST /auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/login`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`, `GET /auth/session`, `POST /auth/mfa/enroll`, `/auth/mfa/verify`, `/auth/reauth` | none or member | no-store | Implemented 27 Oct 2026 (R04, section 5.17) |
 | `POST /reviews/member` | member | no-store | Implemented 27 Oct 2026 (section 5.20) |
-| `GET /reviews/mine` | member | no-store | Implemented 29 Oct 2026 (R07, section 5.5a) |
+| `GET /reviews/mine` | member | no-store | Implemented 29 Oct 2026 (R07, section 5.5a); `q` and `reported` added 12 Nov 2026 |
+| `POST /reviews/guest/mine` | guest scope secret in the body | no-store | Implemented 12 Nov 2026 (section 5.5a, P4a) |
 | `GET /reviews/{review_id}` | owner or staff | no-store | Implemented 29 Oct 2026 (R07, section 5.5a) |
 | `POST /verifications` | member | no-store | Planned (R04) |
 
@@ -237,16 +238,21 @@ Idempotency-Key: 4a7e0b52-3f6d-4c1a-9a2e-6c1f0d7b8e21
   "comfort_tier": "STANDARD",
   "visit_month": "2026-09-01",
   "title": "Good family trip",
-  "body": "At least twenty characters of plain text, up to 6000.",
+  "body": "A short note is fine; plain text, up to 6000 characters.",
   "overall_rating": 4,
-  "category_ratings": { "FOOD": 4, "SAFETY_PERCEPTION": 5 },
+  "category_ratings": {
+    "CLEANLINESS": 4, "ACCESSIBILITY": 4, "HOSPITALITY": 4, "FOOD": 4,
+    "TRANSPORT": 4, "SAFETY_PERCEPTION": 5, "VALUE": 4
+  },
   "consent_version": "2026-10-01"
 }
 ```
 
-Field rules: `guest_display_name` 1 to 80 characters; `title` 3 to 160; `body` 20 to 6000, plain text; `overall_rating` 1 to 5; `visit_month` is the first day of a month and not in the future in the display time zone. Unknown fields return 422.
+Field rules: `guest_display_name` 1 to 80 characters; `title` 3 to 160; `body` 1 to 6000, plain text (the 20-character minimum was removed on 12 Nov 2026, Decisions 2026-11-12); `overall_rating` optional, see below; `visit_month` is the first day of a month and not in the future in the display time zone. Unknown fields return 422.
 
-**`category_ratings` (implemented 20 Oct 2026, Review.md amendment A2):** optional object whose keys are the `ReviewCategory` values (Section 8) and whose values are integers 1 to 5; at most seven keys. A missing key means not applicable; an empty object is the same as omitting the field. An unknown key or a value outside 1 to 5 returns `422 VALIDATION_FAILED` with a field error under `category_ratings`. Ratings are stored per revision in `review_category_ratings`. On publication they move the per-category Guest Feedback (or, for an eligible Verified Member, Community) aggregate in the same transaction as the overall rating, and leave it on hide, withdrawal or conflict. The client sends the field when `VITE_REVIEW_CATEGORY_RATINGS=true`. `body` is the reviewer's free-text note. A Guest submission never carries images.
+**Overall rating is calculated (12 Nov 2026, Review.md amendment A6, Decisions 2026-11-11 and 2026-11-12).** `category_ratings` is now **required with all seven keys**, each 1 to 5; "not applicable" no longer exists. The server sets `overall_rating` to the mean of the seven, rounded to the nearest whole number (`(2·sum + 7) // 14`; 5,5,5,5,4,4,4 gives 5). `overall_rating` may be omitted. If it is sent and differs from the calculated value the request fails with `422 VALIDATION_FAILED`. Fewer than seven keys, or an empty object, also returns 422. Older stored reviews keep the overall rating they were given; nothing recalculates them.
+
+**`category_ratings` (first implemented 20 Oct 2026, Review.md amendment A2; now required, see above):** object whose keys are the `ReviewCategory` values (Section 8) and whose values are integers 1 to 5; at most seven keys. A missing key means not applicable; an empty object is the same as omitting the field. An unknown key or a value outside 1 to 5 returns `422 VALIDATION_FAILED` with a field error under `category_ratings`. Ratings are stored per revision in `review_category_ratings`. On publication they move the per-category Guest Feedback (or, for an eligible Verified Member, Community) aggregate in the same transaction as the overall rating, and leave it on hide, withdrawal or conflict. The client sends the field when `VITE_REVIEW_CATEGORY_RATINGS=true`. `body` is the reviewer's free-text note. A Guest submission never carries images.
 
 Response `201`:
 
@@ -322,7 +328,7 @@ Allowed only while the review is `PENDING` or `CHANGES_REQUESTED` (RV 4.2, 5.2).
 }
 ```
 
-Every content field is optional (`language`, `traveller_type`, `comfort_tier`, `visit_month`, `title`, `body`, `overall_rating`, `category_ratings`, `consent_version`); at least one is required, and `null` is refused (omit a field to keep it). `category_ratings`, when sent, replaces the whole set and `{}` clears it. The destination cannot change. Unknown fields return 422.
+**Calculated overall rating on edit (12 Nov 2026).** When `category_ratings` is sent it must contain all seven keys (`{}` and partial sets return 422) and the server recalculates `overall_rating`; a sent `overall_rating` must equal it. `overall_rating` alone returns 422. Every content field is optional (`language`, `traveller_type`, `comfort_tier`, `visit_month`, `title`, `body`, `overall_rating`, `category_ratings`, `consent_version`); at least one is required, and `null` is refused (omit a field to keep it). `category_ratings`, when sent, replaces the whole set and `{}` clears it. The destination cannot change. Unknown fields return 422.
 
 Response `200`: `{ "review_id": "...", "status": "PENDING", "version": 3, "revision": 2 }`. The previous revision becomes `SUPERSEDED`, the review returns to the moderation queue and nothing is counted. A member owner sends no `receipt_secret` and uses their session and CSRF token instead; another person's review answers `404 NOT_FOUND`. Any state other than `PENDING` or `CHANGES_REQUESTED` returns `409 INVALID_TRANSITION`; a stale `expected_version` returns `409 REVIEW_VERSION_CONFLICT`; moving a member review onto a month they already reviewed returns `409 MEMBER_REVIEW_EXISTS`. A wrong receipt returns `404 RECEIPT_NOT_FOUND` and counts toward the progressive block.
 
@@ -334,7 +340,13 @@ Both need a member session and answer `Cache-Control: no-store`.
 
 `GET /reviews/{review_id}` is for the review's author or a moderator; anyone else gets `404 NOT_FOUND`. It returns the current revision (`language`, `traveller_type`, `comfort_tier`, `title`, `body`, `overall_rating`, `category_ratings`, `consent_version`), `status`, `version`, `rating_eligibility`, `visit_month`, `created_at`, `published_at`, `withdrawn_at`, `decision_reason`, `appeal_deadline`, `appeal_state`, the `revisions` history (`sequence`, `status`, `created_at`) and the review's `media` (`id`, `kind`, `state`, `alt_text`, `caption`). Moderators also get `guest_display_name`, `author_user_id` and `conflict_declared`; authors get them as `null`.
 
-`GET /reviews/mine?status=&destination_id=&after=&limit=` lists the signed-in member's own reviews, newest first by the stable tuple `(created_at, id)`. `limit` defaults to 20 (maximum 50). `after` is the opaque `next_cursor` of the previous page; a cursor from another listing returns `422 INVALID_CURSOR`. Response: `{ "items": [{ "id", "destination_id", "status", "version", "overall_rating", "title", "visit_month", "created_at", "published_at", "appeal_deadline" }], "next_cursor": "..." | null }`.
+`GET /reviews/mine?status=&destination_id=&q=&reported=&after=&limit=` lists the signed-in member's own reviews, newest first by the stable tuple `(created_at, id)`. `limit` defaults to 20 (maximum 50). `after` is the opaque `next_cursor` of the previous page; a cursor from another listing returns `422 INVALID_CURSOR`. Response: `{ "items": [{ "id", "destination_id", "status", "version", "overall_rating", "title", "visit_month", "created_at", "published_at", "appeal_deadline", "reported" }], "next_cursor": "..." | null }`.
+
+**Keyword search (`q`, 12 Nov 2026, P4b).** Case-insensitive match on the title or text of the current revision, Bangla and English. Trimmed; an empty `q` means no filter; more than 100 characters returns `422`. `%` and `_` are literal. It combines with `status`, `destination_id`, `reported` and the cursor.
+
+**Reported (`reported`, 12 Nov 2026, P4c).** Each item carries `reported: true` once someone reported the review **and a moderator has decided the report** (`actioned` or `dismissed`). An undecided report is never shown to the author, and the reporter and the reason are never shown. `reported=true` keeps only those reviews, `reported=false` only the others. Hidden, Rejected and Published are ordinary `status` values.
+
+**Guest list (`POST /reviews/guest/mine`, 12 Nov 2026, P4a).** Body: `{ "guest_scope_secret": "<43 to 200 characters>", "status"?, "destination_id"?, "q"?, "reported"?, "after"?, "limit"? }`. It returns the same `{ items, next_cursor }` for the reviews written from that browser, so a Guest needs no review ID and no receipt to see statuses. Read only: edit, withdraw and appeal still need the receipt. The secret travels in the body, never in the URL. A wrong secret returns an empty list.
 
 ### 5.6 `POST /review-receipts/appeals`
 
@@ -619,7 +631,7 @@ This route returns the review form and the rating rules, so the client renders t
 - **Guest Feedback** is the mean overall rating of published Guest reviews.
 - **Community Rating** is the Bayesian `score` over eligible Verified Member reviews (5.12). It is shown only from five reviews.
 - **Category averages** are computed per audience and never merged.
-- The overall rating is never derived from the category ratings **by the server**. Since 11 Nov 2026 the web client does not ask for it: it requires all seven category ratings and sends their mean, rounded to a whole number, as `overall_rating` (Review.md amendment A6, Decisions 2026-11-11). The contract above is unchanged until the server enforces this (`Docs/Handoff-Phase1-Updates.md` P2).
+- The overall rating **is calculated by the server** since 12 Nov 2026: the mean of the seven required category ratings, rounded to a whole number, published here in `rating_rules.overall_rating`. Every category has `required: true`. The note's `min_length` is 1 (Review.md amendment A6, Decisions 2026-11-11 and 2026-11-12).
 
 ### 5.16 Operations API: `/ops/*` (System Monitoring Dashboard)
 

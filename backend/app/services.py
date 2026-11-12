@@ -27,6 +27,7 @@ from app.models import (
     OutboxEvent,
     RatingAudience,
     RatingEligibility,
+    Report,
     Review,
     ReviewCategory,
     ReviewCategoryRating,
@@ -1018,25 +1019,54 @@ def decode_history_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
 
 def list_member_reviews(
     session: Session,
-    author_id: uuid.UUID,
+    author_id: uuid.UUID | None,
     *,
+    guest_scope_secret: str | None = None,
     status: ReviewStatus | None,
     destination_id: uuid.UUID | None,
     after: str | None,
     limit: int,
+    q: str | None = None,
+    reported: bool | None = None,
 ) -> tuple[list[ReviewSummary], str | None]:
-    """A member's own reviews, newest first, by the stable tuple ``(created_at, id)`` (Review.md 9.3)."""
+    """A member's own reviews, newest first, by the stable tuple ``(created_at, id)`` (Review.md 9.3).
+
+    ``q`` matches the title or text of the current revision, case-insensitively (Bangla and English);
+    ``reported`` keeps reviews with a decided report (``True``) or without one (``False``).
+    """
     statement = (
         select(Review, ReviewRevision)
         .join(ReviewRevision, ReviewRevision.id == Review.current_revision_id)
-        .where(Review.author_user_id == author_id)
         .order_by(Review.created_at.desc(), Review.id.desc())
         .limit(limit + 1)
     )
+    if author_id is not None:
+        statement = statement.where(Review.author_user_id == author_id)
+    else:
+        # A Guest's own reviews: the keyed digest of this browser's scope secret (API.md 5.10a, P4a).
+        if not guest_scope_secret:
+            raise ReviewError("a guest scope secret is required", "VALIDATION_FAILED")
+        hashes = [value for _, value in crypto.candidate_digests(crypto.GUEST_SCOPE_LABEL, guest_scope_secret)]
+        statement = statement.where(Review.author_user_id.is_(None), Review.guest_scope_hash.in_(hashes))
     if status is not None:
         statement = statement.where(Review.status == status)
     if destination_id is not None:
         statement = statement.where(Review.destination_id == destination_id)
+    keyword = (q or "").strip()
+    if len(keyword) > 100:
+        raise ReviewError("search text is too long (at most 100 characters)", "VALIDATION_FAILED")
+    if keyword:
+        pattern = "%" + keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        statement = statement.where(
+            or_(ReviewRevision.title.ilike(pattern, escape="\\"), ReviewRevision.body.ilike(pattern, escape="\\"))
+        )
+    if reported is not None:
+        decided_report = (
+            select(Report.id)
+            .where(Report.review_id == Review.id, Report.state.in_(("actioned", "dismissed")))
+            .exists()
+        )
+        statement = statement.where(decided_report if reported else ~decided_report)
     if after:
         created_at, review_id = decode_history_cursor(after)
         statement = statement.where(
@@ -1045,6 +1075,13 @@ def list_member_reviews(
     rows = session.execute(statement).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
+    reported_ids = set(
+        session.scalars(
+            select(Report.review_id).where(
+                Report.review_id.in_([review.id for review, _ in rows]), Report.state.in_(("actioned", "dismissed"))
+            )
+        )
+    ) if rows else set()
     items = [
         ReviewSummary(
             id=review.id,
@@ -1057,6 +1094,7 @@ def list_member_reviews(
             created_at=review.created_at,
             published_at=review.published_at,
             appeal_deadline=rejection_details(session, review).appeal_deadline,
+            reported=review.id in reported_ids,
         )
         for review, revision in rows
     ]

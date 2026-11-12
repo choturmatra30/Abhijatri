@@ -247,7 +247,7 @@ const ReviewGuide: React.FC = () => {
         name: t(...CATEGORY_LABEL[code].name),
         prompt: t(...CATEGORY_LABEL[code].prompt),
       }));
-  const noteMin = parameters?.note.min_length ?? 20;
+  const noteMin = parameters?.note.min_length ?? 1;
 
   return (
     <section aria-labelledby="review-guide-heading" className="tonal-card p-6 flex flex-col gap-4">

@@ -188,11 +188,11 @@ export const VerificationPage: React.FC = () => {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', again); };
   }, [pending, load]);
 
-  const run = async (work: () => Promise<unknown>, success: string, advance = false) => {
+  const run = async <R,>(work: () => Promise<R>, success: string | ((result: R) => string), advance = false) => {
     setBusy(true); setNotice(null);
     try {
-      await work(); await load(advance); // load() itself moves to the next unfinished step
-      setNotice({ tone: 'success', text: success });
+      const result = await work(); await load(advance); // load() itself moves to the next unfinished step
+      setNotice({ tone: 'success', text: typeof success === 'function' ? success(result) : success });
     } catch (error) {
       setNotice({ tone: 'error', text: verificationErrorMessage(error, t) });
     } finally { setBusy(false); }
@@ -292,7 +292,7 @@ export const VerificationPage: React.FC = () => {
 
         {active === 'phone' && <>
           <h2 className="text-xl font-bold">{t('ফোন যাচাই', 'Verify phone')}</h2>
-          {current.phone?.verified ? <Notice tone="success">•••• {current.phone.last4} verified</Notice> : <><input className={field} inputMode="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} /><button disabled={busy || !phone} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => sendVerificationPhoneCode(current.id, phone), t('কোড পাঠানো হয়েছে।', 'Code sent.'))}>{t('কোড পাঠান', 'Send code')}</button><input className={field} inputMode="numeric" maxLength={6} placeholder="6-digit code" value={phoneCode} onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))} /><button disabled={busy || phoneCode.length !== 6} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => verifyVerificationPhoneCode(current.id, phoneCode), t('ফোন যাচাই হয়েছে।', 'Phone verified.'), true)}>{t('যাচাই করুন', 'Verify')}</button></>}
+          {current.phone?.verified ? <Notice tone="success">•••• {current.phone.last4} verified</Notice> : <><input className={field} inputMode="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} /><button disabled={busy || !phone} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => sendVerificationPhoneCode(current.id, phone), (sent) => (sent.verified ? t('ফোন যাচাই হয়েছে।', 'Phone verified.') : t('কোড পাঠানো হয়েছে।', 'Code sent.')), true)}>{t('কোড পাঠান', 'Send code')}</button><input className={field} inputMode="numeric" maxLength={6} placeholder="6-digit code" value={phoneCode} onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))} /><button disabled={busy || phoneCode.length !== 6} className={`${primaryButtonClass} px-5 self-start`} onClick={() => void run(() => verifyVerificationPhoneCode(current.id, phoneCode), t('ফোন যাচাই হয়েছে।', 'Phone verified.'), true)}>{t('যাচাই করুন', 'Verify')}</button></>}
         </>}
 
         {active === 'document' && <>

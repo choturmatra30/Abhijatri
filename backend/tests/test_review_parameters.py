@@ -25,10 +25,10 @@ def _parameters() -> dict:
     return response.json()
 
 
-def test_seven_optional_categories_in_review_order() -> None:
+def test_seven_required_categories_in_review_order() -> None:
     parameters = _parameters()
     assert [c["code"] for c in parameters["categories"]] == [c.value for c in ReviewCategory]
-    assert all(c["required"] is False and (c["min"], c["max"]) == (1, 5) for c in parameters["categories"])
+    assert all(c["required"] is True and (c["min"], c["max"]) == (1, 5) for c in parameters["categories"])
     food = next(c for c in parameters["categories"] if c["code"] == "FOOD")
     assert food["name"] == {"bn": "খাবার", "en": "Food"}
     assert food["prompt"]["en"]
@@ -37,7 +37,7 @@ def test_seven_optional_categories_in_review_order() -> None:
 def test_overall_rating_and_note_are_required() -> None:
     parameters = _parameters()
     assert parameters["overall_rating"] == {"required": True, "min": 1, "max": 5}
-    assert parameters["note"] == {"field": "body", "required": True, "min_length": 20, "max_length": 6000}
+    assert parameters["note"] == {"field": "body", "required": True, "min_length": 1, "max_length": 6000}
     assert parameters["version"] == rp.PARAMETERS_VERSION
 
 
@@ -48,7 +48,7 @@ def test_published_limits_match_the_validation_schema() -> None:
         rule = parameters[key]
         schema = fields[rule["field"]]
         assert (schema["minLength"], schema["maxLength"]) == (rule["min_length"], rule["max_length"])
-    overall = fields["overall_rating"]
+    overall = next(option for option in fields["overall_rating"]["anyOf"] if "minimum" in option)
     assert (overall["minimum"], overall["maximum"]) == (1, 5)
     choices = {
         "traveller_types": "TravellerType",

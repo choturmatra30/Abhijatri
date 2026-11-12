@@ -152,6 +152,7 @@ def test_future_visit_month_has_a_specific_field_code() -> None:
         "title": "A fine trip",
         "body": "At least twenty characters of text.",
         "overall_rating": 4,
+        "category_ratings": {c: 4 for c in ("CLEANLINESS","ACCESSIBILITY","HOSPITALITY","FOOD","TRANSPORT","SAFETY_PERCEPTION","VALUE")},
         "consent_version": "2026-10-01",
     }
     error = _assert_standard(_client().post("/api/v1/reviews/guest", json=payload), 422, "VALIDATION_FAILED")

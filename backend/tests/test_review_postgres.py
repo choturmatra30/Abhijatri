@@ -59,6 +59,7 @@ def _payload(destination_id: uuid.UUID, draft_id: uuid.UUID | None = None) -> Gu
         title="পরিবার নিয়ে ভালো অভিজ্ঞতা",
         body="যাতায়াত সহজ ছিল এবং স্থানীয় মানুষের সহযোগিতা খুব ভালো পেয়েছি।",
         overall_rating=4,
+        category_ratings={c: 4 for c in ReviewCategory},
         consent_version="2026-10-01",
     )
 

@@ -41,7 +41,7 @@ export const ReviewEditForm: React.FC<{
   const { data: parameters } = useApiResource(() => getReviewParameters(), []);
   const titleMin = parameters?.title.min_length ?? 3;
   const titleMax = parameters?.title.max_length ?? 160;
-  const noteMin = parameters?.note.min_length ?? 20;
+  const noteMin = parameters?.note.min_length ?? 1;
   const noteMax = parameters?.note.max_length ?? 6000;
 
   const [values, setValues] = useState<EditableValues>(original);

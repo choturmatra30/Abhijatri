@@ -1411,34 +1411,108 @@
         "title": "GuestFeedbackSummary",
         "type": "object"
       },
-      "GuestReviewCreate": {
+      "GuestMineRequest": {
         "additionalProperties": false,
+        "description": "A Guest lists the reviews written from this browser: the scope secret is the read credential for\nstatus only. Edit, withdraw and appeal still need the receipt (Decisions 2026-11-12, P4a).",
         "properties": {
-          "body": {
-            "maxLength": 6000,
-            "minLength": 20,
-            "title": "Body",
-            "type": "string"
-          },
-          "category_ratings": {
+          "after": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "maximum": 5.0,
-                  "minimum": 1.0,
-                  "type": "integer"
-                },
-                "maxProperties": 7,
-                "propertyNames": {
-                  "$ref": "#/components/schemas/ReviewCategory"
-                },
-                "type": "object"
+                "maxLength": 200,
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Category Ratings"
+            "title": "After"
+          },
+          "destination_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Id"
+          },
+          "guest_scope_secret": {
+            "maxLength": 200,
+            "minLength": 43,
+            "title": "Guest Scope Secret",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "q": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "reported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "guest_scope_secret"
+        ],
+        "title": "GuestMineRequest",
+        "type": "object"
+      },
+      "GuestReviewCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "maxLength": 6000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "category_ratings": {
+            "additionalProperties": {
+              "maximum": 5.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxProperties": 7,
+            "propertyNames": {
+              "$ref": "#/components/schemas/ReviewCategory"
+            },
+            "title": "Category Ratings",
+            "type": "object"
           },
           "client_draft_id": {
             "format": "uuid",
@@ -1475,10 +1549,17 @@
             "$ref": "#/components/schemas/ReviewLanguage"
           },
           "overall_rating": {
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Overall Rating",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Rating"
           },
           "receipt_secret": {
             "maxLength": 100,
@@ -1523,7 +1604,7 @@
           "visit_month",
           "title",
           "body",
-          "overall_rating",
+          "category_ratings",
           "consent_version",
           "guest_scope_secret",
           "guest_display_name"
@@ -1951,29 +2032,22 @@
         "properties": {
           "body": {
             "maxLength": 6000,
-            "minLength": 20,
+            "minLength": 1,
             "title": "Body",
             "type": "string"
           },
           "category_ratings": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "maximum": 5.0,
-                  "minimum": 1.0,
-                  "type": "integer"
-                },
-                "maxProperties": 7,
-                "propertyNames": {
-                  "$ref": "#/components/schemas/ReviewCategory"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category Ratings"
+            "additionalProperties": {
+              "maximum": 5.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxProperties": 7,
+            "propertyNames": {
+              "$ref": "#/components/schemas/ReviewCategory"
+            },
+            "title": "Category Ratings",
+            "type": "object"
           },
           "client_draft_id": {
             "format": "uuid",
@@ -1998,10 +2072,17 @@
             "$ref": "#/components/schemas/ReviewLanguage"
           },
           "overall_rating": {
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Overall Rating",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Rating"
           },
           "receipt_secret": {
             "maxLength": 100,
@@ -2034,7 +2115,7 @@
           "visit_month",
           "title",
           "body",
-          "overall_rating",
+          "category_ratings",
           "consent_version"
         ],
         "title": "MemberReviewCreate",
@@ -3447,9 +3528,14 @@
           "guest_feedback": {
             "title": "Guest Feedback",
             "type": "string"
+          },
+          "overall_rating": {
+            "title": "Overall Rating",
+            "type": "string"
           }
         },
         "required": [
+          "overall_rating",
           "guest_feedback",
           "community_rating",
           "community_prior_mean",
@@ -4073,7 +4159,7 @@
             "anyOf": [
               {
                 "maxLength": 6000,
-                "minLength": 20,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -4422,6 +4508,11 @@
               }
             ],
             "title": "Published At"
+          },
+          "reported": {
+            "default": false,
+            "title": "Reported",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/ReviewStatus"
@@ -11077,6 +11168,45 @@
         "summary": "Create Guest Review"
       }
     },
+    "/api/v1/reviews/guest/mine": {
+      "post": {
+        "description": "The reviews written from this browser (the Guest scope secret), newest first. Read only: it returns the\nsame summary fields as ``GET /reviews/mine``. The secret travels in the body, never the URL (API.md 5.10a).",
+        "operationId": "guest_reviews_api_v1_reviews_guest_mine_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestMineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyReviews"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Guest Reviews"
+      }
+    },
     "/api/v1/reviews/member": {
       "post": {
         "description": "A signed-in member's review. No Turnstile: the session, CSRF token and rate limit stand in for it.\n\nRetry safety has two layers: the same ``client_draft_id`` and receipt recover the stored review\n(200, ``duplicate_recovered``), and an ``Idempotency-Key`` replays the first response (R16).",
@@ -11141,7 +11271,7 @@
     },
     "/api/v1/reviews/mine": {
       "get": {
-        "description": "The signed-in member's own reviews, newest first, with an opaque cursor (Review.md 9.3).",
+        "description": "The signed-in member's own reviews, newest first, with an opaque cursor (Review.md 9.3).\n\n``q`` is a keyword search over the title and text of the current revision; ``reported=true`` keeps\nonly reviews that someone reported and a moderator has already decided (API.md 5.10).",
         "operationId": "my_reviews_api_v1_reviews_mine_get",
         "parameters": [
           {
@@ -11175,6 +11305,39 @@
                 }
               ],
               "title": "Destination Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reported",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reported"
             }
           },
           {

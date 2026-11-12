@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, CloudOff, MessageSquareText, ReceiptText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { useSession } from '../context/SessionContext';
 import { useDestinationCatalog } from '../hooks/useDestinationCatalog';
 import { useDrafts } from '../hooks/useDrafts';
 import { EmptyState, ErrorState, LoadingState } from '../components/common/StatusViews';
@@ -62,7 +61,6 @@ const asSubmitted = (d: StoredDraft): SubmittedReview => ({
 /** Writing a guest review. `?destination=<id>` preselects the destination. */
 export const WriteReviewPage: React.FC = () => {
   const { t } = useLanguage();
-  const { session } = useSession();
   const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState<SubmittedReview | null>(null);
   // Offline the choice is the destinations saved on this device (packs and opened pages), so a draft
@@ -138,11 +136,7 @@ export const WriteReviewPage: React.FC = () => {
         <EmptyState title={t('রিভিউ দেওয়ার মতো কোনো প্রকাশিত গন্তব্য নেই', 'No published destinations to review yet')} />
       )}
 
-      {session.kind === 'member' ? (
-        <SwitchLink to="/account/reviews" text={['আগে রিভিউ দিয়েছেন? আমার রিভিউ-তে দেখুন', 'Already reviewed? Find it in My reviews']} />
-      ) : (
-        <SwitchLink to={REVIEW_RECEIPT_PATH} text={['আগে রিভিউ দিয়েছেন? রিসিপ্ট দিয়ে অবস্থা দেখুন', 'Already reviewed? Check it with your receipt']} />
-      )}
+      <SwitchLink to="/account/reviews" text={['আগে রিভিউ দিয়েছেন? আমার রিভিউ-তে দেখুন', 'Already reviewed? Find it in My reviews']} />
     </div>
   );
 };
